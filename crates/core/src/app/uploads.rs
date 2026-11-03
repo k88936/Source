@@ -1,0 +1,337 @@
+//! Upload queue: enqueue, run, cancel, retry and progress persistence.
+
+use super::*;
+
+/// Result of one upload attempt.
+///
+/// `asset` carries the catalog row written on success, so the UI can insert the
+/// new tile straight from the completion event instead of reloading a page.
+#[derive(Debug, Clone)]
+pub struct UploadOutcome {
+    pub task: UploadTask,
+    pub asset: Option<AssetSummary>,
+}
+
+impl AppCore {
+    pub async fn enqueue_uploads(
+        &self,
+        params: EnqueueUploadsParams,
+    ) -> Result<Vec<UploadTask>, AppError> {
+        if params.local_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let dest = self.resolve_dest(&params.dest_uri).await?;
+        let mut tasks = Vec::new();
+        for local_id in params.local_ids {
+            let Some(asset) = self.local.asset(&local_id)? else {
+                continue;
+            };
+            self.catalog.save_local_asset(&asset).await?;
+            let task = UploadTask {
+                id: UploadTaskId(format!("up-{}-{}", now_ms(), tasks.len())),
+                local_asset_id: asset.id.clone(),
+                name: asset.name.clone(),
+                dest_uri: dest.uri.clone(),
+                dest_name: Some(dest.name.clone()),
+                state: UploadState::Queued,
+                uploaded: 0,
+                total: asset.size.max(0),
+                speed: 0,
+                eta_seconds: None,
+                attempts: 0,
+                error: None,
+            };
+            self.catalog.enqueue_upload(&task).await?;
+            tasks.push(task);
+        }
+        Ok(tasks)
+    }
+
+    pub(crate) async fn resolve_dest(&self, dest_uri: &str) -> Result<FolderRef, AppError> {
+        if !dest_uri.trim().is_empty() {
+            if let Some(folder) = self.catalog.folder_by_uri(dest_uri).await? {
+                return Ok(FolderRef {
+                    id: folder.id.into(),
+                    uri: folder.uri,
+                    name: folder.name,
+                    path: folder.path,
+                });
+            }
+            let info = self.cloud.folder_info(dest_uri).await?;
+            let folder = folder_ref(&info);
+            self.catalog
+                .upsert_folder(&FolderRecord {
+                    id: folder.id.0.clone(),
+                    parent_id: None,
+                    name: folder.name.clone(),
+                    uri: folder.uri.clone(),
+                    path: folder.path.clone(),
+                    updated_at: info.updated_at,
+                    is_album: false,
+                    cover_asset_id: None,
+                    description: None,
+                })
+                .await?;
+            return Ok(folder);
+        }
+
+        let root = self
+            .catalog
+            .library_root()
+            .await?
+            .ok_or_else(|| AppError::internal("未选择图库根"))?;
+        let page = self.cloud.list_entries(&root.uri, None).await?;
+        if let Some(inbox) = page
+            .entries
+            .into_iter()
+            .find(|e| e.is_folder && e.name == "Inbox")
+        {
+            let folder = folder_ref(&inbox);
+            self.upsert_remote_folder(&folder, &inbox, Some(&root.id.0))
+                .await?;
+            return Ok(folder);
+        }
+        let inbox = self.cloud.create_folder(&root.uri, "Inbox").await?;
+        let folder = folder_ref(&inbox);
+        self.upsert_remote_folder(&folder, &inbox, Some(&root.id.0))
+            .await?;
+        Ok(folder)
+    }
+
+    pub async fn upload_tasks(&self) -> Result<Vec<UploadTask>, AppError> {
+        self.catalog.upload_tasks().await
+    }
+
+    pub async fn upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError> {
+        self.catalog.upload_task(id).await
+    }
+
+    pub async fn cancel_upload(&self, task_id: &str) -> Result<(), AppError> {
+        let Some(mut task) = self.catalog.upload_task(task_id).await? else {
+            return Err(AppError::not_found("上传任务不存在"));
+        };
+        if matches!(task.state, UploadState::Done | UploadState::Failed) {
+            return Ok(());
+        }
+        task.state = UploadState::Cancelled;
+        self.catalog.update_upload(&task).await?;
+        // A running attempt stops between two chunks and keeps its journal, so
+        // retrying the task later resumes instead of starting over.
+        if let Some(cancel) = self.upload_cancels.lock().unwrap().get(task_id) {
+            cancel.store(true, Ordering::SeqCst);
+        }
+        Ok(())
+    }
+
+    pub async fn retry_upload(&self, task_id: &str) -> Result<UploadTask, AppError> {
+        let Some(mut task) = self.catalog.upload_task(task_id).await? else {
+            return Err(AppError::not_found("上传任务不存在"));
+        };
+        task.state = UploadState::Queued;
+        task.error = None;
+        task.uploaded = 0;
+        task.speed = 0;
+        task.eta_seconds = None;
+        task.attempts += 1;
+        self.catalog.update_upload(&task).await?;
+        Ok(task)
+    }
+
+    /// Re-queue a failed task for an automatic retry.
+    ///
+    /// Unlike [`Self::retry_upload`] this keeps the progress counters: the
+    /// uploader resumes from its journal, and the UI should not flash back to 0%
+    /// while an unattended retry is waiting.
+    ///
+    /// Only a failed task can be re-queued: the retry loop calls this after a
+    /// backoff, and reviving a task the user cancelled meanwhile would undo the
+    /// cancellation.
+    pub async fn requeue_upload(&self, task_id: &str) -> Result<UploadTask, AppError> {
+        let Some(mut task) = self.catalog.upload_task(task_id).await? else {
+            return Err(AppError::not_found("上传任务不存在"));
+        };
+        if task.state != UploadState::Failed {
+            return Err(AppError::new(
+                ErrorCode::Conflict,
+                "上传任务已被取消或已完成".to_string(),
+                false,
+            ));
+        }
+        task.state = UploadState::Queued;
+        task.error = None;
+        task.speed = 0;
+        task.eta_seconds = None;
+        task.attempts += 1;
+        self.catalog.update_upload(&task).await?;
+        Ok(task)
+    }
+
+    /// Execute one queued task. The caller (Tauri runtime) is responsible for
+    /// scheduling and for forwarding `on_progress` to the webview.
+    pub async fn run_upload(
+        &self,
+        task_id: &str,
+        on_progress: Arc<dyn Fn(UploadProgressEvent) + Send + Sync>,
+    ) -> Result<UploadOutcome, AppError> {
+        let mut task = self
+            .catalog
+            .upload_task(task_id)
+            .await?
+            .ok_or_else(|| AppError::not_found("上传任务不存在"))?;
+        if task.state != UploadState::Queued {
+            return Ok(UploadOutcome { task, asset: None });
+        }
+        let local = self
+            .catalog
+            .local_asset(&task.local_asset_id)
+            .await?
+            .or(self.local.asset(&task.local_asset_id)?)
+            .ok_or_else(|| AppError::not_found("本机文件不存在"))?;
+
+        let max_total = task.total;
+        let display_task_id = task.id.0.clone();
+        let journal_key = display_task_id.clone();
+        // Registered before the first state write: a cancellation that lands
+        // while this attempt is being set up must not be lost, and must not be
+        // overwritten by the states written below.
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.upload_cancels
+            .lock()
+            .unwrap()
+            .insert(journal_key.clone(), Arc::clone(&cancel));
+        if cancel.load(Ordering::SeqCst) {
+            self.upload_cancels.lock().unwrap().remove(&journal_key);
+            task.state = UploadState::Cancelled;
+            return Ok(UploadOutcome { task, asset: None });
+        }
+
+        self.set_upload_state(&mut task, UploadState::CreatingSession)
+            .await?;
+        let folder_id = self
+            .catalog
+            .folder_by_uri(&task.dest_uri)
+            .await?
+            .map(|f| f.id)
+            .unwrap_or_else(|| task.dest_uri.clone());
+        self.set_upload_state(&mut task, UploadState::Uploading)
+            .await?;
+
+        // Single writer: the progress callback only hands the newest sample to a
+        // capacity-1 channel (stale samples are dropped) and the writer persists
+        // at most one sample per `PROGRESS_WRITE_INTERVAL`.
+        let (progress_tx, mut progress_rx) = mpsc::channel::<UploadProgress>(1);
+        let writer = tokio::spawn({
+            let catalog = self.catalog.clone();
+            let task_id = display_task_id.clone();
+            async move {
+                while let Some(update) = progress_rx.recv().await {
+                    let mut latest = update;
+                    while let Ok(next) = progress_rx.try_recv() {
+                        latest = next;
+                    }
+                    if let Ok(Some(mut current)) = catalog.upload_task(&task_id).await {
+                        current.uploaded = latest.uploaded;
+                        current.total = if latest.total > 0 {
+                            latest.total
+                        } else {
+                            max_total
+                        };
+                        current.speed = latest.speed;
+                        current.eta_seconds = latest.eta_seconds;
+                        let _ = catalog.update_upload(&current).await;
+                    }
+                    tokio::time::sleep(PROGRESS_WRITE_INTERVAL).await;
+                }
+            }
+        });
+        let progress = Arc::new(move |p: UploadProgress| {
+            let _ = progress_tx.try_send(p);
+            on_progress(UploadProgressEvent {
+                task_id: UploadTaskId(display_task_id.clone()),
+                uploaded: p.uploaded,
+                total: if p.total > 0 { p.total } else { max_total },
+                speed: p.speed,
+                eta_seconds: p.eta_seconds,
+            });
+        });
+
+        let result = self
+            .cloud
+            .upload_uri(UploadRequest {
+                task_id: UploadTaskId(journal_key.clone()),
+                source_uri: local.uri.clone(),
+                size: local.size,
+                dest_uri: task.dest_uri.clone(),
+                name: local.name.clone(),
+                mime: local.mime.clone(),
+                cancel,
+                progress,
+            })
+            .await;
+
+        // The terminal state written below is authoritative: stop the throttled
+        // writer first so it cannot overwrite it with a stale sample.
+        writer.abort();
+        self.upload_cancels.lock().unwrap().remove(&journal_key);
+
+        // The attempt may have been cancelled while it ran: its result must not
+        // turn a cancelled task back into a finished or failed one.
+        if let Some(current) = self.catalog.upload_task(&journal_key).await?
+            && current.state == UploadState::Cancelled
+        {
+            return Ok(UploadOutcome {
+                task: current,
+                asset: None,
+            });
+        }
+
+        match result {
+            Ok(entry) => {
+                self.set_upload_state(&mut task, UploadState::Completing)
+                    .await?;
+                let fid = crate::dto::FolderId::new(folder_id);
+                let client_exif = (local.date_taken > 0).then_some(crate::exif::ExifData {
+                    taken_at: Some(local.date_taken),
+                    width: local.width,
+                    height: local.height,
+                });
+                let record = asset_record(&entry, &fid, client_exif.as_ref());
+                let summary = record.summary.clone();
+                self.catalog.upsert_asset(&record).await?;
+                self.catalog.mark_album(&fid.0, true).await?;
+                self.catalog.rebuild_albums().await?;
+                task.state = UploadState::Done;
+                task.uploaded = task.total;
+                task.speed = 0;
+                task.eta_seconds = None;
+                task.error = None;
+                self.catalog.update_upload(&task).await?;
+                Ok(UploadOutcome {
+                    task,
+                    asset: Some(summary),
+                })
+            }
+            Err(err) => {
+                task.state = UploadState::Failed;
+                task.error = Some(err.clone());
+                task.speed = 0;
+                task.eta_seconds = None;
+                self.catalog.update_upload(&task).await?;
+                Err(err)
+            }
+        }
+    }
+
+    pub(crate) async fn set_upload_state(
+        &self,
+        task: &mut UploadTask,
+        state: UploadState,
+    ) -> Result<(), AppError> {
+        task.state = state;
+        self.catalog.update_upload(task).await
+    }
+
+    pub async fn pending_uploads(&self) -> Result<Vec<UploadTask>, AppError> {
+        self.catalog.pending_uploads().await
+    }
+}

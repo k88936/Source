@@ -1,0 +1,18 @@
+[package]
+name = "source-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+ts-rs = { workspace = true }
+async-trait = "0.1"
+imagesize = "0.14"
+kamadak-exif = "0.6"
+mime_guess = "2"
+regex = "1"
+time = { version = "0.3", features = ["macros", "parsing"] }
+tokio = { version = "1", features = ["rt", "sync", "time"] }
+url = "2"
