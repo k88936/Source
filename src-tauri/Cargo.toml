@@ -1,0 +1,32 @@
+[package]
+name = "source"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Source - a personal photo album backed by Cloudreve"
+
+[lib]
+# The `_lib` suffix keeps the lib name unique on Windows.
+name = "source_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+source-core = { path = "../crates/core" }
+source-catalog = { path = "../crates/catalog" }
+source-cloudreve = { path = "../crates/cloudreve" }
+source-media = { path = "../crates/media" }
+tokio = { version = "1", features = ["sync", "time", "rt"] }
+urlencoding = "2"
+mime_guess = "2"
+tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring", rev = "b0a137bab0c3e592c637c32c328040d86f28256a", version = "0.2.1" }
+# Dev builds can expose a simulated CDP endpoint (`--debug-cdp-port`); the code
+# lives behind `cfg(debug_assertions)` in `src/dev.rs`.
+tauri-plugin-playwright = { path = "../../tauri-playwright/packages/plugin" }
