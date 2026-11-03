@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use crate::app::session::{Capacity, LoginOutcome, SessionState, SiteInfo, UserInfo};
 use crate::credential::CredentialStore;
 use crate::error::{AppError, ErrorCode};
-use crate::journal::{UploadJournal, UploadSessionPort};
+use crate::journal::UploadSessionPort;
 
 mod api;
 mod auth;

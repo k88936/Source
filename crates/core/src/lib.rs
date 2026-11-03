@@ -24,7 +24,7 @@ pub use app::{
 };
 pub use credential::CredentialStore;
 pub use error::{AppError, ErrorCode};
-pub use journal::{StoredJournal, StoredRecord, StoredSession, UploadSessionPort};
+pub use journal::UploadSessionPort;
 pub use media::{
     FsLocalMedia, LOCAL_THUMB_EDGE, ThumbCache, fetch_bytes, fetch_range, preview_from_jpeg,
 };

@@ -42,7 +42,7 @@ fn cancelled() -> AppError {
 pub(crate) async fn drive_upload(
     stream: UploadStream,
     records: Vec<ChunkProgress>,
-    journal: &UploadJournal,
+    sessions: &dyn UploadSessionPort,
     key: &str,
     cancel: &AtomicBool,
     progress: &ProgressSink,
@@ -64,13 +64,13 @@ pub(crate) async fn drive_upload(
             UploadEvent::ChunkDone(record) => {
                 // Journal first, then stop: a cancelled attempt keeps every
                 // chunk the server has already accepted.
-                journal.append(key, &record).await?;
+                sessions.append_chunk(key, &record).await?;
                 if cancel.load(Ordering::SeqCst) {
                     return Err(cancelled());
                 }
             }
             UploadEvent::Completed => {
-                journal.remove(key).await;
+                let _ = sessions.remove_session(key).await;
                 return Ok(());
             }
             UploadEvent::Failed(error) => {
@@ -79,7 +79,7 @@ pub(crate) async fn drive_upload(
                 // never be resumed, so drop it instead of replaying it on every
                 // retry.
                 if matches!(error, UploadError::SessionExpired) {
-                    journal.remove(key).await;
+                    let _ = sessions.remove_session(key).await;
                 }
                 return Err(map_upload_error(error.into()));
             }
@@ -95,13 +95,15 @@ pub(crate) async fn drive_upload(
 /// A fresh session has its header journaled before the first chunk is polled.
 pub(crate) async fn open_upload(
     uploader: &Uploader,
-    journal: &UploadJournal,
+    sessions: &dyn UploadSessionPort,
     key: &str,
     params: UploadParams,
 ) -> Result<(UploadStream, Vec<ChunkProgress>), AppError> {
-    if let Some((header, records)) = journal.load(key).await {
+    // Unreadable journals read as "no journal": losing a resume point must
+    // never fail the upload itself.
+    if let Some((session, records)) = sessions.load_session(key).await.ok().flatten() {
         match uploader
-            .try_resume(header.session(), params.source.clone(), records.clone())
+            .try_resume(session, params.source.clone(), records.clone())
             .await
         {
             Ok(stream) => return Ok((stream, records)),
@@ -114,14 +116,14 @@ pub(crate) async fn open_upload(
                     Some(UploadError::SessionExpired)
                 ) =>
             {
-                journal.remove(key).await;
+                let _ = sessions.remove_session(key).await;
             }
             Err(error) => return Err(map_upload_error(error)),
         }
     }
 
     let stream = uploader.upload(params).await.map_err(map_upload_error)?;
-    journal.create(key, &stream.session).await?;
+    sessions.create_session(key, &stream.session).await?;
     Ok((stream, Vec::new()))
 }
 
