@@ -23,7 +23,7 @@ pub struct UploadProgress {
 
 /// One upload attempt: what to send, where, and how to report it.
 ///
-/// `task_id` doubles as the key of the resumable journal, so a retry of the
+/// `task_id` doubles as the key of the resumable session, so a retry of the
 /// same queue entry finds the chunks an earlier attempt already finished.
 pub struct UploadRequest {
     pub task_id: UploadTaskId,

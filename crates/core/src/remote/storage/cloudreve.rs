@@ -1,10 +1,10 @@
-//! The Cloudreve storage adapter: one signed-in client plus the upload journal.
+//! The Cloudreve storage adapter: one signed-in client plus the upload sessions.
 
 use super::*;
 use crate::remote::map_api_error;
 use crate::store::UploadSessionPort;
 
-/// Cloning is cheap: the account and the journal are shared handles.
+/// Cloning is cheap: the account and the sessions are shared handles.
 #[derive(Clone)]
 pub struct CloudreveStorage {
     account: Arc<dyn CurrentAccount>,

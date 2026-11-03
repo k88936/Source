@@ -118,7 +118,7 @@ async fn run_one_upload(
                 return;
             }
             Err(error) => {
-                // Transient failures resume from the journal on the next try;
+                // Transient failures resume from the session on the next try;
                 // anything else (auth, permission, conflict) is final.
                 if error.retryable && retries < MAX_RETRIES {
                     retries += 1;

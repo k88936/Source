@@ -185,7 +185,7 @@ where
         }
         task.state = UploadState::Cancelled;
         self.catalog.update_upload(&task).await?;
-        // A running attempt stops between two chunks and keeps its journal, so
+        // A running attempt stops between two chunks and keeps its session, so
         // retrying the task later resumes instead of starting over.
         if let Some(cancel) = self.cancels.lock().unwrap().get(task_id) {
             cancel.store(true, Ordering::SeqCst);
@@ -210,7 +210,7 @@ where
     /// Re-queue a failed task for an automatic retry.
     ///
     /// Unlike [`Self::retry`] this keeps the progress counters: the uploader
-    /// resumes from its journal, and the UI should not flash back to 0% while an
+    /// resumes from its session, and the UI should not flash back to 0% while an
     /// unattended retry is waiting.
     ///
     /// Only a failed task can be re-queued: the retry loop calls this after a
@@ -260,7 +260,7 @@ where
 
         let max_total = task.total;
         let display_task_id = task.id.0.clone();
-        let journal_key = display_task_id.clone();
+        let session_key = display_task_id.clone();
         // Registered before the first state write: a cancellation that lands
         // while this attempt is being set up must not be lost, and must not be
         // overwritten by the states written below.
@@ -268,9 +268,9 @@ where
         self.cancels
             .lock()
             .unwrap()
-            .insert(journal_key.clone(), Arc::clone(&cancel));
+            .insert(session_key.clone(), Arc::clone(&cancel));
         if cancel.load(Ordering::SeqCst) {
-            self.cancels.lock().unwrap().remove(&journal_key);
+            self.cancels.lock().unwrap().remove(&session_key);
             task.state = UploadState::Cancelled;
             return Ok(UploadOutcome { task, asset: None });
         }
@@ -327,7 +327,7 @@ where
         let result = self
             .cloud
             .upload_uri(UploadRequest {
-                task_id: UploadTaskId(journal_key.clone()),
+                task_id: UploadTaskId(session_key.clone()),
                 source_uri: local.uri.clone(),
                 size: local.size,
                 dest_uri: task.dest_uri.clone(),
@@ -341,11 +341,11 @@ where
         // The terminal state written below is authoritative: stop the throttled
         // writer first so it cannot overwrite it with a stale sample.
         writer.abort();
-        self.cancels.lock().unwrap().remove(&journal_key);
+        self.cancels.lock().unwrap().remove(&session_key);
 
         // The attempt may have been cancelled while it ran: its result must not
         // turn a cancelled task back into a finished or failed one.
-        if let Some(current) = self.catalog.upload_task(&journal_key).await?
+        if let Some(current) = self.catalog.upload_task(&session_key).await?
             && current.state == UploadState::Cancelled
         {
             return Ok(UploadOutcome {

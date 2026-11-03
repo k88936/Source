@@ -31,10 +31,10 @@ impl CloudreveStorage {
             previous_version: String::new(),
         };
 
-        // The journal is what lets an interrupted upload pick up the chunks the
-        // server already holds. It is keyed by the queue task, so a retry of the
-        // same entry resumes while a second upload of the same file does not
-        // share or clobber its chunks.
+        // The stored session is what lets an interrupted upload pick up the
+        // chunks the server already holds. It is keyed by the queue task, so a
+        // retry of the same entry resumes while a second upload of the same file
+        // does not share or clobber its chunks.
         let key = request.task_id.0.clone();
 
         let (stream, records) =

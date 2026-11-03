@@ -1,4 +1,4 @@
-//! Event-stream upload driving: journal, progress and error mapping.
+//! Event-stream upload driving: upload sessions, progress and error mapping.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -34,13 +34,13 @@ fn cancelled() -> AppError {
     AppError::new(ErrorCode::Cancelled, "上传已取消".to_string(), false)
 }
 
-/// Consume the event stream, journaling every finished chunk as it arrives, and
+/// Consume the event stream, recording every finished chunk as it arrives, and
 /// report progress to `progress`.
 ///
-/// The header is written by [`open_upload`] before the first chunk is polled, so
-/// an interruption during this attempt can still be resumed; only the finished
-/// chunks are appended here. Cancellation is honoured between two chunks, which
-/// keeps a cancelled attempt resumable.
+/// The session is stored by [`open_upload`] before the first chunk is polled,
+/// so an interruption during this attempt can still be resumed; only the
+/// finished chunks are appended here. Cancellation is honoured between two
+/// chunks, which keeps a cancelled attempt resumable.
 pub(crate) async fn drive_upload(
     stream: UploadStream,
     records: Vec<ChunkProgress>,
@@ -53,8 +53,8 @@ pub(crate) async fn drive_upload(
         session,
         mut events,
     } = stream;
-    // A resumed upload knows its progress from the journal, before the first
-    // chunk of this attempt finishes.
+    // A resumed upload knows its progress from the stored session, before the
+    // first chunk of this attempt finishes.
     let mut tracker = Tracker::new(&session, &records);
     progress(upload_progress(tracker.current()));
 
@@ -64,7 +64,7 @@ pub(crate) async fn drive_upload(
         }
         match event {
             UploadEvent::ChunkDone(record) => {
-                // Journal first, then stop: a cancelled attempt keeps every
+                // Record first, then stop: a cancelled attempt keeps every
                 // chunk the server has already accepted.
                 sessions.append_chunk(key, &record).await?;
                 if cancel.load(Ordering::SeqCst) {
@@ -77,7 +77,7 @@ pub(crate) async fn drive_upload(
             }
             UploadEvent::Failed(error) => {
                 // The uploader reports a session the server no longer knows as
-                // expired before anything new was uploaded. That journal can
+                // expired before anything new was uploaded. That session can
                 // never be resumed, so drop it instead of replaying it on every
                 // retry.
                 if matches!(error, UploadError::SessionExpired) {
@@ -91,19 +91,17 @@ pub(crate) async fn drive_upload(
     Err(AppError::internal("上传意外中断"))
 }
 
-/// Open the stream for `params`, resuming the journal under `key` when the
+/// Open the stream for `params`, resuming the session under `key` when the
 /// server session it points at may still be alive.
 ///
-/// A fresh session has its header journaled before the first chunk is polled.
+/// A fresh session is stored before the first chunk is polled.
 pub(crate) async fn open_upload(
     uploader: &Uploader,
     sessions: &dyn UploadSessionPort,
     key: &str,
     params: UploadParams,
 ) -> Result<(UploadStream, Vec<ChunkProgress>), AppError> {
-    // Unreadable journals read as "no journal": losing a resume point must
-    // never fail the upload itself.
-    if let Some((session, records)) = sessions.load_session(key).await.ok().flatten() {
+    if let Some((session, records)) = sessions.load_session(key).await? {
         match uploader
             .try_resume(session, params.source.clone(), records.clone())
             .await
@@ -154,7 +152,7 @@ pub(crate) fn map_upload_error(error: anyhow::Error) -> AppError {
 
 pub(crate) fn map_upload_failure(error: &UploadError) -> AppError {
     // The uploader reports a session the server no longer knows as expired, and
-    // the journal was dropped, so a retry starts a fresh session from zero.
+    // the session was dropped, so a retry starts a fresh session from zero.
     if matches!(error, UploadError::SessionExpired) {
         return AppError::new(
             ErrorCode::Server,
