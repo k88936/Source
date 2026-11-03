@@ -1,0 +1,1 @@
+-- SQLite cannot drop a column in older versions; the column is harmless.
