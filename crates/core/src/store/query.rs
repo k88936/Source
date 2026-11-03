@@ -1,8 +1,8 @@
 //! Queries shared by several port methods.
 
 use super::asset::rows::AssetRow;
+use super::asset::schema::assets;
 use super::asset::values::*;
-use super::schema::assets;
 use super::*;
 
 // ---------------------------------------------------------------------------

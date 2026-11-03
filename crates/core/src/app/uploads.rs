@@ -14,8 +14,8 @@ use crate::mapping::asset_record;
 use crate::media::LocalMediaPort;
 use crate::remote::{CloudrevePort, UploadProgress, UploadRequest};
 use crate::store::{
-    AlbumStore, AssetStore, AssetSummary, FolderId, FolderRef, FolderStore, ServerStore,
-    UploadQueueStore, UploadState, UploadTask, UploadTaskId,
+    AlbumStore, AssetStore, AssetSummary, FolderId, FolderRef, FolderStore, LocalStore,
+    ServerStore, UploadQueueStore, UploadState, UploadTask, UploadTaskId,
 };
 use crate::time::now_ms;
 
@@ -90,7 +90,14 @@ impl<R, C, M> UploadsService<R, C, M> {
 impl<R, C, M> UploadsService<R, C, M>
 where
     R: CloudrevePort,
-    C: AlbumStore + AssetStore + FolderStore + ServerStore + UploadQueueStore + Clone + 'static,
+    C: AlbumStore
+        + AssetStore
+        + FolderStore
+        + LocalStore
+        + ServerStore
+        + UploadQueueStore
+        + Clone
+        + 'static,
     M: LocalMediaPort,
 {
     pub async fn enqueue(&self, params: EnqueueUploadsParams) -> Result<Vec<UploadTask>, AppError> {

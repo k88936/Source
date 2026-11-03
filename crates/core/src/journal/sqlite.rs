@@ -8,10 +8,10 @@ use diesel::prelude::*;
 use diesel::upsert::excluded;
 use diesel_async::{AsyncConnection, RunQueryDsl};
 
+use super::schema::upload_session_records as records;
+use super::schema::upload_sessions as sessions;
 use super::*;
 use crate::sqlite::{Conn, SqliteCatalog, TxError, db_err};
-use crate::store::schema::upload_session_records as records;
-use crate::store::schema::upload_sessions as sessions;
 use crate::time::now_ms;
 
 pub(crate) async fn create_session(

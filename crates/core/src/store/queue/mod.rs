@@ -5,11 +5,12 @@ use async_trait::async_trait;
 
 use crate::time::now_ms;
 
-use super::schema::upload_queue as queue;
+use self::schema::upload_queue as queue;
 use super::*;
 
 mod dto;
 pub(crate) mod rows;
+pub(crate) mod schema;
 mod values;
 
 pub use dto::*;

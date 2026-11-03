@@ -5,10 +5,10 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 
+use super::asset::schema::assets;
 use super::folder::rows::FolderRow;
+use super::folder::schema::folders;
 use super::query::*;
-use super::schema::assets;
-use super::schema::folders;
 use super::*;
 
 mod dto;

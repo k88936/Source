@@ -6,6 +6,7 @@ use cloudreve_sdk_uploader::{ChunkProgress, UploadSession};
 use crate::error::AppError;
 
 mod codec;
+pub(crate) mod schema;
 pub(crate) mod sqlite;
 
 pub(crate) use codec::*;

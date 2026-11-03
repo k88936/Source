@@ -4,8 +4,8 @@ use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 
 use super::super::folder::FolderId;
-use super::super::schema;
 use super::dto::{AssetId, AssetSummary};
+use super::schema;
 use super::values::*;
 
 #[derive(Queryable, Selectable)]

@@ -3,8 +3,8 @@
 use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 
-use super::super::schema;
 use super::dto::{UploadTask, UploadTaskId};
+use super::schema;
 use super::values::upload_state_from_str;
 
 #[derive(Queryable, Selectable)]

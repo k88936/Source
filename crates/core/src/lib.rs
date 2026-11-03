@@ -34,6 +34,6 @@ pub use remote::{
 };
 pub use sqlite::SqliteCatalog;
 pub use store::{
-    AlbumStore, AssetRecord, AssetStore, FolderRecord, FolderStore, FolderSyncState, SearchQuery,
-    ServerStore, TimelineStore, UploadQueueStore,
+    AlbumStore, AssetRecord, AssetStore, FolderRecord, FolderStore, FolderSyncState, LocalStore,
+    SearchQuery, ServerStore, TimelineStore, UploadQueueStore,
 };

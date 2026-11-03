@@ -1,8 +1,9 @@
 //! The pooled SQLite connection every store module talks to.
 //!
-//! The schema lives in `migrations/` and is mirrored by [`crate::store::schema`];
-//! every query is written with the diesel DSL so column types, joins and upserts
-//! are checked at compile time. Pending migrations are applied once, at startup.
+//! The schema lives in `migrations/` and is mirrored by the `schema` module of
+//! each store family; every query is written with the diesel DSL so column
+//! types and upserts are checked at compile time. Pending migrations are applied
+//! once, at startup.
 
 use std::path::Path;
 

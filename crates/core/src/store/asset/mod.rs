@@ -4,13 +4,14 @@
 
 use async_trait::async_trait;
 
+use self::schema::assets;
+use super::folder::schema::folders;
 use super::query::*;
-use super::schema::assets;
-use super::schema::folders;
 use super::*;
 
 mod dto;
 pub(crate) mod rows;
+pub(crate) mod schema;
 pub(crate) mod values;
 
 pub use dto::*;
@@ -27,9 +28,6 @@ pub trait AssetStore: Send + Sync {
     async fn set_favorite(&self, asset_id: &str, value: bool) -> Result<(), AppError>;
     /// Store the blur-up mosaic for a tile. Written once per asset, lazily.
     async fn set_asset_thumb_hash(&self, asset_id: &str, value: &str) -> Result<(), AppError>;
-
-    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), AppError>;
-    async fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError>;
 }
 
 pub(crate) async fn upsert_asset(cat: &SqliteCatalog, asset: &AssetRecord) -> Result<(), AppError> {
@@ -255,13 +253,5 @@ impl AssetStore for SqliteCatalog {
 
     async fn set_asset_thumb_hash(&self, asset_id: &str, value: &str) -> Result<(), AppError> {
         set_thumb_hash(self, asset_id, value).await
-    }
-
-    async fn save_local_asset(&self, asset_record: &LocalAsset) -> Result<(), AppError> {
-        super::local::save_local_asset(self, asset_record).await
-    }
-
-    async fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
-        super::local::local_asset(self, id).await
     }
 }

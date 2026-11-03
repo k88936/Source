@@ -3,8 +3,8 @@
 use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 
+use super::schema;
 use crate::media::LocalAsset;
-use crate::store::schema;
 
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = schema::local_assets)]

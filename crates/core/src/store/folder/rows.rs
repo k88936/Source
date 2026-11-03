@@ -4,8 +4,8 @@
 use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 
-use super::super::schema;
 use super::dto::{FolderRecord, FolderSyncState};
+use super::schema;
 
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = schema::folders)]

@@ -5,14 +5,14 @@ use std::collections::HashSet;
 
 use async_trait::async_trait;
 
+use self::schema::{folders, sync_state};
+use super::asset::schema::assets;
 use super::query::*;
-use super::schema::assets;
-use super::schema::folders;
-use super::schema::sync_state;
 use super::*;
 
 mod dto;
 pub(crate) mod rows;
+pub(crate) mod schema;
 
 pub use dto::*;
 

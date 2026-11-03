@@ -22,7 +22,6 @@ mod id;
 mod local;
 mod query;
 mod queue;
-pub(crate) mod schema;
 mod server;
 mod timeline;
 
@@ -31,6 +30,7 @@ pub use album::*;
 pub use asset::*;
 pub use folder::*;
 pub(crate) use id::id_type;
+pub use local::*;
 pub use queue::*;
 pub use server::*;
 pub use timeline::*;

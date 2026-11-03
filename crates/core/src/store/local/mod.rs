@@ -1,10 +1,20 @@
-//! The local (on-device) media library.
+//! The local (on-device) media library: the contract and the diesel statements
+//! behind it.
 
-mod rows;
+use async_trait::async_trait;
 
 use self::rows::*;
-use super::schema::local_assets;
+use self::schema::local_assets;
 use super::*;
+
+mod rows;
+pub(crate) mod schema;
+
+#[async_trait]
+pub trait LocalStore: Send + Sync {
+    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), AppError>;
+    async fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError>;
+}
 
 pub(crate) async fn save_local_asset(
     cat: &SqliteCatalog,
@@ -56,4 +66,15 @@ pub(crate) async fn local_asset(
         .optional()
         .map(|row| row.map(LocalAsset::from))
         .map_err(db_err)
+}
+
+#[async_trait]
+impl LocalStore for SqliteCatalog {
+    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), AppError> {
+        save_local_asset(self, asset).await
+    }
+
+    async fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+        local_asset(self, id).await
+    }
 }

@@ -5,11 +5,11 @@ use async_trait::async_trait;
 
 use crate::time::now_ms;
 
-use super::schema::app_state as state;
-use super::schema::server;
+use self::schema::{app_state as state, server};
 use super::*;
 
 mod dto;
+pub(crate) mod schema;
 
 pub use dto::*;
 
