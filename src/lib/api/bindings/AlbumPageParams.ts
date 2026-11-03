@@ -2,4 +2,8 @@
 import type { AlbumId } from "./AlbumId";
 import type { TimelineCursor } from "./TimelineCursor";
 
-export type AlbumPageParams = { albumId: AlbumId, cursor: TimelineCursor | null, limit: number, };
+export type AlbumPageParams = {
+  albumId: AlbumId;
+  cursor: TimelineCursor | null;
+  limit: number;
+};

@@ -33,7 +33,7 @@
 		saving = true;
 		try {
 			const root = await api.setLibraryRoot({ uri: browse.parent.uri });
-			if (app.session) app.session = { ...app.session, libraryRoot: root };
+			if (app.account) app.account = { ...app.account, libraryRoot: root };
 			open = false;
 			app.showToast(`图库根目录已设为 ${root.path}`, 'success');
 			onchange?.();

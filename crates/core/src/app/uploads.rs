@@ -12,14 +12,14 @@ use crate::error::{AppError, ErrorCode};
 use crate::exif::ExifData;
 use crate::mapping::asset_record;
 use crate::media::LocalMediaPort;
-use crate::remote::{CloudrevePort, UploadProgress, UploadRequest};
+use crate::remote::{RemoteStorage, UploadProgress, UploadRequest};
 use crate::store::{
-    AlbumStore, AssetStore, AssetSummary, FolderId, FolderRef, FolderStore, LocalStore,
-    ServerStore, UploadQueueStore, UploadState, UploadTask, UploadTaskId,
+    AccountStore, AlbumStore, AssetStore, AssetSummary, FolderId, FolderRef, FolderStore,
+    LocalStore, UploadQueueStore, UploadState, UploadTask, UploadTaskId,
 };
 use crate::time::now_ms;
 
-use super::{PROGRESS_WRITE_INTERVAL, folder_ref, upsert_remote_folder};
+use super::{PROGRESS_WRITE_INTERVAL, folder_ref, library_root, upsert_remote_folder};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -89,12 +89,12 @@ impl<R, C, M> UploadsService<R, C, M> {
 
 impl<R, C, M> UploadsService<R, C, M>
 where
-    R: CloudrevePort,
+    R: RemoteStorage,
     C: AlbumStore
         + AssetStore
         + FolderStore
         + LocalStore
-        + ServerStore
+        + AccountStore
         + UploadQueueStore
         + Clone
         + 'static,
@@ -149,9 +149,7 @@ where
             return Ok(folder);
         }
 
-        let root = self
-            .catalog
-            .library_root()
+        let root = library_root(&self.catalog)
             .await?
             .ok_or_else(|| AppError::internal("未选择图库根"))?;
         let page = self.cloud.list_entries(&root.uri, None).await?;

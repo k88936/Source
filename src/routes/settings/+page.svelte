@@ -63,12 +63,12 @@
 	<section class="rounded-2xl bg-gray p-4">
 		<div class="flex items-center gap-3">
 			<div class="grid size-12 place-items-center rounded-full bg-primary text-lg font-semibold text-on-primary">
-				{app.session?.user.name?.slice(0, 1).toUpperCase() ?? '?'}
+				{app.account?.user.name?.slice(0, 1).toUpperCase() ?? '?'}
 			</div>
 			<div class="min-w-0 flex-1">
-				<p class="truncate text-sm font-semibold">{app.session?.user.name}</p>
-				<p class="truncate text-xs text-muted">{app.session?.user.email}</p>
-				<p class="truncate text-[11px] text-muted">{app.session?.server}</p>
+				<p class="truncate text-sm font-semibold">{app.account?.user.name}</p>
+				<p class="truncate text-xs text-muted">{app.account?.user.email}</p>
+				<p class="truncate text-[11px] text-muted">{app.account?.server}</p>
 			</div>
 		</div>
 		<div class="mt-3 flex gap-2">
@@ -166,7 +166,7 @@
 			<span>平台</span><span>{info?.platform ?? 'web'}</span>
 		</div>
 		<div class="flex justify-between py-1.5">
-			<span>图库根</span><span class="max-w-[60%] truncate">{app.session?.libraryRoot?.path ?? '未设置'}</span>
+			<span>图库根</span><span class="max-w-[60%] truncate">{app.account?.libraryRoot?.path ?? '未设置'}</span>
 		</div>
 	</section>
 

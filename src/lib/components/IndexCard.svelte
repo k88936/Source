@@ -56,14 +56,14 @@
 		{:else}
 			<button
 				onclick={() => void app.startIndex(false)}
-				disabled={!app.session?.libraryRoot}
+				disabled={!app.account?.libraryRoot}
 				class="flex-1 rounded-xl bg-primary py-2 text-xs font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
 			>
 				{app.index.phase === 'paused' ? '继续索引' : '增量索引'}
 			</button>
 			<button
 				onclick={() => void app.startIndex(true)}
-				disabled={!app.session?.libraryRoot}
+				disabled={!app.account?.libraryRoot}
 				class="rounded-xl border border-line px-3 py-2 text-xs transition-colors hover:bg-gray"
 			>
 				完整重建

@@ -1,8 +1,6 @@
-DROP TABLE app_state;
-DROP TABLE upload_queue;
-DROP TABLE local_assets;
-DROP TABLE local_albums;
-DROP TABLE sync_state;
+-- Reverting drops every indexed folder, so the next index pass rebuilds it.
+PRAGMA foreign_keys = OFF;
 DROP TABLE assets;
+DROP TABLE sync_state;
 DROP TABLE folders;
-DROP TABLE server;
+PRAGMA foreign_keys = ON;

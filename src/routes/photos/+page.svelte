@@ -94,7 +94,7 @@
 
 <TopBar
 	title={selection.active ? `已选择 ${selection.count} 项` : '照片'}
-	subtitle={selection.active ? '' : (app.session?.siteName ?? '')}
+	subtitle={selection.active ? '' : (app.account?.siteName ?? '')}
 >
 	{#snippet actions()}
 		{#if selection.active}
@@ -124,7 +124,7 @@
 	{/snippet}
 </TopBar>
 
-{#if !app.session?.libraryRoot}
+{#if !app.account?.libraryRoot}
 	<EmptyState
 		icon="cloud"
 		title="还没有选择图库根目录"

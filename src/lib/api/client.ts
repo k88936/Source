@@ -22,7 +22,7 @@ import type { MediaPermissionState } from "./bindings/MediaPermissionState";
 import type { MoveAssetsParams } from "./bindings/MoveAssetsParams";
 import type { RemoteFolderPage } from "./bindings/RemoteFolderPage";
 import type { SearchParams } from "./bindings/SearchParams";
-import type { SessionState } from "./bindings/SessionState";
+import type { AccountState } from "./bindings/AccountState";
 import type { SetAlbumCoverParams } from "./bindings/SetAlbumCoverParams";
 import type { SetAlbumDescriptionParams } from "./bindings/SetAlbumDescriptionParams";
 import type { SetFavoriteParams } from "./bindings/SetFavoriteParams";
@@ -65,10 +65,10 @@ export const api = {
 
   setServer: (params: SetServerParams) => call<SiteInfo>("set_server", params),
   login: (params: LoginParams) => call<LoginOutcome>("login", params),
-  login2fa: (params: Login2faParams) => call<SessionState>("login_2fa", params),
+  login2fa: (params: Login2faParams) => call<AccountState>("login_2fa", params),
   logout: () => call<void>("logout"),
-  sessionState: () => call<SessionState | null>("session_state"),
-  refreshCapacity: () => call<Capacity>("refresh_capacity"),
+  accountState: () => call<AccountState | null>("account_state"),
+  capacity: () => call<Capacity>("capacity"),
 
   listRemoteFolders: (params: ListRemoteFoldersParams) =>
     call<RemoteFolderPage>("list_remote_folders", params),

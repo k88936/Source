@@ -2,4 +2,11 @@
 import type { AppError } from "./AppError";
 import type { IndexPhase } from "./IndexPhase";
 
-export type IndexStatus = { phase: IndexPhase, foldersDone: number, foldersTotal: number, assetsSeen: number, startedAt: number | null, error: AppError | null, };
+export type IndexStatus = {
+  phase: IndexPhase;
+  foldersDone: number;
+  foldersTotal: number;
+  assetsSeen: number;
+  startedAt: number | null;
+  error: AppError | null;
+};

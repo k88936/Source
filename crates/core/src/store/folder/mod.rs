@@ -20,9 +20,6 @@ use self::rows::*;
 
 #[async_trait]
 pub trait FolderStore: Send + Sync {
-    async fn set_library_root(&self, root: &FolderRef) -> Result<(), AppError>;
-    async fn library_root(&self) -> Result<Option<FolderRef>, AppError>;
-
     async fn upsert_folder(&self, folder: &FolderRecord) -> Result<(), AppError>;
     async fn folder(&self, id: &str) -> Result<Option<FolderRecord>, AppError>;
     async fn folder_by_uri(&self, uri: &str) -> Result<Option<FolderRecord>, AppError>;
@@ -46,24 +43,6 @@ pub trait FolderStore: Send + Sync {
     /// Only a completed full pass has listed the whole tree, so a caller must
     /// not prune after a partial or incremental run.
     async fn retain_folders(&self, keep: &HashSet<String>) -> Result<(), AppError>;
-}
-
-pub(crate) async fn set_library_root(
-    cat: &SqliteCatalog,
-    root: &FolderRef,
-) -> Result<(), AppError> {
-    let value = serde_json::to_string(root)
-        .map_err(|e| AppError::internal(format!("serialize root: {e}")))?;
-    cat.set_setting("library_root", &value).await
-}
-
-pub(crate) async fn library_root(cat: &SqliteCatalog) -> Result<Option<FolderRef>, AppError> {
-    match cat.get_setting("library_root").await? {
-        Some(raw) => serde_json::from_str(&raw)
-            .map(Some)
-            .map_err(|e| AppError::internal(format!("parse library root: {e}"))),
-        None => Ok(None),
-    }
 }
 
 pub(crate) async fn upsert_folder(
@@ -267,14 +246,6 @@ pub(crate) async fn replace_folder_assets(
 
 #[async_trait]
 impl FolderStore for SqliteCatalog {
-    async fn set_library_root(&self, root: &FolderRef) -> Result<(), AppError> {
-        set_library_root(self, root).await
-    }
-
-    async fn library_root(&self) -> Result<Option<FolderRef>, AppError> {
-        library_root(self).await
-    }
-
     async fn upsert_folder(&self, folder_record: &FolderRecord) -> Result<(), AppError> {
         upsert_folder(self, folder_record).await
     }

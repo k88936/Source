@@ -1,4 +1,7 @@
-//! Session tokens: the platform keychain, plus a plaintext file for dev builds.
+//! Account tokens: the platform keychain, plus a plaintext file for dev builds.
+//!
+//! Both stores are keyed by the account's server, so two accounts can be signed
+//! in without overwriting each other's token.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -7,20 +10,17 @@ use source_core::CredentialStore;
 use tauri::AppHandle;
 use tauri_plugin_keyring::{CredentialType, CredentialValue, KeyringExt};
 
-/// Session tokens in the OS keychain (Android Keystore, Apple Keychain,
-/// Windows Credential Manager, Secret Service). A legacy 0600 file is read
-/// once and deleted after migration; new tokens are never written in plaintext.
+/// Tokens in the OS keychain (Android Keystore, Apple Keychain, Windows
+/// Credential Manager, Secret Service), one entry per server.
 pub struct KeyringCredentialStore {
     app: AppHandle,
-    fallback: FileCredentialStore,
     available: AtomicBool,
 }
 
 impl KeyringCredentialStore {
     const SERVICE: &'static str = "top.k88936.source";
-    const USER: &'static str = "cloudreve-session";
 
-    pub fn new(app: AppHandle, legacy_path: PathBuf) -> Self {
+    pub fn new(app: AppHandle) -> Self {
         let available = app
             .keyring()
             .initialize_service(Self::SERVICE.to_string())
@@ -30,110 +30,86 @@ impl KeyringCredentialStore {
         }
         Self {
             app,
-            fallback: FileCredentialStore::new(legacy_path),
             available: AtomicBool::new(available),
-        }
-    }
-
-    fn keyring_read(&self) -> Option<String> {
-        if !self.available.load(Ordering::Relaxed) {
-            return None;
-        }
-        match self.app.keyring().get(Self::USER, CredentialType::Password) {
-            Ok(CredentialValue::Password(value)) => Some(value),
-            _ => None,
         }
     }
 }
 
 impl CredentialStore for KeyringCredentialStore {
-    fn read(&self) -> Option<String> {
-        if let Some(value) = self.keyring_read() {
-            return Some(value);
-        }
-        if !cfg!(desktop) {
+    fn read(&self, key: &str) -> Option<String> {
+        if !self.available.load(Ordering::Relaxed) {
             return None;
         }
-        let legacy = self.fallback.read();
-        if let Some(value) = &legacy
-            && self.available.load(Ordering::Relaxed)
-            && self
-                .app
-                .keyring()
-                .set(
-                    Self::USER,
-                    CredentialType::Password,
-                    CredentialValue::Password(value.clone()),
-                )
-                .is_ok()
-        {
-            self.fallback.clear();
+        match self.app.keyring().get(key, CredentialType::Password) {
+            Ok(CredentialValue::Password(value)) => Some(value),
+            _ => None,
         }
-        legacy
     }
 
-    fn write(&self, value: &str) {
-        if self.available.load(Ordering::Relaxed) {
-            if let Err(error) = self.app.keyring().set(
-                Self::USER,
-                CredentialType::Password,
-                CredentialValue::Password(value.to_string()),
-            ) {
-                // Never downgrade to a plaintext file; the user simply has to
-                // log in again next launch.
-                eprintln!("failed to write session to platform keyring: {error}");
-            }
-            self.fallback.clear();
+    fn write(&self, key: &str, value: &str) {
+        if !self.available.load(Ordering::Relaxed) {
+            eprintln!("platform keyring unavailable; session will not be persisted");
             return;
         }
-        eprintln!("platform keyring unavailable; session will not be persisted");
+        if let Err(error) = self.app.keyring().set(
+            key,
+            CredentialType::Password,
+            CredentialValue::Password(value.to_string()),
+        ) {
+            eprintln!("failed to write session to platform keyring: {error}");
+        }
     }
 
-    fn clear(&self) {
+    fn clear(&self, key: &str) {
         if self.available.load(Ordering::Relaxed) {
-            let _ = self
-                .app
-                .keyring()
-                .delete(Self::USER, CredentialType::Password);
+            let _ = self.app.keyring().delete(key, CredentialType::Password);
         }
-        self.fallback.clear();
     }
 }
 
-/// Filesystem fallback/migration store, used by dev builds and to migrate a
-/// token written before the keyring was wired in.
+/// Filesystem store, used by dev builds.
 pub struct FileCredentialStore {
-    path: PathBuf,
+    dir: PathBuf,
 }
 
 impl FileCredentialStore {
-    pub fn new(path: PathBuf) -> Self {
-        Self { path }
+    pub fn new(dir: PathBuf) -> Self {
+        Self { dir }
+    }
+
+    /// The server URL is not a legal file name on every platform, so the key is
+    /// hex-encoded rather than sanitized.
+    fn path(&self, key: &str) -> PathBuf {
+        let mut name = String::with_capacity(key.len() * 2);
+        for byte in key.as_bytes() {
+            name.push_str(&format!("{byte:02x}"));
+        }
+        self.dir.join(name)
     }
 }
 
 impl CredentialStore for FileCredentialStore {
-    fn read(&self) -> Option<String> {
-        std::fs::read_to_string(&self.path).ok()
+    fn read(&self, key: &str) -> Option<String> {
+        std::fs::read_to_string(self.path(key)).ok()
     }
 
-    fn write(&self, value: &str) {
-        if let Some(parent) = self.path.parent() {
-            let _ = std::fs::create_dir_all(parent);
+    fn write(&self, key: &str, value: &str) {
+        if std::fs::create_dir_all(&self.dir).is_err() {
+            return;
         }
-        let tmp = self.path.with_extension("tmp");
+        let path = self.path(key);
+        let tmp = path.with_extension("tmp");
         if std::fs::write(&tmp, value).is_ok() {
-            let _ = std::fs::rename(&tmp, &self.path);
+            let _ = std::fs::rename(&tmp, &path);
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                let _ =
-                    std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(0o600));
+                let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
             }
         }
     }
 
-    fn clear(&self) {
-        let _ = std::fs::remove_file(&self.path);
+    fn clear(&self, key: &str) {
+        let _ = std::fs::remove_file(self.path(key));
     }
 }

@@ -3,8 +3,9 @@
 use std::sync::Arc;
 
 use source_core::{
-    AppError, BrowseService, CloudreveService, CredentialStore, FoldersService, FsLocalMedia,
-    IndexService, SessionService, SqliteCatalog, ThumbCache, UploadSessionPort, UploadsService,
+    AccountService, AppError, BrowseService, CloudreveAuth, CloudreveStorage, CredentialStore,
+    FoldersService, FsLocalMedia, IndexService, SqliteCatalog, ThumbCache, UploadSessionPort,
+    UploadsService,
 };
 use tauri::Manager;
 
@@ -16,7 +17,7 @@ use crate::state::{App, AppState};
 /// Open storage, build every service, and resume uploads left queued by a crash.
 ///
 /// This is the register section and the only place an adapter is constructed.
-/// All services share one Cloudreve handle, so a login is visible to all of them
+/// Auth and storage share one live account, so a login is visible to all of them
 /// at once; a second graph (Android media, an e2e harness) swaps an adapter by
 /// changing a type argument here, not by touching the use cases.
 ///
@@ -36,16 +37,14 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             }
             #[cfg(not(debug_assertions))]
             {
-                Arc::new(KeyringCredentialStore::new(
-                    app.handle().clone(),
-                    app_data.join("credentials.json"),
-                ))
+                Arc::new(KeyringCredentialStore::new(app.handle().clone()))
             }
         };
-        let cloud = CloudreveService::new(cred_store, sessions);
+        let auth = CloudreveAuth::new(cred_store);
+        let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
         let local = FsLocalMedia::new(FsLocalMedia::default_roots());
         Ok::<_, AppError>(App {
-            session: Arc::new(SessionService::new(cloud.clone(), catalog.clone())),
+            account: Arc::new(AccountService::new(auth, cloud.clone(), catalog.clone())),
             index: Arc::new(IndexService::new(cloud.clone(), catalog.clone())),
             folders: Arc::new(FoldersService::new(cloud.clone(), catalog.clone())),
             browse: Arc::new(BrowseService::new(
@@ -56,7 +55,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             uploads: Arc::new(UploadsService::new(cloud, catalog, local)),
         })
     })?);
-    let _ = tauri::async_runtime::block_on(core.session.bootstrap());
+    let _ = tauri::async_runtime::block_on(core.account.bootstrap());
 
     #[cfg(debug_assertions)]
     crate::dev::autoconnect(&core);

@@ -5,4 +5,4 @@ import type { AssetId } from "./AssetId";
 /**
  * Move a batch of assets into an album (a folder move on Cloudreve).
  */
-export type MoveAssetsParams = { assetIds: Array<AssetId>, albumId: AlbumId, };
+export type MoveAssetsParams = { assetIds: Array<AssetId>; albumId: AlbumId };

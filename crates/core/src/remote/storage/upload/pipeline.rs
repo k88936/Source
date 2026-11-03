@@ -1,16 +1,23 @@
 //! One upload attempt end to end: source, resumable stream, progress, entry.
 
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
+
+use cloudreve_sdk_api::Client;
+use cloudreve_sdk_api::api::ExplorerApi;
+
+use crate::error::ErrorCode;
+use crate::remote::map_api_error;
 
 use super::*;
 
-impl CloudreveService {
+impl CloudreveStorage {
     pub(crate) async fn upload_asset(
         &self,
         request: UploadRequest,
     ) -> Result<RemoteEntry, AppError> {
         let source = build_upload_source(&request.source_uri, request.size)?;
-        let client = self.current_client()?;
+        let client = self.client()?;
         let remote_uri = join_uri(&request.dest_uri, &request.name);
         let uploader = Uploader::new(Arc::clone(&client), UploaderConfig::default());
         let params = UploadParams {

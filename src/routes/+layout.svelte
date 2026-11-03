@@ -12,12 +12,12 @@
 
 	// The shell (sidebar gutter + tab bar) belongs to the signed-in pages only:
 	// the login screen is a standalone card, so it must not reserve the sidebar.
-	const shell = $derived(app.ready && !!app.session && page.url.pathname !== '/welcome');
+	const shell = $derived(app.ready && !!app.account && page.url.pathname !== '/welcome');
 
 	onMount(() => {
 		void app.init();
 		const onUnauthorized = () => {
-			app.session = null;
+			app.account = null;
 			app.showToast('登录已过期，请重新登录', 'error');
 			void goto('/welcome');
 		};
@@ -28,9 +28,9 @@
 	$effect(() => {
 		if (!app.ready) return;
 		const path = page.url.pathname;
-		if (!app.session && path !== '/welcome') {
+		if (!app.account && path !== '/welcome') {
 			void goto('/welcome');
-		} else if (app.session && path === '/welcome') {
+		} else if (app.account && path === '/welcome') {
 			void goto('/photos');
 		}
 	});

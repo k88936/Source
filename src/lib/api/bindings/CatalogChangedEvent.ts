@@ -3,4 +3,8 @@ import type { AlbumSummary } from "./AlbumSummary";
 import type { AssetSummary } from "./AssetSummary";
 import type { CatalogChangeKind } from "./CatalogChangeKind";
 
-export type CatalogChangedEvent = { kind: CatalogChangeKind, assets: Array<AssetSummary>, albums: Array<AlbumSummary>, };
+export type CatalogChangedEvent = {
+  kind: CatalogChangeKind;
+  assets: Array<AssetSummary>;
+  albums: Array<AlbumSummary>;
+};

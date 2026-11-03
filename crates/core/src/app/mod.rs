@@ -10,20 +10,20 @@ use std::time::Duration;
 use crate::error::AppError;
 use crate::mapping::{COVER_KEY, DESCRIPTION_KEY};
 use crate::remote::RemoteEntry;
-use crate::store::{AssetSummary, FolderRecord, FolderRef, FolderStore, MediaType};
+use crate::store::{AccountStore, AssetSummary, FolderRecord, FolderRef, FolderStore, MediaType};
 
+pub mod account;
 pub mod browse;
 mod dto;
 pub mod folders;
 pub mod index;
-pub mod session;
 pub mod uploads;
 
+pub use account::{AccountService, AccountState, LoginOutcome};
 pub use browse::BrowseService;
 pub use dto::*;
 pub use folders::FoldersService;
 pub use index::IndexService;
-pub use session::SessionService;
 pub use uploads::{UploadOutcome, UploadsService};
 
 /// Upload progress is written to the catalog at most this often.
@@ -31,6 +31,19 @@ pub use uploads::{UploadOutcome, UploadsService};
 /// The uploader reports every chunk; persisting each report would turn a large
 /// upload into thousands of writes that the UI never reads.
 const PROGRESS_WRITE_INTERVAL: Duration = Duration::from_millis(400);
+
+/// The library root of the account being browsed.
+///
+/// The pointer lives on the account row, so readers query it instead of keeping
+/// a copy that can go stale behind whoever changes the root.
+pub(crate) async fn library_root<C: AccountStore>(
+    catalog: &C,
+) -> Result<Option<FolderRef>, AppError> {
+    Ok(catalog
+        .current_account()
+        .await?
+        .and_then(|account| account.library_root))
+}
 
 pub(crate) fn folder_ref(entry: &RemoteEntry) -> FolderRef {
     FolderRef {

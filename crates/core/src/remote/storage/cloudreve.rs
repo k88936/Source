@@ -1,69 +1,44 @@
-//! `CloudrevePort` implemented against `cloudreve-sdk-api`.
-//!
-//! These are thin mappings onto the SDK; the multi-step flows live in
-//! [`auth`](super::auth) (login/restore) and [`upload`](super::upload).
+//! The Cloudreve storage adapter: one signed-in client plus the upload journal.
 
 use super::*;
+use crate::journal::UploadSessionPort;
+use crate::remote::map_api_error;
 
-use async_trait::async_trait;
+/// Cloning is cheap: the account and the journal are shared handles.
+#[derive(Clone)]
+pub struct CloudreveStorage {
+    account: Arc<dyn CurrentAccount>,
+    pub(crate) http: reqwest::Client,
+    pub(crate) sessions: Arc<dyn UploadSessionPort>,
+}
+
+impl CloudreveStorage {
+    pub fn new(account: Arc<dyn CurrentAccount>, sessions: Arc<dyn UploadSessionPort>) -> Self {
+        Self {
+            account,
+            http: reqwest::Client::new(),
+            sessions,
+        }
+    }
+
+    pub(crate) fn client(&self) -> Result<Arc<Client>, AppError> {
+        Ok(self.account.current()?.client)
+    }
+
+    pub(crate) fn base(&self) -> Result<String, AppError> {
+        Ok(self.account.current()?.base_url)
+    }
+}
+use cloudreve_sdk_api::api::{ExplorerApi, UserApi};
+use cloudreve_sdk_api::models::explorer::{
+    CreateFileService, FileURLService, GetFileInfoService, ListFileService, MetadataPatch,
+    MoveFileService, PatchMetadataService,
+};
 
 #[async_trait]
-impl CloudrevePort for CloudreveService {
-    async fn site_info(&self, base_url: &str) -> Result<SiteInfo, AppError> {
-        let base = base_url.trim_end_matches('/');
-        let client = self.client_for(base);
-        let cfg = client
-            .get_site_config("basic")
-            .await
-            .map_err(map_api_error)?;
-        let thumbnail_size = client
-            .get_site_config("thumb")
-            .await
-            .ok()
-            .and_then(|c| c.thumbnail_width)
-            .filter(|v| *v > 0)
-            .map(|v| v as u32);
-        Ok(SiteInfo {
-            name: cfg.title.unwrap_or_else(|| "Cloudreve".to_string()),
-            thumbnail_size,
-        })
-    }
-
-    async fn login(
-        &self,
-        base_url: &str,
-        email: &str,
-        password: &str,
-    ) -> Result<LoginOutcome, AppError> {
-        self.authenticate(base_url, email, password).await
-    }
-
-    async fn login_2fa(
-        &self,
-        base_url: &str,
-        session_id: &str,
-        otp: &str,
-    ) -> Result<SessionState, AppError> {
-        self.authenticate_otp(base_url, session_id, otp).await
-    }
-
-    async fn restore(&self, base_url: &str) -> Result<Option<SessionState>, AppError> {
-        self.restore_session(base_url).await
-    }
-
-    async fn logout(&self, _base_url: &str) -> Result<(), AppError> {
-        if let Ok(client) = self.current_client() {
-            client.clear_tokens().await;
-        }
-        if let Ok(mut guard) = self.active.lock() {
-            *guard = None;
-        }
-        self.store.clear();
-        Ok(())
-    }
-
+impl RemoteStorage for CloudreveStorage {
     async fn capacity(&self) -> Result<Capacity, AppError> {
-        let client = self.current_client()?;
+        let client = self.client()?;
         let cap = client.get_user_capacity().await.map_err(map_api_error)?;
         Ok(Capacity {
             total: cap.total,
@@ -77,7 +52,7 @@ impl CloudrevePort for CloudreveService {
         uri: &str,
         page_token: Option<&str>,
     ) -> Result<RemoteEntryPage, AppError> {
-        let client = self.current_client()?;
+        let client = self.client()?;
         let params = ListFileService {
             uri: uri.to_string(),
             page: None,
@@ -111,7 +86,7 @@ impl CloudrevePort for CloudreveService {
             let page = self.list_entries(uri, None).await?;
             return Ok(page.parent.unwrap_or_else(|| root_entry(uri, None)));
         }
-        let client = self.current_client()?;
+        let client = self.client()?;
         let info = client
             .get_file_info(&GetFileInfoService {
                 uri: Some(uri.to_string()),
@@ -126,8 +101,8 @@ impl CloudrevePort for CloudreveService {
     }
 
     async fn thumb_url(&self, uri: &str) -> Result<String, AppError> {
-        let client = self.current_client()?;
-        let base = self.current_base()?;
+        let client = self.client()?;
+        let base = self.base()?;
         client
             .get_file_thumb(uri, None)
             .await
@@ -136,7 +111,7 @@ impl CloudrevePort for CloudreveService {
     }
 
     async fn media_url(&self, uri: &str) -> Result<String, AppError> {
-        let client = self.current_client()?;
+        let client = self.client()?;
         let response = client
             .get_file_url(&FileURLService {
                 uris: vec![uri.to_string()],
@@ -144,7 +119,7 @@ impl CloudrevePort for CloudreveService {
             })
             .await
             .map_err(map_api_error)?;
-        let base = self.current_base()?;
+        let base = self.base()?;
         response
             .urls
             .first()
@@ -176,7 +151,7 @@ impl CloudrevePort for CloudreveService {
         uri: &str,
         patches: &[(String, Option<String>)],
     ) -> Result<(), AppError> {
-        let client = self.current_client()?;
+        let client = self.client()?;
         let patches = patches
             .iter()
             .map(|(key, value)| MetadataPatch {
@@ -195,7 +170,7 @@ impl CloudrevePort for CloudreveService {
     }
 
     async fn create_folder(&self, parent_uri: &str, name: &str) -> Result<RemoteEntry, AppError> {
-        let client = self.current_client()?;
+        let client = self.client()?;
         let uri = join_uri(parent_uri, name);
         let created = client
             .create_file(&CreateFileService {
@@ -213,7 +188,7 @@ impl CloudrevePort for CloudreveService {
         if uris.is_empty() {
             return Ok(Vec::new());
         }
-        let client = self.current_client()?;
+        let client = self.client()?;
         client
             .move_files(&MoveFileService {
                 uris: uris.to_vec(),

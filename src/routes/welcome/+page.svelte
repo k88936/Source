@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { api } from '#lib/api/client';
-	import type { SessionState } from '#lib/api/bindings/SessionState';
+	import type { AccountState } from '#lib/api/bindings/AccountState';
 	import Icon from '#lib/components/Icon.svelte';
 	import { app } from '#lib/state/app.svelte';
 
@@ -37,7 +37,7 @@
 				step = '2fa';
 				otp = '';
 			} else {
-				await finish(outcome.session);
+				await finish(outcome.account);
 			}
 		} catch (err) {
 			error = app.describeError(err);
@@ -54,8 +54,8 @@
 		}
 		loading = true;
 		try {
-			const session = await api.login2fa({ sessionId, otp: otp.trim() });
-			await finish(session);
+			const account = await api.login2fa({ sessionId, otp: otp.trim() });
+			await finish(account);
 		} catch (err) {
 			error = app.describeError(err);
 		} finally {
@@ -63,10 +63,10 @@
 		}
 	}
 
-	async function finish(session: SessionState) {
-		app.session = session;
+	async function finish(account: AccountState) {
+		app.account = account;
 		await app.afterLogin();
-		await goto(session.libraryRoot ? '/photos' : '/library?setup=1');
+		await goto(account.libraryRoot ? '/photos' : '/library?setup=1');
 	}
 </script>
 

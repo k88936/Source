@@ -1,8 +1,8 @@
-CREATE TABLE server (
-  id TEXT PRIMARY KEY,
-  base_url TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  display_name TEXT,
+CREATE TABLE account (
+  base_url TEXT PRIMARY KEY,
+  user TEXT,
+  site_name TEXT,
+  library_root TEXT,
   created_at INTEGER NOT NULL
 );
 

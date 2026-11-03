@@ -5,6 +5,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
 use crate::store::UploadTaskId;
 
 /// Receives one progress sample per uploader event.
@@ -53,4 +56,13 @@ pub struct RemoteEntryPage {
     pub entries: Vec<RemoteEntry>,
     pub next: Option<String>,
     pub parent: Option<RemoteEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Capacity {
+    pub total: i64,
+    pub used: i64,
+    pub storage_pack_total: i64,
 }

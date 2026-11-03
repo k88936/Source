@@ -3,4 +3,17 @@ import type { AppError } from "./AppError";
 import type { UploadState } from "./UploadState";
 import type { UploadTaskId } from "./UploadTaskId";
 
-export type UploadTask = { id: UploadTaskId, localAssetId: string, name: string, destUri: string, destName: string | null, state: UploadState, uploaded: number, total: number, speed: number, etaSeconds: number | null, attempts: number, error: AppError | null, };
+export type UploadTask = {
+  id: UploadTaskId;
+  localAssetId: string;
+  name: string;
+  destUri: string;
+  destName: string | null;
+  state: UploadState;
+  uploaded: number;
+  total: number;
+  speed: number;
+  etaSeconds: number | null;
+  attempts: number;
+  error: AppError | null;
+};

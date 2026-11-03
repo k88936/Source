@@ -15,6 +15,7 @@ use diesel_async::{AsyncConnection, RunQueryDsl};
 use crate::error::AppError;
 use crate::media::LocalAsset;
 
+mod account;
 mod album;
 mod asset;
 mod folder;
@@ -22,15 +23,16 @@ mod id;
 mod local;
 mod query;
 mod queue;
-mod server;
+mod settings;
 mod timeline;
 
 pub(crate) use super::sqlite::{Conn, MEDIA_TYPES, SqliteCatalog, TxError, db_err};
+pub use account::*;
 pub use album::*;
 pub use asset::*;
 pub use folder::*;
 pub(crate) use id::id_type;
 pub use local::*;
 pub use queue::*;
-pub use server::*;
+pub use settings::*;
 pub use timeline::*;

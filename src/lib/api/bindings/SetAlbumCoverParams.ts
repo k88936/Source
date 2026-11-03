@@ -2,4 +2,4 @@
 import type { AlbumId } from "./AlbumId";
 import type { AssetId } from "./AssetId";
 
-export type SetAlbumCoverParams = { albumId: AlbumId, assetId: AssetId, };
+export type SetAlbumCoverParams = { albumId: AlbumId; assetId: AssetId };

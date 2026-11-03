@@ -23,25 +23,14 @@
 	let initialDest = $state('');
 
 	onMount(() => {
-		if (page.url.searchParams.get('setup') === '1' || !app.session?.libraryRoot) {
+		if (page.url.searchParams.get('setup') === '1' || !app.account?.libraryRoot) {
 			rootOpen = true;
 		}
 		if (page.url.searchParams.get('upload') === '1') {
 			uploadOpen = true;
 		}
 		void loadLocal();
-		void refreshCapacity();
 	});
-
-	async function refreshCapacity() {
-		if (!app.session) return;
-		try {
-			const capacity = await api.refreshCapacity();
-			app.session = { ...app.session, capacity };
-		} catch {
-			// capacity is informational
-		}
-	}
 
 	async function loadLocal() {
 		try {
@@ -66,7 +55,7 @@
 
 <svelte:head><title>资料库 · Source</title></svelte:head>
 
-<TopBar title="资料库" subtitle={app.session?.user.email ?? ''}>
+<TopBar title="资料库" subtitle={app.account?.user.email ?? ''}>
 	{#snippet actions()}
 		<IndexButton />
 		<button
@@ -90,14 +79,14 @@
 			<div class="min-w-0 flex-1">
 				<p class="text-sm font-semibold">图库根目录</p>
 				<p class="truncate text-xs text-muted">
-					{app.session?.libraryRoot?.path ?? '尚未选择'}
+					{app.account?.libraryRoot?.path ?? '尚未选择'}
 				</p>
 			</div>
 			<button
 				onclick={() => (rootOpen = true)}
 				class="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-dark transition-colors hover:bg-line/40"
 			>
-				{app.session?.libraryRoot ? '更改' : '选择'}
+				{app.account?.libraryRoot ? '更改' : '选择'}
 			</button>
 		</div>
 		<p class="mt-2 text-[11px] text-muted">

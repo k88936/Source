@@ -1,14 +1,14 @@
 import { api, listen } from "#lib/api/client";
 import type { CatalogChangedEvent } from "#lib/api/bindings/CatalogChangedEvent";
 import type { IndexStatus } from "#lib/api/bindings/IndexStatus";
-import type { SessionState } from "#lib/api/bindings/SessionState";
+import type { AccountState } from "#lib/api/bindings/AccountState";
 import type { UploadTask } from "#lib/api/bindings/UploadTask";
 import { changes } from "./changes";
 
 export type ToastKind = "success" | "error" | "info";
 
 export class AppState {
-  session = $state<SessionState | null>(null);
+  account = $state<AccountState | null>(null);
   ready = $state(false);
   index = $state<IndexStatus>({
     phase: "idle",
@@ -39,8 +39,8 @@ export class AppState {
       if (n >= 2 && n <= 6) this.columns = n;
     }
     try {
-      this.session = await api.sessionState();
-      if (this.session) {
+      this.account = await api.accountState();
+      if (this.account) {
         await this.afterLogin();
       }
     } catch (err) {
@@ -87,8 +87,8 @@ export class AppState {
     }
   }
 
-  async refreshSession(): Promise<void> {
-    this.session = await api.sessionState();
+  async refreshAccount(): Promise<void> {
+    this.account = await api.accountState();
   }
 
   async refreshUploads(): Promise<void> {
@@ -159,7 +159,7 @@ export class AppState {
     try {
       await api.logout();
     } finally {
-      this.session = null;
+      this.account = null;
       this.uploads = [];
     }
   }

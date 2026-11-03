@@ -9,7 +9,7 @@ use crate::media::{
     LocalAlbum, LocalAsset, LocalAssetPage, LocalAssetPageParams, LocalMediaPort,
     MediaPermissionState,
 };
-use crate::remote::CloudrevePort;
+use crate::remote::RemoteStorage;
 use crate::store::{
     AlbumId, AlbumStore, AlbumSummary, AssetId, AssetStore, AssetSummary, FolderId, FolderStore,
     MediaType, SearchQuery, TimelineCursor, TimelinePage, TimelineStore,
@@ -131,7 +131,7 @@ impl<R, C, M> BrowseService<R, C, M> {
 
 impl<R, C, M> BrowseService<R, C, M>
 where
-    R: CloudrevePort,
+    R: RemoteStorage,
     C: AlbumStore + AssetStore + FolderStore + TimelineStore,
     M: LocalMediaPort,
 {

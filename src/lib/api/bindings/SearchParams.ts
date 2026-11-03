@@ -2,4 +2,12 @@
 import type { MediaType } from "./MediaType";
 import type { TimelineCursor } from "./TimelineCursor";
 
-export type SearchParams = { query: string, from: number | null, to: number | null, favorite: boolean | null, mediaType: MediaType | null, cursor: TimelineCursor | null, limit: number, };
+export type SearchParams = {
+  query: string;
+  from: number | null;
+  to: number | null;
+  favorite: boolean | null;
+  mediaType: MediaType | null;
+  cursor: TimelineCursor | null;
+  limit: number;
+};

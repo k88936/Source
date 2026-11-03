@@ -11,7 +11,7 @@ use crate::state::App;
 use clap::Parser;
 use serde::Deserialize;
 use source_core::CredentialStore;
-use source_core::app::session::LoginOutcome;
+use source_core::app::LoginOutcome;
 use tauri::Manager;
 
 /// Where the dev scripts hand their results over. `SOURCE_DEV_TMP` lets a shell
@@ -50,7 +50,7 @@ pub(crate) fn isolate_home() {
 /// Session tokens of a dev build live in `tmp/home`, next to the catalog, instead
 /// of the shared OS keychain — logging in here never disturbs a real session.
 pub(crate) fn credential_store(app_data: &Path) -> Arc<dyn CredentialStore> {
-    Arc::new(FileCredentialStore::new(app_data.join("credentials.json")))
+    Arc::new(FileCredentialStore::new(app_data.join("credentials")))
 }
 
 /// `--debug-cdp-port <port>`: absent means no CDP endpoint at all.
@@ -209,18 +209,20 @@ pub(crate) fn autoconnect(core: &App) {
     let Some(config) = read_json::<CloudreveConfig>("cloudreve.json") else {
         return;
     };
-    let connected = tauri::async_runtime::block_on(core.session.session_state())
-        .is_some_and(|session| session.server == config.endpoint);
+    let connected = tauri::async_runtime::block_on(core.account.account_state())
+        .ok()
+        .flatten()
+        .is_some_and(|account| account.server == config.endpoint);
     if connected {
         println!("dev: already connected to {}", config.endpoint);
         return;
     }
     tauri::async_runtime::block_on(async {
-        if let Err(error) = core.session.set_server(&config.endpoint).await {
+        if let Err(error) = core.account.set_server(&config.endpoint).await {
             eprintln!("dev: cannot reach {}: {error}", config.endpoint);
             return;
         }
-        match core.session.login(&config.email, &config.password).await {
+        match core.account.login(&config.email, &config.password).await {
             Ok(LoginOutcome::Authenticated { .. }) => {}
             Ok(LoginOutcome::TwoFactorRequired { .. }) => {
                 eprintln!(
@@ -235,10 +237,12 @@ pub(crate) fn autoconnect(core: &App) {
             }
         }
         let has_root = core
-            .session
-            .session_state()
+            .account
+            .account_state()
             .await
-            .and_then(|session| session.library_root)
+            .ok()
+            .flatten()
+            .and_then(|account| account.library_root)
             .is_some();
         if !has_root && let Err(error) = core.folders.set_library_root(&config.uri).await {
             eprintln!(

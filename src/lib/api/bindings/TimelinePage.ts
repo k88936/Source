@@ -2,4 +2,7 @@
 import type { AssetSummary } from "./AssetSummary";
 import type { TimelineCursor } from "./TimelineCursor";
 
-export type TimelinePage = { items: Array<AssetSummary>, next: TimelineCursor | null, };
+export type TimelinePage = {
+  items: Array<AssetSummary>;
+  next: TimelineCursor | null;
+};

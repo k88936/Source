@@ -2,4 +2,10 @@
 import type { AssetSummary } from "./AssetSummary";
 import type { ExifField } from "./ExifField";
 
-export type AssetDetail = { asset: AssetSummary, albumName: string | null, albumPath: string | null, exif: Array<ExifField>, downloadName: string, };
+export type AssetDetail = {
+  asset: AssetSummary;
+  albumName: string | null;
+  albumPath: string | null;
+  exif: Array<ExifField>;
+  downloadName: string;
+};

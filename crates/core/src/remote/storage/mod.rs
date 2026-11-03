@@ -1,0 +1,70 @@
+//! Every file operation against a Cloudreve server: the contract the use cases
+//! call, and the adapter that implements it.
+//!
+//! The adapter reaches the signed-in client through [`CurrentAccount`], so the
+//! storage half can depend on auth without being able to touch credentials.
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use cloudreve_sdk_api::Client;
+
+use crate::error::AppError;
+use crate::remote::auth::CurrentAccount;
+
+mod cloudreve;
+mod dto;
+mod entries;
+mod upload;
+
+pub use cloudreve::CloudreveStorage;
+pub use dto::{
+    Capacity, ProgressSink, RemoteEntry, RemoteEntryPage, UploadProgress, UploadRequest,
+};
+pub(crate) use entries::*;
+
+pub(crate) const PAGE_SIZE: i32 = 100;
+
+#[async_trait]
+pub trait RemoteStorage: Send + Sync {
+    /// The account's quota, read from the server rather than cached.
+    async fn capacity(&self) -> Result<Capacity, AppError>;
+
+    async fn list_entries(
+        &self,
+        uri: &str,
+        page_token: Option<&str>,
+    ) -> Result<RemoteEntryPage, AppError>;
+
+    async fn folder_info(&self, uri: &str) -> Result<RemoteEntry, AppError>;
+
+    /// Signed (short-lived) URL for a Cloudreve thumbnail.
+    async fn thumb_url(&self, uri: &str) -> Result<String, AppError>;
+
+    /// Signed (short-lived) URL for the original media/stream.
+    async fn media_url(&self, uri: &str) -> Result<String, AppError>;
+
+    /// Download just the head of a remote file and parse its EXIF timestamp.
+    /// Used only when Cloudreve did not extract `exif:taken_at` server-side.
+    async fn client_taken_at(&self, uri: &str) -> Result<Option<i64>, AppError>;
+
+    /// Patch key/value metadata. `None` removes the key.
+    async fn patch_metadata(
+        &self,
+        uri: &str,
+        patches: &[(String, Option<String>)],
+    ) -> Result<(), AppError>;
+
+    async fn create_folder(&self, parent_uri: &str, name: &str) -> Result<RemoteEntry, AppError>;
+
+    /// Move files into `dest_uri`, returning their new URIs in input order.
+    ///
+    /// In Cloudreve an album is a folder, so "add to album" is a move rather
+    /// than a copy, and the URI (which embeds the path) changes with it.
+    async fn move_assets(&self, uris: &[String], dest_uri: &str) -> Result<Vec<String>, AppError>;
+
+    /// Upload a local asset. `source_uri` is `file://...` on desktop or
+    /// `content://...` on Android; adapters must stream it without copying to
+    /// an app cache and must stop between chunks once `cancel` is raised.
+    async fn upload_uri(&self, request: UploadRequest) -> Result<RemoteEntry, AppError>;
+}

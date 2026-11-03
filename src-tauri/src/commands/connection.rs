@@ -16,7 +16,7 @@ pub(crate) async fn set_server(
     state: State<'_, AppState>,
     params: SetServerParams,
 ) -> Result<SiteInfo, AppError> {
-    state.core.session.set_server(&params.base_url).await
+    state.core.account.set_server(&params.base_url).await
 }
 
 #[tauri::command]
@@ -26,7 +26,7 @@ pub(crate) async fn login(
 ) -> Result<LoginOutcome, AppError> {
     state
         .core
-        .session
+        .account
         .login(&params.email, &params.password)
         .await
 }
@@ -35,29 +35,29 @@ pub(crate) async fn login(
 pub(crate) async fn login_2fa(
     state: State<'_, AppState>,
     params: Login2faParams,
-) -> Result<SessionState, AppError> {
+) -> Result<AccountState, AppError> {
     state
         .core
-        .session
+        .account
         .login_2fa(&params.session_id, &params.otp)
         .await
 }
 
 #[tauri::command]
 pub(crate) async fn logout(state: State<'_, AppState>) -> Result<(), AppError> {
-    state.core.session.logout().await
+    state.core.account.logout().await
 }
 
 #[tauri::command]
-pub(crate) async fn session_state(
+pub(crate) async fn account_state(
     state: State<'_, AppState>,
-) -> Result<Option<SessionState>, AppError> {
-    Ok(state.core.session.session_state().await)
+) -> Result<Option<AccountState>, AppError> {
+    state.core.account.account_state().await
 }
 
 #[tauri::command]
-pub(crate) async fn refresh_capacity(state: State<'_, AppState>) -> Result<Capacity, AppError> {
-    state.core.session.refresh_capacity().await
+pub(crate) async fn capacity(state: State<'_, AppState>) -> Result<Capacity, AppError> {
+    state.core.account.capacity().await
 }
 
 #[tauri::command]

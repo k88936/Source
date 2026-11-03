@@ -53,7 +53,7 @@
 	{/snippet}
 </TopBar>
 
-{#if !app.session?.libraryRoot}
+{#if !app.account?.libraryRoot}
 	<EmptyState
 		icon="albums"
 		title="先选择图库根目录"

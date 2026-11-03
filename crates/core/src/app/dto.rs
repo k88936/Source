@@ -5,6 +5,16 @@ use ts_rs::TS;
 
 use crate::store::{AlbumSummary, AssetSummary};
 
+/// What `app_info` reports about the running build.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AppInfo {
+    pub name: String,
+    pub version: String,
+    pub platform: String,
+}
+
 /// What a `catalog://changed` event invalidates.
 ///
 /// `Folders` is the coarse signal emitted after an index pass finished; the

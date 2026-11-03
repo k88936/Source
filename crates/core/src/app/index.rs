@@ -9,8 +9,10 @@ use ts_rs::TS;
 
 use crate::error::AppError;
 use crate::mapping::asset_record;
-use crate::remote::{CloudrevePort, RemoteEntry};
-use crate::store::{AlbumStore, FolderRef, FolderStore, MediaType, ServerStore};
+use crate::remote::{RemoteEntry, RemoteStorage};
+use crate::store::{AccountStore, AlbumStore, FolderRef, FolderStore, MediaType, SettingsStore};
+
+use super::library_root;
 use crate::time::now_ms;
 
 use super::{folder_ref, is_media, upsert_remote_folder};
@@ -74,8 +76,8 @@ impl<R, C> IndexService<R, C> {
 
 impl<R, C> IndexService<R, C>
 where
-    R: CloudrevePort,
-    C: AlbumStore + FolderStore + ServerStore,
+    R: RemoteStorage,
+    C: AlbumStore + FolderStore + AccountStore + SettingsStore,
 {
     pub fn status(&self) -> IndexStatus {
         self.status.lock().unwrap().clone()
@@ -85,7 +87,7 @@ where
         if self.running.load(Ordering::SeqCst) {
             return Ok(self.status());
         }
-        if self.catalog.library_root().await?.is_none() {
+        if library_root(&self.catalog).await?.is_none() {
             return Err(AppError::internal("请先在资料库中选择图库根目录"));
         }
         self.cancel.store(false, Ordering::SeqCst);
@@ -153,10 +155,13 @@ where
     }
 
     async fn run_inner(&self, full: bool) -> Result<(), AppError> {
-        let root = self
+        let account = self
             .catalog
-            .library_root()
+            .current_account()
             .await?
+            .ok_or_else(|| AppError::internal("尚未选择服务器"))?;
+        let root = account
+            .library_root
             .ok_or_else(|| AppError::internal("未选择图库根"))?;
         let root_info = self.cloud.folder_info(&root.uri).await?;
         let root = FolderRef {
@@ -168,7 +173,9 @@ where
         upsert_remote_folder(&self.catalog, &root, &root_info, None).await?;
         // The remote may hand out a different id for the same folder than the
         // one stored at login; keep the root pointer in step with the catalog.
-        self.catalog.set_library_root(&root).await?;
+        self.catalog
+            .set_library_root(&account.base_url, &root)
+            .await?;
 
         let mut stack = vec![root];
         let mut seen = HashSet::new();

@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::AppError;
-use crate::remote::CloudrevePort;
-use crate::store::{FolderRef, FolderStore, ServerStore};
+use crate::remote::RemoteStorage;
+use crate::store::{AccountStore, FolderRef, FolderStore};
 
 use super::{folder_ref, upsert_remote_folder};
 
@@ -52,8 +52,8 @@ impl<R, C> FoldersService<R, C> {
 
 impl<R, C> FoldersService<R, C>
 where
-    R: CloudrevePort,
-    C: FolderStore + ServerStore,
+    R: RemoteStorage,
+    C: FolderStore + AccountStore,
 {
     pub async fn list_remote_folders(
         &self,
@@ -76,10 +76,17 @@ where
     }
 
     pub async fn set_library_root(&self, uri: &str) -> Result<FolderRef, AppError> {
+        let account = self
+            .catalog
+            .current_account()
+            .await?
+            .ok_or_else(|| AppError::internal("尚未选择服务器"))?;
         let info = self.cloud.folder_info(uri).await?;
         let folder = folder_ref(&info);
         upsert_remote_folder(&self.catalog, &folder, &info, None).await?;
-        self.catalog.set_library_root(&folder).await?;
+        self.catalog
+            .set_library_root(&account.base_url, &folder)
+            .await?;
         Ok(folder)
     }
 }

@@ -2,8 +2,16 @@
 import type { AlbumId } from "./AlbumId";
 import type { AssetId } from "./AssetId";
 
-export type AlbumSummary = { id: AlbumId, name: string, uri: string, path: string, assetCount: number, 
-/**
- * Up to four newest covers, explicit cover first, for the mosaic tile.
- */
-coverAssetIds: Array<AssetId>, description: string | null, updatedAt: number, };
+export type AlbumSummary = {
+  id: AlbumId;
+  name: string;
+  uri: string;
+  path: string;
+  assetCount: number;
+  /**
+   * Up to four newest covers, explicit cover first, for the mosaic tile.
+   */
+  coverAssetIds: Array<AssetId>;
+  description: string | null;
+  updatedAt: number;
+};

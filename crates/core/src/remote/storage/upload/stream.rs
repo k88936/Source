@@ -3,6 +3,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::*;
+use crate::error::ErrorCode;
+use crate::journal::UploadSessionPort;
 
 /// Map an app-side URI (`file://`, `content://`) onto an SDK upload source.
 pub(crate) fn build_upload_source(source_uri: &str, _size: i64) -> Result<UploadSource, AppError> {

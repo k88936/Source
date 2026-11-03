@@ -4,9 +4,22 @@ import type { FolderId } from "./FolderId";
 import type { MediaType } from "./MediaType";
 import type { TakenAtSource } from "./TakenAtSource";
 
-export type AssetSummary = { id: AssetId, folderId: FolderId, name: string, mediaType: MediaType, mime: string | null, size: number, takenAt: number, takenAtSource: TakenAtSource, width: number | null, height: number | null, durationMs: number | null, favorite: boolean, 
-/**
- * Base64 of a tiny downscaled preview, used as a blur-up placeholder.
- * Filled lazily the first time the thumbnail is requested.
- */
-thumbHash: string | null, };
+export type AssetSummary = {
+  id: AssetId;
+  folderId: FolderId;
+  name: string;
+  mediaType: MediaType;
+  mime: string | null;
+  size: number;
+  takenAt: number;
+  takenAtSource: TakenAtSource;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  favorite: boolean;
+  /**
+   * Base64 of a tiny downscaled preview, used as a blur-up placeholder.
+   * Filled lazily the first time the thumbnail is requested.
+   */
+  thumbHash: string | null;
+};
