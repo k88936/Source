@@ -1,0 +1,168 @@
+import { api, listen } from "#lib/api/client";
+import type { CatalogChangedEvent } from "#lib/api/bindings/CatalogChangedEvent";
+import type { IndexStatus } from "#lib/api/bindings/IndexStatus";
+import type { SessionState } from "#lib/api/bindings/SessionState";
+import type { UploadTask } from "#lib/api/bindings/UploadTask";
+import { changes } from "./changes";
+
+export type ToastKind = "success" | "error" | "info";
+
+export class AppState {
+  session = $state<SessionState | null>(null);
+  ready = $state(false);
+  index = $state<IndexStatus>({
+    phase: "idle",
+    foldersDone: 0,
+    foldersTotal: 0,
+    assetsSeen: 0,
+    startedAt: null,
+    error: null,
+  });
+  uploads = $state<UploadTask[]>([]);
+  columns = $state(3);
+  toast = $state<{ message: string; kind: ToastKind } | null>(null);
+  private started = false;
+
+  get scanning(): boolean {
+    return this.index.phase === "scanning";
+  }
+
+  async init(): Promise<void> {
+    if (this.started) return;
+    this.started = true;
+    const stored =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem("album-columns")
+        : null;
+    if (stored) {
+      const n = Number(stored);
+      if (n >= 2 && n <= 6) this.columns = n;
+    }
+    try {
+      this.session = await api.sessionState();
+      if (this.session) {
+        await this.afterLogin();
+      }
+    } catch (err) {
+      this.describeError(err);
+    } finally {
+      this.ready = true;
+    }
+
+    await listen<IndexStatus>("catalog://index", (payload) => {
+      this.index = payload;
+    });
+    await listen<CatalogChangedEvent>("catalog://changed", (payload) => {
+      changes.emit(payload);
+    });
+    await listen<{ taskId: string }>("upload://state", () => {
+      void this.refreshUploads();
+    });
+    await listen<{ taskId: string; uploaded: number; total: number }>(
+      "upload://progress",
+      (payload) => {
+        const task = this.uploads.find((t) => t.id === payload.taskId);
+        if (task) {
+          task.uploaded = payload.uploaded;
+          task.total = payload.total;
+        }
+      },
+    );
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", () =>
+        this.showToast("已恢复网络连接", "success"),
+      );
+      window.addEventListener("offline", () =>
+        this.showToast("已进入离线模式", "info"),
+      );
+    }
+  }
+
+  async afterLogin(): Promise<void> {
+    await this.refreshUploads();
+    try {
+      this.index = await api.indexStatus();
+    } catch {
+      // ignore status errors on first run
+    }
+  }
+
+  async refreshSession(): Promise<void> {
+    this.session = await api.sessionState();
+  }
+
+  async refreshUploads(): Promise<void> {
+    try {
+      this.uploads = await api.uploadTasks();
+    } catch {
+      // uploads are best-effort on old servers
+    }
+  }
+
+  async refreshIndex(): Promise<void> {
+    try {
+      this.index = await api.indexStatus();
+    } catch (err) {
+      this.showToast(this.describeError(err), "error");
+    }
+  }
+
+  async startIndex(full = false): Promise<void> {
+    try {
+      this.index = await api.startIndex({ full });
+      this.showToast(full ? "已开始完整索引" : "已开始增量索引", "info");
+    } catch (err) {
+      this.showToast(this.describeError(err), "error");
+    }
+  }
+
+  async cancelIndex(): Promise<void> {
+    try {
+      this.index = await api.cancelIndex();
+      this.showToast("索引已暂停，可随时继续", "info");
+    } catch (err) {
+      this.showToast(this.describeError(err), "error");
+    }
+  }
+
+  async retryUpload(taskId: string): Promise<void> {
+    try {
+      await api.retryUpload({ taskId });
+      await this.refreshUploads();
+    } catch (err) {
+      this.showToast(this.describeError(err), "error");
+    }
+  }
+
+  setColumns(columns: number): void {
+    this.columns = Math.min(6, Math.max(2, columns));
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("album-columns", String(this.columns));
+    }
+  }
+
+  showToast(message: string, kind: ToastKind = "info"): void {
+    this.toast = { message, kind };
+    setTimeout(() => {
+      if (this.toast?.message === message) this.toast = null;
+    }, 3200);
+  }
+
+  describeError(err: unknown): string {
+    if (err && typeof err === "object" && "message" in err) {
+      return String((err as { message: unknown }).message);
+    }
+    return String(err);
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await api.logout();
+    } finally {
+      this.session = null;
+      this.uploads = [];
+    }
+  }
+}
+
+export const app = new AppState();

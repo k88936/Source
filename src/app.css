@@ -1,0 +1,78 @@
+@import "tailwindcss";
+@import "@immich/ui/theme/default.css";
+
+@custom-variant dark (&:where(.dark, .dark *):not(.light));
+
+@theme {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+
+  /* The reference app switches to its desktop shell at 850px, not at Tailwind's md. */
+  --breakpoint-sidebar: 850px;
+  --spacing-navbar: 3.5rem;
+}
+
+@theme inline {
+  /* Theme tokens that are not exposed as utilities on their own. */
+  --color-gray: var(--immich-ui-gray);
+  --color-line: var(--immich-ui-default-border);
+  /* The theme's primary flips from deep blue to pale blue, so text on it must flip too. */
+  --color-on-primary: white;
+}
+
+/* Labels and icons sitting straight on a photo: no scrim, only a shadow. */
+@utility text-white-shadow {
+  text-shadow:
+    0 0 4px rgb(0 0 0 / 0.9),
+    0 1px 3px rgb(0 0 0 / 0.8);
+}
+
+@utility icon-white-drop-shadow {
+  filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.8));
+}
+
+/* Field styling shared by every input, mirroring the theme's form input. */
+@utility field {
+  @apply w-full rounded-lg bg-gray px-4 py-2.5 text-sm text-dark outline-none ring-1 ring-line placeholder:text-muted focus:ring-2 focus:ring-primary/60;
+}
+
+@layer base {
+  :root {
+    --navbar-height: 3.5rem;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  html,
+  body {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  /* `light` / `dark` / `gray` / `muted` flip by themselves through the theme's `.dark` block. */
+  body {
+    @apply bg-light text-dark;
+    -webkit-tap-highlight-color: transparent;
+    letter-spacing: 0.1px;
+  }
+
+  :root.dark {
+    /* Pale primary in dark mode needs dark ink. */
+    --color-on-primary: var(--immich-dark-bg);
+    color-scheme: dark;
+  }
+
+  :root:not(.dark) {
+    color-scheme: light;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    @apply bg-primary/25;
+  }
+}
