@@ -1,8 +1,8 @@
 //! The Cloudreve storage adapter: one signed-in client plus the upload journal.
 
 use super::*;
-use crate::journal::UploadSessionPort;
 use crate::remote::map_api_error;
+use crate::store::UploadSessionPort;
 
 /// Cloning is cheap: the account and the journal are shared handles.
 #[derive(Clone)]

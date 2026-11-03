@@ -11,7 +11,6 @@ pub mod app;
 pub mod credential;
 pub mod error;
 pub mod exif;
-pub mod journal;
 pub mod mapping;
 pub mod media;
 pub mod remote;
@@ -25,7 +24,6 @@ pub use app::{
 };
 pub use credential::CredentialStore;
 pub use error::{AppError, ErrorCode};
-pub use journal::UploadSessionPort;
 pub use media::{
     FsLocalMedia, LOCAL_THUMB_EDGE, ThumbCache, fetch_bytes, fetch_range, preview_from_jpeg,
 };
@@ -38,5 +36,5 @@ pub use sqlite::SqliteCatalog;
 pub use store::{
     Account, AccountStore, AlbumStore, AssetRecord, AssetStore, FolderRecord, FolderStore,
     FolderSyncState, LocalStore, SearchQuery, SettingsStore, TimelineStore, UploadQueueStore,
-    UserInfo,
+    UploadSessionPort, UserInfo,
 };

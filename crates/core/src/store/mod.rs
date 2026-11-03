@@ -25,6 +25,7 @@ mod query;
 mod queue;
 mod settings;
 mod timeline;
+mod upload_session;
 
 pub(crate) use super::sqlite::{Conn, MEDIA_TYPES, SqliteCatalog, TxError, db_err};
 pub use account::*;
@@ -36,3 +37,4 @@ pub use local::*;
 pub use queue::*;
 pub use settings::*;
 pub use timeline::*;
+pub use upload_session::*;
