@@ -2,7 +2,11 @@
 
 use super::*;
 
-impl AppCore {
+impl<C, R, M> AppCore<C, R, M>
+where
+    C: AlbumStore + FolderStore + ServerStore,
+    R: CloudrevePort,
+{
     pub fn index_status(&self) -> IndexStatus {
         self.index.lock().unwrap().clone()
     }

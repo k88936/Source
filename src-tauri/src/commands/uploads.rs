@@ -1,7 +1,5 @@
 //! Upload queue commands and the upload runner.
 
-use source_core::AppCore;
-
 use crate::prelude::*;
 use source_core::dto::UploadProgressEvent;
 
@@ -65,7 +63,7 @@ fn retry_delay(attempt: u32) -> std::time::Duration {
     RETRY_BASE_DELAY * factor
 }
 
-pub(crate) async fn run_upload_batch(app: AppHandle, core: Arc<AppCore>, ids: Vec<String>) {
+pub(crate) async fn run_upload_batch(app: AppHandle, core: Arc<App>, ids: Vec<String>) {
     let semaphore = Arc::new(tokio::sync::Semaphore::new(UPLOAD_CONCURRENCY));
     let mut set = tokio::task::JoinSet::new();
     for id in ids {
@@ -81,7 +79,7 @@ pub(crate) async fn run_upload_batch(app: AppHandle, core: Arc<AppCore>, ids: Ve
 
 async fn run_one_upload(
     app: AppHandle,
-    core: Arc<AppCore>,
+    core: Arc<App>,
     id: String,
     semaphore: Arc<tokio::sync::Semaphore>,
 ) {
@@ -147,7 +145,7 @@ async fn run_one_upload(
 /// One attempt: announce the queued state, forward progress, run the upload.
 async fn attempt_upload(
     app: &AppHandle,
-    core: &Arc<AppCore>,
+    core: &Arc<App>,
     id: &str,
 ) -> Result<source_core::app::UploadOutcome, AppError> {
     let queued = core

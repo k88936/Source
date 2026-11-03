@@ -2,7 +2,12 @@
 
 use super::*;
 
-impl AppCore {
+impl<C, R, M> AppCore<C, R, M>
+where
+    C: AlbumStore + AssetStore + FolderStore + TimelineStore,
+    R: CloudrevePort,
+    M: LocalMediaPort,
+{
     pub async fn timeline_page(
         &self,
         params: TimelinePageParams,

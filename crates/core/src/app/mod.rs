@@ -18,8 +18,9 @@ use crate::dto::{
 };
 use crate::mapping::{COVER_KEY, DESCRIPTION_KEY, FAVORITE_KEY, asset_record, exif_fields};
 use crate::ports::{
-    CatalogPort, CloudrevePort, FolderRecord, LocalMediaPort, RemoteEntry, SearchQuery,
-    StoredServer, UploadProgress, UploadRequest,
+    AlbumStore, AssetStore, CloudrevePort, FolderRecord, FolderStore, LocalMediaPort, RemoteEntry,
+    SearchQuery, ServerStore, StoredServer, TimelineStore, UploadProgress, UploadQueueStore,
+    UploadRequest,
 };
 
 pub(crate) use crate::time::now_ms;
@@ -30,10 +31,16 @@ pub(crate) use crate::time::now_ms;
 /// upload into thousands of writes that the UI never reads.
 const PROGRESS_WRITE_INTERVAL: Duration = Duration::from_millis(400);
 
-pub struct AppCore {
-    cloud: Arc<dyn CloudrevePort>,
-    catalog: Arc<dyn CatalogPort>,
-    local: Arc<dyn LocalMediaPort>,
+/// The application, generic over its ports.
+///
+/// The concrete graph is fixed at compile time by the composition root (see
+/// `App` in the Tauri crate): swapping an adapter is changing a type argument,
+/// and each use-case module declares the stores it is allowed to touch as
+/// bounds on its `impl` block.
+pub struct AppCore<C, R, M> {
+    cloud: R,
+    catalog: C,
+    local: M,
     pending_server: Mutex<Option<String>>,
     session: Mutex<Option<SessionState>>,
     index: Mutex<IndexStatus>,
@@ -43,12 +50,8 @@ pub struct AppCore {
     upload_cancels: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 
-impl AppCore {
-    pub fn new(
-        cloud: Arc<dyn CloudrevePort>,
-        catalog: Arc<dyn CatalogPort>,
-        local: Arc<dyn LocalMediaPort>,
-    ) -> Self {
+impl<C, R, M> AppCore<C, R, M> {
+    pub fn new(cloud: R, catalog: C, local: M) -> Self {
         Self {
             cloud,
             catalog,

@@ -12,7 +12,12 @@ pub struct UploadOutcome {
     pub asset: Option<AssetSummary>,
 }
 
-impl AppCore {
+impl<C, R, M> AppCore<C, R, M>
+where
+    C: AlbumStore + AssetStore + FolderStore + ServerStore + UploadQueueStore + Clone + 'static,
+    R: CloudrevePort,
+    M: LocalMediaPort,
+{
     pub async fn enqueue_uploads(
         &self,
         params: EnqueueUploadsParams,

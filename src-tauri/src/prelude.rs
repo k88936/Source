@@ -16,4 +16,4 @@ pub(crate) use source_core::dto::{
     UploadStateEvent, UploadTask, UploadTaskParams,
 };
 
-pub(crate) use crate::state::AppState;
+pub(crate) use crate::state::{App, AppState};

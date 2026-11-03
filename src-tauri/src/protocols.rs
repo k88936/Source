@@ -180,7 +180,13 @@ pub(crate) fn local_thumb(
             (Arc::clone(&state.core), Arc::clone(&state.cache))
         };
         let Some(key) = local_thumb_key(&path) else {
-            responder.respond(http_response(404, "text/plain", Vec::new(), None, "no-store"));
+            responder.respond(http_response(
+                404,
+                "text/plain",
+                Vec::new(),
+                None,
+                "no-store",
+            ));
             return;
         };
         if let Some(bytes) = cache.get(&key) {
@@ -199,9 +205,13 @@ pub(crate) fn local_thumb(
                 let _ = cache.put(&key, &bytes);
                 responder.respond(local_thumb_response(bytes));
             }
-            None => {
-                responder.respond(http_response(415, "text/plain", Vec::new(), None, "no-store"))
-            }
+            None => responder.respond(http_response(
+                415,
+                "text/plain",
+                Vec::new(),
+                None,
+                "no-store",
+            )),
         }
     });
 }

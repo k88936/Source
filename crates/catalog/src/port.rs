@@ -1,15 +1,18 @@
-//! `CatalogPort` and `UploadSessionPort` wired to the diesel statements in the
-//! sibling modules.
+//! The store ports wired to the diesel statements in the sibling modules.
 //!
 //! Each trait method is a one-line delegation: the implementations live next to
-//! the tables they touch, and this file keeps the trait impl single and obvious.
+//! the tables they touch, and this file keeps the trait impls single and obvious.
+//!
+//! The ports are split by use case (`ServerStore`, `FolderStore`, `AssetStore`,
+//! `AlbumStore`, `TimelineStore`, `UploadQueueStore`) so a use-case module can
+//! name exactly the stores it is allowed to touch.
 
 use std::collections::HashSet;
 
 use super::*;
 
 #[async_trait]
-impl CatalogPort for SqliteCatalog {
+impl ServerStore for SqliteCatalog {
     async fn save_server(&self, server_record: &StoredServer) -> Result<(), AppError> {
         crate::server::save_server(self, server_record).await
     }
@@ -29,7 +32,10 @@ impl CatalogPort for SqliteCatalog {
     async fn get_setting(&self, key: &str) -> Result<Option<String>, AppError> {
         crate::server::get_setting(self, key).await
     }
+}
 
+#[async_trait]
+impl FolderStore for SqliteCatalog {
     async fn set_library_root(&self, root: &FolderRef) -> Result<(), AppError> {
         crate::folders::set_library_root(self, root).await
     }
@@ -77,7 +83,10 @@ impl CatalogPort for SqliteCatalog {
     async fn retain_folders(&self, keep: &HashSet<String>) -> Result<(), AppError> {
         crate::folders::retain_folders(self, keep).await
     }
+}
 
+#[async_trait]
+impl AssetStore for SqliteCatalog {
     async fn upsert_asset(&self, asset: &AssetRecord) -> Result<(), AppError> {
         crate::assets::upsert_asset(self, asset).await
     }
@@ -86,20 +95,35 @@ impl CatalogPort for SqliteCatalog {
         crate::assets::move_asset(self, asset_id, folder_id, uri).await
     }
 
+    async fn asset(&self, id: &str) -> Result<Option<AssetRecord>, AppError> {
+        crate::assets::asset(self, id).await
+    }
+
+    async fn set_favorite(&self, asset_id: &str, value: bool) -> Result<(), AppError> {
+        crate::assets::set_favorite(self, asset_id, value).await
+    }
+
+    async fn set_asset_thumb_hash(&self, asset_id: &str, value: &str) -> Result<(), AppError> {
+        crate::assets::set_thumb_hash(self, asset_id, value).await
+    }
+
+    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), AppError> {
+        crate::local::save_local_asset(self, asset).await
+    }
+
+    async fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+        crate::local::local_asset(self, id).await
+    }
+}
+
+#[async_trait]
+impl AlbumStore for SqliteCatalog {
     async fn mark_album(&self, folder_id: &str, is_album: bool) -> Result<(), AppError> {
         crate::assets::mark_album(self, folder_id, is_album).await
     }
 
     async fn rebuild_albums(&self) -> Result<(), AppError> {
         crate::assets::rebuild_albums(self).await
-    }
-
-    async fn timeline_page(
-        &self,
-        cursor: Option<&TimelineCursor>,
-        limit: u32,
-    ) -> Result<TimelinePage, AppError> {
-        crate::assets::timeline_page(self, cursor, limit).await
     }
 
     async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError> {
@@ -119,18 +143,6 @@ impl CatalogPort for SqliteCatalog {
         crate::albums::album_page(self, album_id, cursor, limit).await
     }
 
-    async fn asset(&self, id: &str) -> Result<Option<AssetRecord>, AppError> {
-        crate::assets::asset(self, id).await
-    }
-
-    async fn set_favorite(&self, asset_id: &str, value: bool) -> Result<(), AppError> {
-        crate::assets::set_favorite(self, asset_id, value).await
-    }
-
-    async fn set_asset_thumb_hash(&self, asset_id: &str, value: &str) -> Result<(), AppError> {
-        crate::assets::set_thumb_hash(self, asset_id, value).await
-    }
-
     async fn set_album_cover(&self, album_id: &str, cover: Option<&str>) -> Result<(), AppError> {
         crate::albums::set_album_cover(self, album_id, cover).await
     }
@@ -142,19 +154,25 @@ impl CatalogPort for SqliteCatalog {
     ) -> Result<(), AppError> {
         crate::albums::set_album_description(self, album_id, description).await
     }
+}
+
+#[async_trait]
+impl TimelineStore for SqliteCatalog {
+    async fn timeline_page(
+        &self,
+        cursor: Option<&TimelineCursor>,
+        limit: u32,
+    ) -> Result<TimelinePage, AppError> {
+        crate::assets::timeline_page(self, cursor, limit).await
+    }
 
     async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, AppError> {
         crate::assets::search(self, query).await
     }
+}
 
-    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), AppError> {
-        crate::local::save_local_asset(self, asset).await
-    }
-
-    async fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
-        crate::local::local_asset(self, id).await
-    }
-
+#[async_trait]
+impl UploadQueueStore for SqliteCatalog {
     async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), AppError> {
         crate::uploads::enqueue_upload(self, task).await
     }

@@ -6,10 +6,11 @@ use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::state::App;
 use clap::Parser;
 use serde::Deserialize;
 use source_cloudreve::{CredentialStore, FileCredentialStore};
-use source_core::{AppCore, LoginOutcome};
+use source_core::LoginOutcome;
 use tauri::Manager;
 
 /// Where the dev scripts hand their results over. `SOURCE_DEV_TMP` lets a shell
@@ -203,7 +204,7 @@ pub(crate) fn open_dev_frontend(app: &tauri::AppHandle) {
 
 /// Log in with the credentials `scripts/dev_cloudreve.py` wrote, so a freshly
 /// provisioned container needs no manual setup. Failures never block startup.
-pub(crate) fn autoconnect(core: &AppCore) {
+pub(crate) fn autoconnect(core: &App) {
     let Some(config) = read_json::<CloudreveConfig>("cloudreve.json") else {
         return;
     };

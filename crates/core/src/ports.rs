@@ -125,7 +125,7 @@ pub trait CloudrevePort: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
-// Catalog
+// Catalog, split by use case so each module's bounds name what it may touch
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
@@ -230,15 +230,20 @@ pub trait UploadSessionPort: Send + Sync {
     async fn remove_session(&self, key: &str) -> Result<(), AppError>;
 }
 
+/// The selected server and the key/value settings stored next to it.
 #[async_trait]
-pub trait CatalogPort: Send + Sync {
+pub trait ServerStore: Send + Sync {
     async fn save_server(&self, server: &StoredServer) -> Result<(), AppError>;
     async fn load_server(&self) -> Result<Option<StoredServer>, AppError>;
     async fn clear_server(&self) -> Result<(), AppError>;
 
     async fn set_setting(&self, key: &str, value: &str) -> Result<(), AppError>;
     async fn get_setting(&self, key: &str) -> Result<Option<String>, AppError>;
+}
 
+/// The library root and the remote folders mirrored from the server.
+#[async_trait]
+pub trait FolderStore: Send + Sync {
     async fn set_library_root(&self, root: &FolderRef) -> Result<(), AppError>;
     async fn library_root(&self) -> Result<Option<FolderRef>, AppError>;
 
@@ -265,17 +270,28 @@ pub trait CatalogPort: Send + Sync {
     /// Only a completed full pass has listed the whole tree, so a caller must
     /// not prune after a partial or incremental run.
     async fn retain_folders(&self, keep: &HashSet<String>) -> Result<(), AppError>;
+}
+
+/// Indexed assets, local assets and the per-asset flags the UI can toggle.
+#[async_trait]
+pub trait AssetStore: Send + Sync {
     async fn upsert_asset(&self, asset: &AssetRecord) -> Result<(), AppError>;
     /// Re-point an asset at another folder and URI after a remote move.
     async fn move_asset(&self, asset_id: &str, folder_id: &str, uri: &str) -> Result<(), AppError>;
+    async fn asset(&self, id: &str) -> Result<Option<AssetRecord>, AppError>;
+    async fn set_favorite(&self, asset_id: &str, value: bool) -> Result<(), AppError>;
+    /// Store the blur-up mosaic for a tile. Written once per asset, lazily.
+    async fn set_asset_thumb_hash(&self, asset_id: &str, value: &str) -> Result<(), AppError>;
+
+    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), AppError>;
+    async fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError>;
+}
+
+/// Albums are folders with media in them; the counts and covers are derived.
+#[async_trait]
+pub trait AlbumStore: Send + Sync {
     async fn mark_album(&self, folder_id: &str, is_album: bool) -> Result<(), AppError>;
     async fn rebuild_albums(&self) -> Result<(), AppError>;
-
-    async fn timeline_page(
-        &self,
-        cursor: Option<&TimelineCursor>,
-        limit: u32,
-    ) -> Result<TimelinePage, AppError>;
     async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError>;
     async fn album(&self, id: &str) -> Result<Option<AlbumSummary>, AppError>;
     async fn album_page(
@@ -284,21 +300,28 @@ pub trait CatalogPort: Send + Sync {
         cursor: Option<&TimelineCursor>,
         limit: u32,
     ) -> Result<TimelinePage, AppError>;
-    async fn asset(&self, id: &str) -> Result<Option<AssetRecord>, AppError>;
-    async fn set_favorite(&self, asset_id: &str, value: bool) -> Result<(), AppError>;
-    /// Store the blur-up mosaic for a tile. Written once per asset, lazily.
-    async fn set_asset_thumb_hash(&self, asset_id: &str, value: &str) -> Result<(), AppError>;
     async fn set_album_cover(&self, album_id: &str, cover: Option<&str>) -> Result<(), AppError>;
     async fn set_album_description(
         &self,
         album_id: &str,
         description: Option<&str>,
     ) -> Result<(), AppError>;
+}
+
+/// Read paths over the whole index: the timeline and search.
+#[async_trait]
+pub trait TimelineStore: Send + Sync {
+    async fn timeline_page(
+        &self,
+        cursor: Option<&TimelineCursor>,
+        limit: u32,
+    ) -> Result<TimelinePage, AppError>;
     async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, AppError>;
+}
 
-    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), AppError>;
-    async fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError>;
-
+/// The upload queue persisted across restarts.
+#[async_trait]
+pub trait UploadQueueStore: Send + Sync {
     async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), AppError>;
     async fn update_upload(&self, task: &UploadTask) -> Result<(), AppError>;
     async fn upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError>;

@@ -15,7 +15,8 @@ pub mod time;
 pub use app::AppCore;
 pub use dto::*;
 pub use ports::{
-    AssetRecord, CatalogPort, CloudrevePort, FolderRecord, FolderSyncState, LocalMediaPort,
-    ProgressSink, RemoteEntry, RemoteEntryPage, SearchQuery, StoredJournal, StoredRecord,
-    StoredServer, StoredSession, UploadProgress, UploadRequest, UploadSessionPort,
+    AlbumStore, AssetRecord, AssetStore, CloudrevePort, FolderRecord, FolderStore, FolderSyncState,
+    LocalMediaPort, ProgressSink, RemoteEntry, RemoteEntryPage, SearchQuery, ServerStore,
+    StoredJournal, StoredRecord, StoredServer, StoredSession, TimelineStore, UploadProgress,
+    UploadQueueStore, UploadRequest, UploadSessionPort,
 };

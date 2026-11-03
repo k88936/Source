@@ -29,23 +29,15 @@ impl CloudreveService {
         // same entry resumes while a second upload of the same file does not
         // share or clobber its chunks.
         let key = request.task_id.0.clone();
-        let journal = self
-            .sessions
-            .as_ref()
-            .map(|sessions| UploadJournal::new(Arc::clone(sessions)));
+        let journal = UploadJournal::new(Arc::clone(&self.sessions));
 
-        let (stream, records) = match &journal {
-            Some(journal) => open_upload(&uploader, journal, &key, params).await?,
-            None => (
-                uploader.upload(params).await.map_err(map_upload_error)?,
-                Vec::new(),
-            ),
-        };
+        let (stream, records) = open_upload(&uploader, &journal, &key, params).await?;
 
         drive_upload(
             stream,
             records,
-            journal.as_ref().map(|journal| (journal, key.as_str())),
+            &journal,
+            key.as_str(),
             &request.cancel,
             &request.progress,
         )

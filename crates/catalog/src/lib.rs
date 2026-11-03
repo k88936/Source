@@ -1,5 +1,6 @@
-//! Diesel-backed SQLite implementation of [`CatalogPort`] and
-//! [`UploadSessionPort`].
+//! Diesel-backed SQLite implementation of the store ports defined in
+//! `source_core::ports` (`ServerStore`, `FolderStore`, `AssetStore`,
+//! `AlbumStore`, `TimelineStore`, `UploadQueueStore`, `UploadSessionPort`).
 //!
 //! The schema lives in `migrations/` and is mirrored by `schema.rs`; every query
 //! is written with the diesel DSL so column types, joins and upserts are checked
@@ -26,8 +27,9 @@ use source_core::dto::{
     MediaType, TakenAtSource, TimelineCursor, TimelinePage, UploadState, UploadTask, UploadTaskId,
 };
 use source_core::ports::{
-    AssetRecord, CatalogPort, FolderRecord, FolderSyncState, SearchQuery, StoredJournal,
-    StoredRecord, StoredServer, StoredSession, UploadSessionPort,
+    AlbumStore, AssetRecord, AssetStore, FolderRecord, FolderStore, FolderSyncState, SearchQuery,
+    ServerStore, StoredJournal, StoredRecord, StoredServer, StoredSession, TimelineStore,
+    UploadQueueStore, UploadSessionPort,
 };
 
 pub mod schema;
@@ -59,6 +61,7 @@ const POOL_SIZE: usize = 4;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
+#[derive(Clone)]
 pub struct SqliteCatalog {
     pool: Pool<SyncConnectionWrapper<SqliteConnection>>,
 }

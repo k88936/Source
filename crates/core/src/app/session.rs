@@ -2,7 +2,11 @@
 
 use super::*;
 
-impl AppCore {
+impl<C, R, M> AppCore<C, R, M>
+where
+    C: FolderStore + ServerStore,
+    R: CloudrevePort,
+{
     pub async fn bootstrap(&self) -> Option<SessionState> {
         let server = self.catalog.load_server().await.ok().flatten()?;
         *self.pending_server.lock().unwrap() = Some(server.base_url.clone());

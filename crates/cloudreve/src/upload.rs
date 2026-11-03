@@ -42,7 +42,8 @@ fn cancelled() -> AppError {
 pub(crate) async fn drive_upload(
     stream: UploadStream,
     records: Vec<ChunkProgress>,
-    journal: Option<(&UploadJournal, &str)>,
+    journal: &UploadJournal,
+    key: &str,
     cancel: &AtomicBool,
     progress: &ProgressSink,
 ) -> Result<(), AppError> {
@@ -63,17 +64,13 @@ pub(crate) async fn drive_upload(
             UploadEvent::ChunkDone(record) => {
                 // Journal first, then stop: a cancelled attempt keeps every
                 // chunk the server has already accepted.
-                if let Some((journal, key)) = journal {
-                    journal.append(key, &record).await?;
-                }
+                journal.append(key, &record).await?;
                 if cancel.load(Ordering::SeqCst) {
                     return Err(cancelled());
                 }
             }
             UploadEvent::Completed => {
-                if let Some((journal, key)) = journal {
-                    journal.remove(key).await;
-                }
+                journal.remove(key).await;
                 return Ok(());
             }
             UploadEvent::Failed(error) => {
@@ -81,9 +78,7 @@ pub(crate) async fn drive_upload(
                 // expired before anything new was uploaded. That journal can
                 // never be resumed, so drop it instead of replaying it on every
                 // retry.
-                if matches!(error, UploadError::SessionExpired)
-                    && let Some((journal, key)) = journal
-                {
+                if matches!(error, UploadError::SessionExpired) {
                     journal.remove(key).await;
                 }
                 return Err(map_upload_error(error.into()));

@@ -2,7 +2,11 @@
 
 use super::*;
 
-impl AppCore {
+impl<C, R, M> AppCore<C, R, M>
+where
+    C: FolderStore + ServerStore,
+    R: CloudrevePort,
+{
     pub async fn list_remote_folders(
         &self,
         uri: &str,

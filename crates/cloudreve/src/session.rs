@@ -19,24 +19,17 @@ pub struct CloudreveService {
     pub(crate) store: Arc<dyn CredentialStore>,
     pub(crate) active: Mutex<Option<ActiveSession>>,
     pub(crate) http: reqwest::Client,
-    pub(crate) sessions: Option<Arc<dyn UploadSessionPort>>,
+    pub(crate) sessions: Arc<dyn UploadSessionPort>,
 }
 
 impl CloudreveService {
-    pub fn new(store: Arc<dyn CredentialStore>) -> Self {
+    pub fn new(store: Arc<dyn CredentialStore>, sessions: Arc<dyn UploadSessionPort>) -> Self {
         Self {
             store,
             active: Mutex::new(None),
             http: reqwest::Client::new(),
-            sessions: None,
+            sessions,
         }
-    }
-
-    /// Persist upload-session/chunk snapshots so interrupted uploads resume
-    /// after an app restart (including `content://` sources).
-    pub fn with_session_store(mut self, sessions: Arc<dyn UploadSessionPort>) -> Self {
-        self.sessions = Some(sessions);
-        self
     }
 
     pub(crate) fn client_for(&self, base_url: &str) -> Arc<Client> {
