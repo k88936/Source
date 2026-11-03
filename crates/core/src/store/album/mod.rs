@@ -4,30 +4,16 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
-use super::dto::*;
+use super::folder::rows::FolderRow;
 use super::query::*;
-use super::rows::*;
 use super::schema::assets;
 use super::schema::folders;
 use super::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct AlbumSummary {
-    pub id: AlbumId,
-    pub name: String,
-    pub uri: String,
-    pub path: String,
-    pub asset_count: u32,
-    /// Up to four newest covers, explicit cover first, for the mosaic tile.
-    pub cover_asset_ids: Vec<AssetId>,
-    pub description: Option<String>,
-    pub updated_at: i64,
-}
+mod dto;
+
+pub use dto::*;
 
 #[async_trait]
 pub trait AlbumStore: Send + Sync {

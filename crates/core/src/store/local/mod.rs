@@ -1,6 +1,8 @@
 //! The local (on-device) media library.
 
-use super::rows::*;
+mod rows;
+
+use self::rows::*;
 use super::schema::local_assets;
 use super::*;
 

@@ -4,56 +4,19 @@
 use std::collections::HashSet;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
-use super::dto::*;
 use super::query::*;
-use super::rows::*;
 use super::schema::assets;
 use super::schema::folders;
 use super::schema::sync_state;
 use super::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct FolderRef {
-    pub id: FolderId,
-    pub uri: String,
-    pub name: String,
-    /// Path relative to the user's root (`/Photos/2024` style).
-    #[serde(default)]
-    pub path: String,
-}
+mod dto;
+pub(crate) mod rows;
 
-#[derive(Debug, Clone)]
-pub struct FolderRecord {
-    pub id: String,
-    pub parent_id: Option<String>,
-    pub name: String,
-    pub uri: String,
-    pub path: String,
-    pub updated_at: i64,
-    pub is_album: bool,
-    pub cover_asset_id: Option<String>,
-    pub description: Option<String>,
-}
+pub use dto::*;
 
-#[derive(Debug, Clone)]
-pub struct FolderSyncState {
-    pub folder_id: String,
-    pub status: String,
-    pub remote_updated_at: Option<i64>,
-    pub last_listed_at: Option<i64>,
-    pub last_error: Option<String>,
-}
-
-impl FolderSyncState {
-    pub fn is_done(&self) -> bool {
-        self.status == "done"
-    }
-}
+use self::rows::*;
 
 #[async_trait]
 pub trait FolderStore: Send + Sync {

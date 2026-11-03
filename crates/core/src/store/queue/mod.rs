@@ -2,45 +2,20 @@
 //! diesel statements behind it.
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
-use super::dto::*;
-use super::rows::*;
+use crate::time::now_ms;
+
 use super::schema::upload_queue as queue;
-use super::values::*;
 use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub enum UploadState {
-    Queued,
-    CreatingSession,
-    Uploading,
-    Completing,
-    Done,
-    Failed,
-    Cancelled,
-}
+mod dto;
+pub(crate) mod rows;
+mod values;
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct UploadTask {
-    pub id: UploadTaskId,
-    pub local_asset_id: String,
-    pub name: String,
-    pub dest_uri: String,
-    pub dest_name: Option<String>,
-    pub state: UploadState,
-    pub uploaded: i64,
-    pub total: i64,
-    pub speed: i64,
-    pub eta_seconds: Option<u32>,
-    pub attempts: u32,
-    pub error: Option<AppError>,
-}
+pub use dto::*;
+
+use self::rows::*;
+use self::values::*;
 
 #[async_trait]
 pub trait UploadQueueStore: Send + Sync {

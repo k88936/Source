@@ -49,7 +49,4 @@ macro_rules! id_type {
     };
 }
 
-id_type!(AssetId);
-id_type!(FolderId);
-id_type!(AlbumId);
-id_type!(UploadTaskId);
+pub(crate) use id_type;

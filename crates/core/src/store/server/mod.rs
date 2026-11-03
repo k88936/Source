@@ -3,17 +3,15 @@
 
 use async_trait::async_trait;
 
+use crate::time::now_ms;
+
 use super::schema::app_state as state;
 use super::schema::server;
-use super::values::*;
 use super::*;
 
-#[derive(Debug, Clone)]
-pub struct StoredServer {
-    pub base_url: String,
-    pub user_id: String,
-    pub display_name: Option<String>,
-}
+mod dto;
+
+pub use dto::*;
 
 #[async_trait]
 pub trait ServerStore: Send + Sync {
