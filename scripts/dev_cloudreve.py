@@ -156,6 +156,42 @@ def remove_container() -> None:
     )
 
 
+def containers_mounting(directory: Path) -> list[str]:
+    """Names of every container that bind-mounts `directory`."""
+    containers = run(
+        "podman", "ps", "--all", "--quiet", capture_output=True
+    ).stdout.split()
+    if not containers:
+        return []
+    inspected = run(
+        "podman",
+        "inspect",
+        "--format",
+        "{{.Name}}\t{{json .Mounts}}",
+        *containers,
+        capture_output=True,
+    ).stdout
+    resolved = directory.resolve()
+    mounted = []
+    for line in inspected.splitlines():
+        name, _, mounts = line.partition("\t")
+        for mount in json.loads(mounts):
+            source = mount.get("Source")
+            if source is not None and Path(source).resolve() == resolved:
+                mounted.append(name)
+                break
+    return mounted
+
+
+def ensure_data_dir_not_shared() -> None:
+    shared = [name for name in containers_mounting(DATA_DIR) if name != CONTAINER]
+    if shared:
+        raise RuntimeError(
+            f"{DATA_DIR} is already mounted by {', '.join(shared)}; "
+            f"reuse that server, dont start a second one."
+        )
+
+
 def container_endpoint() -> str:
     published = run(
         "podman", "port", CONTAINER, f"{CONTAINER_PORT}/tcp", capture_output=True
@@ -362,6 +398,7 @@ def main() -> None:
         if shutil.which(command) is None:
             raise RuntimeError(f"required command not found: {command}")
 
+    ensure_data_dir_not_shared()
     if args.clean:
         clean()
 
