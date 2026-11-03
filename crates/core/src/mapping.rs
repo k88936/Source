@@ -2,16 +2,27 @@
 
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use ts_rs::TS;
 
-use crate::dto::{AssetId, AssetSummary, ExifField, FolderId, MediaType, TakenAtSource};
 use crate::exif::ExifData;
-use crate::ports::{AssetRecord, RemoteEntry};
+use crate::remote::RemoteEntry;
+use crate::store::{AssetId, AssetRecord, AssetSummary, FolderId, MediaType, TakenAtSource};
 use crate::time::{parse_filename_date, parse_rfc3339};
 
 pub const FAVORITE_KEY: &str = "customize:album_favorite";
 pub const COVER_KEY: &str = "customize:album_cover";
 pub const DESCRIPTION_KEY: &str = "customize:album_description";
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExifField {
+    pub key: String,
+    pub label: String,
+    pub value: String,
+}
 
 pub fn metadata_bool(metadata: &HashMap<String, String>, key: &str) -> bool {
     metadata

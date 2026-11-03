@@ -6,11 +6,12 @@ use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::credentials::FileCredentialStore;
 use crate::state::App;
 use clap::Parser;
 use serde::Deserialize;
-use source_cloudreve::{CredentialStore, FileCredentialStore};
-use source_core::LoginOutcome;
+use source_core::CredentialStore;
+use source_core::app::session::LoginOutcome;
 use tauri::Manager;
 
 /// Where the dev scripts hand their results over. `SOURCE_DEV_TMP` lets a shell
@@ -208,19 +209,18 @@ pub(crate) fn autoconnect(core: &App) {
     let Some(config) = read_json::<CloudreveConfig>("cloudreve.json") else {
         return;
     };
-    if core
-        .session_state()
-        .is_some_and(|session| session.server == config.endpoint)
-    {
+    let connected = tauri::async_runtime::block_on(core.session.session_state())
+        .is_some_and(|session| session.server == config.endpoint);
+    if connected {
         println!("dev: already connected to {}", config.endpoint);
         return;
     }
     tauri::async_runtime::block_on(async {
-        if let Err(error) = core.set_server(&config.endpoint).await {
+        if let Err(error) = core.session.set_server(&config.endpoint).await {
             eprintln!("dev: cannot reach {}: {error}", config.endpoint);
             return;
         }
-        match core.login(&config.email, &config.password).await {
+        match core.session.login(&config.email, &config.password).await {
             Ok(LoginOutcome::Authenticated { .. }) => {}
             Ok(LoginOutcome::TwoFactorRequired { .. }) => {
                 eprintln!(
@@ -235,10 +235,12 @@ pub(crate) fn autoconnect(core: &App) {
             }
         }
         let has_root = core
+            .session
             .session_state()
+            .await
             .and_then(|session| session.library_root)
             .is_some();
-        if !has_root && let Err(error) = core.set_library_root(&config.uri).await {
+        if !has_root && let Err(error) = core.folders.set_library_root(&config.uri).await {
             eprintln!(
                 "dev: cannot use {} as the library root: {error}",
                 config.uri

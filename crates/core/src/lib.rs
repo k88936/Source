@@ -1,22 +1,39 @@
-//! Domain types, ports and application use cases.
+//! The whole engine: domain types, use cases, and the adapters that connect
+//! them to SQLite, Cloudreve and the platform media library.
 //!
-//! Everything here is independent of Tauri, SQLite, HTTP and Android. The
-//! adapter crates (`catalog`, `cloudreve`, `media`) implement the ports; the
-//! Tauri crate wires them together. TypeScript bindings are generated from the
-//! DTOs in [`dto`].
+//! Each module holds one dependency direction end to end — its contract, the
+//! payload types of that contract, and the code that implements it. Everything
+//! here is independent of Tauri: the Tauri crate only wires these pieces
+//! together and maps commands. TypeScript bindings are generated from those
+//! payload types, wherever they are declared.
 
 pub mod app;
-pub mod dto;
+pub mod credential;
+pub mod error;
 pub mod exif;
+pub mod journal;
 pub mod mapping;
-pub mod ports;
+pub mod media;
+pub mod remote;
+pub mod sqlite;
+pub mod store;
 pub mod time;
 
-pub use app::AppCore;
-pub use dto::*;
-pub use ports::{
-    AlbumStore, AssetRecord, AssetStore, CloudrevePort, FolderRecord, FolderStore, FolderSyncState,
-    LocalMediaPort, ProgressSink, RemoteEntry, RemoteEntryPage, SearchQuery, ServerStore,
-    StoredJournal, StoredRecord, StoredServer, StoredSession, TimelineStore, UploadProgress,
-    UploadQueueStore, UploadRequest, UploadSessionPort,
+pub use app::{
+    BrowseService, FoldersService, IndexService, SessionService, UploadOutcome, UploadsService,
+};
+pub use credential::CredentialStore;
+pub use error::{AppError, ErrorCode};
+pub use journal::{StoredJournal, StoredRecord, StoredSession, UploadSessionPort};
+pub use media::{
+    FsLocalMedia, LOCAL_THUMB_EDGE, ThumbCache, fetch_bytes, fetch_range, preview_from_jpeg,
+};
+pub use remote::{
+    CloudrevePort, CloudreveService, ProgressSink, RemoteEntry, RemoteEntryPage, UploadProgress,
+    UploadRequest,
+};
+pub use sqlite::SqliteCatalog;
+pub use store::{
+    AlbumStore, AssetRecord, AssetStore, FolderRecord, FolderStore, FolderSyncState, SearchQuery,
+    ServerStore, TimelineStore, UploadQueueStore,
 };

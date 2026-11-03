@@ -20,9 +20,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 source-core = { path = "../crates/core" }
-source-catalog = { path = "../crates/catalog" }
-source-cloudreve = { path = "../crates/cloudreve" }
-source-media = { path = "../crates/media" }
 tokio = { version = "1", features = ["sync", "time", "rt"] }
 urlencoding = "2"
 mime_guess = "2"

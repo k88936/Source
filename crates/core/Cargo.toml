@@ -8,11 +8,35 @@ license.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
 ts-rs = { workspace = true }
+
+# Domain and use cases
 async-trait = "0.1"
 imagesize = "0.14"
 kamadak-exif = "0.6"
 mime_guess = "2"
 regex = "1"
 time = { version = "0.3", features = ["macros", "parsing"] }
-tokio = { version = "1", features = ["rt", "sync", "time"] }
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
 url = "2"
+
+# SQLite adapter
+diesel = { version = "2.3", features = ["sqlite", "returning_clauses_for_sqlite_3_35"] }
+diesel-async = { version = "0.9", features = ["sqlite", "sync-connection-wrapper", "deadpool"] }
+diesel_migrations = "2.3"
+libsqlite3-sys = { version = "0.35", features = ["bundled"] }
+
+# Cloudreve adapter
+anyhow = "1"
+cloudreve-sdk-api = { path = "../../../cloudreve-sdk-rs/crates/cloudreve-sdk-api" }
+cloudreve-sdk-uploader = { path = "../../../cloudreve-sdk-rs/crates/cloudreve-sdk-uploader" }
+futures = "0.3"
+urlencoding = "2"
+
+# Media adapter
+sha2 = "0.10"
+base64 = "0.22"
+jpeg-decoder = { version = "0.3", default-features = false }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+
+# Shared by the Cloudreve and media adapters
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }

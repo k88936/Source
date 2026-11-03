@@ -1,29 +1,30 @@
-//! Application use cases. This is the only place that coordinates the
-//! Cloudreve, Catalog and Media ports; the Tauri layer just maps arguments,
-//! errors and events.
+//! Application use cases, one service per use case.
+//!
+//! Each service owns the ports it needs and the state that belongs to it alone,
+//! so the only place that knows the whole graph is the composition root in the
+//! Tauri crate. Business rules stay here instead of leaking into the command
+//! layer, and no service can reach a port it did not declare.
 
-use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use tokio::sync::mpsc;
+use crate::error::AppError;
+use crate::mapping::{COVER_KEY, DESCRIPTION_KEY};
+use crate::remote::RemoteEntry;
+use crate::store::{AssetSummary, FolderRecord, FolderRef, FolderStore, MediaType};
 
-use crate::dto::{
-    AlbumPageParams, AlbumSummary, AppError, AssetDetail, AssetSummary, Capacity,
-    EnqueueUploadsParams, ErrorCode, FolderRef, IndexPhase, IndexStatus, LocalAlbum,
-    LocalAssetPageParams, LoginOutcome, MediaPermissionState, SearchParams, SessionState, SiteInfo,
-    StartIndexParams, TimelinePage, TimelinePageParams, UploadProgressEvent, UploadState,
-    UploadTask, UploadTaskId,
-};
-use crate::mapping::{COVER_KEY, DESCRIPTION_KEY, FAVORITE_KEY, asset_record, exif_fields};
-use crate::ports::{
-    AlbumStore, AssetStore, CloudrevePort, FolderRecord, FolderStore, LocalMediaPort, RemoteEntry,
-    SearchQuery, ServerStore, StoredServer, TimelineStore, UploadProgress, UploadQueueStore,
-    UploadRequest,
-};
+pub mod browse;
+mod dto;
+pub mod folders;
+pub mod index;
+pub mod session;
+pub mod uploads;
 
-pub(crate) use crate::time::now_ms;
+pub use browse::BrowseService;
+pub use dto::*;
+pub use folders::FoldersService;
+pub use index::IndexService;
+pub use session::SessionService;
+pub use uploads::{UploadOutcome, UploadsService};
 
 /// Upload progress is written to the catalog at most this often.
 ///
@@ -31,57 +32,7 @@ pub(crate) use crate::time::now_ms;
 /// upload into thousands of writes that the UI never reads.
 const PROGRESS_WRITE_INTERVAL: Duration = Duration::from_millis(400);
 
-/// The application, generic over its ports.
-///
-/// The concrete graph is fixed at compile time by the composition root (see
-/// `App` in the Tauri crate): swapping an adapter is changing a type argument,
-/// and each use-case module declares the stores it is allowed to touch as
-/// bounds on its `impl` block.
-pub struct AppCore<C, R, M> {
-    cloud: R,
-    catalog: C,
-    local: M,
-    pending_server: Mutex<Option<String>>,
-    session: Mutex<Option<SessionState>>,
-    index: Mutex<IndexStatus>,
-    index_running: AtomicBool,
-    index_cancel: AtomicBool,
-    /// Cancellation flags of the upload attempts currently running.
-    upload_cancels: Mutex<HashMap<String, Arc<AtomicBool>>>,
-}
-
-impl<C, R, M> AppCore<C, R, M> {
-    pub fn new(cloud: R, catalog: C, local: M) -> Self {
-        Self {
-            cloud,
-            catalog,
-            local,
-            pending_server: Mutex::new(None),
-            session: Mutex::new(None),
-            index: Mutex::new(IndexStatus {
-                phase: IndexPhase::Idle,
-                folders_done: 0,
-                folders_total: 0,
-                assets_seen: 0,
-                started_at: None,
-                error: None,
-            }),
-            index_running: AtomicBool::new(false),
-            index_cancel: AtomicBool::new(false),
-            upload_cancels: Mutex::new(HashMap::new()),
-        }
-    }
-}
-
-mod browse;
-mod folders;
-mod index;
-mod session;
-mod uploads;
-
-pub use uploads::UploadOutcome;
-
-fn folder_ref(entry: &RemoteEntry) -> FolderRef {
+pub(crate) fn folder_ref(entry: &RemoteEntry) -> FolderRef {
     FolderRef {
         id: entry.id.clone().into(),
         uri: entry.uri.clone(),
@@ -90,18 +41,44 @@ fn folder_ref(entry: &RemoteEntry) -> FolderRef {
     }
 }
 
-fn is_media(asset: &AssetSummary) -> bool {
-    matches!(
-        asset.media_type,
-        crate::dto::MediaType::Image | crate::dto::MediaType::Video
-    )
+pub(crate) fn folder_record(
+    folder: &FolderRef,
+    info: &RemoteEntry,
+    parent_id: Option<&str>,
+) -> FolderRecord {
+    FolderRecord {
+        id: folder.id.0.clone(),
+        parent_id: parent_id.map(str::to_owned),
+        name: folder.name.clone(),
+        uri: folder.uri.clone(),
+        path: folder.path.clone(),
+        updated_at: info.updated_at,
+        is_album: false,
+        cover_asset_id: info.metadata.get(COVER_KEY).cloned(),
+        description: info.metadata.get(DESCRIPTION_KEY).cloned(),
+    }
 }
 
-fn clamp_limit(limit: u32) -> u32 {
+pub(crate) async fn upsert_remote_folder<C: FolderStore>(
+    catalog: &C,
+    folder: &FolderRef,
+    info: &RemoteEntry,
+    parent_id: Option<&str>,
+) -> Result<(), AppError> {
+    catalog
+        .upsert_folder(&folder_record(folder, info, parent_id))
+        .await
+}
+
+pub(crate) fn is_media(asset: &AssetSummary) -> bool {
+    matches!(asset.media_type, MediaType::Image | MediaType::Video)
+}
+
+pub(crate) fn clamp_limit(limit: u32) -> u32 {
     limit.clamp(1, 200)
 }
 
-fn normalize_base_url(raw: &str) -> Result<String, AppError> {
+pub(crate) fn normalize_base_url(raw: &str) -> Result<String, AppError> {
     let raw = raw.trim();
     if raw.is_empty() {
         return Err(AppError::internal("服务器地址不能为空"));

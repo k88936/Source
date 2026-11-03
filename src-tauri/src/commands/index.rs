@@ -9,7 +9,7 @@ pub(crate) async fn start_index(
     params: StartIndexParams,
 ) -> Result<IndexStatus, AppError> {
     let core = Arc::clone(&state.core);
-    let status = core.start_index(params.clone()).await?;
+    let status = core.index.start(params.clone()).await?;
     if status.phase == IndexPhase::Scanning {
         let app_handle = app.clone();
         let core_task = Arc::clone(&core);
@@ -19,16 +19,16 @@ pub(crate) async fn start_index(
             let monitor = tauri::async_runtime::spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_millis(400)).await;
-                    let snapshot = monitor_core.index_status();
+                    let snapshot = monitor_core.index.status();
                     let _ = monitor_app.emit("catalog://index", &snapshot);
                     if snapshot.phase != IndexPhase::Scanning {
                         break;
                     }
                 }
             });
-            core_task.run_index(params.full).await;
+            core_task.index.run(params.full).await;
             let _ = monitor.await;
-            let _ = app_handle.emit("catalog://index", core_task.index_status());
+            let _ = app_handle.emit("catalog://index", core_task.index.status());
             let _ = app_handle.emit(
                 "catalog://changed",
                 CatalogChangedEvent {
@@ -44,11 +44,11 @@ pub(crate) async fn start_index(
 
 #[tauri::command]
 pub(crate) fn index_status(state: State<'_, AppState>) -> IndexStatus {
-    state.core.index_status()
+    state.core.index.status()
 }
 
 /// Stop after the folder currently being scanned; the pass stays resumable.
 #[tauri::command]
 pub(crate) fn cancel_index(state: State<'_, AppState>) -> IndexStatus {
-    state.core.cancel_index()
+    state.core.index.cancel_pass()
 }

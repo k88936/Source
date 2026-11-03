@@ -1,7 +1,7 @@
 //! Upload queue commands and the upload runner.
 
 use crate::prelude::*;
-use source_core::dto::UploadProgressEvent;
+use source_core::app::uploads::UploadProgressEvent;
 
 #[tauri::command]
 pub(crate) async fn enqueue_uploads(
@@ -9,7 +9,7 @@ pub(crate) async fn enqueue_uploads(
     state: State<'_, AppState>,
     params: EnqueueUploadsParams,
 ) -> Result<Vec<UploadTask>, AppError> {
-    let tasks = state.core.enqueue_uploads(params).await?;
+    let tasks = state.core.uploads.enqueue(params).await?;
     let ids = tasks.iter().map(|t| t.id.0.clone()).collect::<Vec<_>>();
     let core = Arc::clone(&state.core);
     tauri::async_runtime::spawn(async move {
@@ -20,7 +20,7 @@ pub(crate) async fn enqueue_uploads(
 
 #[tauri::command]
 pub(crate) async fn upload_tasks(state: State<'_, AppState>) -> Result<Vec<UploadTask>, AppError> {
-    state.core.upload_tasks().await
+    state.core.uploads.tasks().await
 }
 
 #[tauri::command]
@@ -28,7 +28,7 @@ pub(crate) async fn cancel_upload(
     state: State<'_, AppState>,
     params: UploadTaskParams,
 ) -> Result<(), AppError> {
-    state.core.cancel_upload(&params.task_id.0).await
+    state.core.uploads.cancel(&params.task_id.0).await
 }
 
 #[tauri::command]
@@ -37,7 +37,7 @@ pub(crate) async fn retry_upload(
     state: State<'_, AppState>,
     params: UploadTaskParams,
 ) -> Result<UploadTask, AppError> {
-    let task = state.core.retry_upload(&params.task_id.0).await?;
+    let task = state.core.uploads.retry(&params.task_id.0).await?;
     let core = Arc::clone(&state.core);
     let id = task.id.0.clone();
     tauri::async_runtime::spawn(async move {
@@ -123,7 +123,7 @@ async fn run_one_upload(
                 if error.retryable && retries < MAX_RETRIES {
                     retries += 1;
                     tokio::time::sleep(retry_delay(retries)).await;
-                    if core.requeue_upload(&id).await.is_err() {
+                    if core.uploads.requeue(&id).await.is_err() {
                         return;
                     }
                     continue;
@@ -149,7 +149,8 @@ async fn attempt_upload(
     id: &str,
 ) -> Result<source_core::app::UploadOutcome, AppError> {
     let queued = core
-        .upload_task(id)
+        .uploads
+        .task(id)
         .await
         .ok()
         .flatten()
@@ -166,5 +167,5 @@ async fn attempt_upload(
         Arc::new(move |event: UploadProgressEvent| {
             let _ = progress_app.emit("upload://progress", &event);
         });
-    core.run_upload(id, progress).await
+    core.uploads.run(id, progress).await
 }

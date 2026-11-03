@@ -1,11 +1,138 @@
 //! Browsing the catalog, asset details and the local media library.
 
-use super::*;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-impl<C, R, M> AppCore<C, R, M>
+use crate::error::AppError;
+use crate::mapping::{COVER_KEY, DESCRIPTION_KEY, ExifField, FAVORITE_KEY, exif_fields};
+use crate::media::{
+    LocalAlbum, LocalAsset, LocalAssetPage, LocalAssetPageParams, LocalMediaPort,
+    MediaPermissionState,
+};
+use crate::remote::CloudrevePort;
+use crate::store::{
+    AlbumId, AlbumStore, AlbumSummary, AssetId, AssetStore, AssetSummary, FolderId, FolderStore,
+    MediaType, SearchQuery, TimelineCursor, TimelinePage, TimelineStore,
+};
+
+use super::clamp_limit;
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TimelinePageParams {
+    pub cursor: Option<TimelineCursor>,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AlbumPageParams {
+    pub album_id: AlbumId,
+    pub cursor: Option<TimelineCursor>,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AssetDetailParams {
+    pub asset_id: AssetId,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchParams {
+    pub query: String,
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+    pub favorite: Option<bool>,
+    pub media_type: Option<MediaType>,
+    pub cursor: Option<TimelineCursor>,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SetFavoriteParams {
+    pub asset_id: AssetId,
+    pub value: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SetAlbumCoverParams {
+    pub album_id: AlbumId,
+    pub asset_id: AssetId,
+}
+
+/// Move a batch of assets into an album (a folder move on Cloudreve).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MoveAssetsParams {
+    pub asset_ids: Vec<AssetId>,
+    pub album_id: AlbumId,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SetAlbumDescriptionParams {
+    pub album_id: AlbumId,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AssetDetail {
+    pub asset: AssetSummary,
+    pub album_name: Option<String>,
+    pub album_path: Option<String>,
+    pub exif: Vec<ExifField>,
+    pub download_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportAssetsParams {
+    pub asset_ids: Vec<AssetId>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportResult {
+    pub exported: u32,
+    pub directory: String,
+}
+
+pub struct BrowseService<R, C, M> {
+    cloud: R,
+    catalog: C,
+    local: M,
+}
+
+impl<R, C, M> BrowseService<R, C, M> {
+    pub fn new(cloud: R, catalog: C, local: M) -> Self {
+        Self {
+            cloud,
+            catalog,
+            local,
+        }
+    }
+}
+
+impl<R, C, M> BrowseService<R, C, M>
 where
-    C: AlbumStore + AssetStore + FolderStore + TimelineStore,
     R: CloudrevePort,
+    C: AlbumStore + AssetStore + FolderStore + TimelineStore,
     M: LocalMediaPort,
 {
     pub async fn timeline_page(
@@ -71,7 +198,7 @@ where
         self.cloud.media_url(&uri).await
     }
 
-    pub fn local_asset(&self, id: &str) -> Result<Option<crate::dto::LocalAsset>, AppError> {
+    pub fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
         self.local.asset(id)
     }
 
@@ -197,7 +324,7 @@ where
             return Err(AppError::internal("移动结果与请求不一致"));
         }
 
-        let album_id = crate::dto::FolderId::new(folder.id);
+        let album_id = FolderId::new(folder.id);
         let mut moved = Vec::with_capacity(records.len());
         for (record, new_uri) in records.into_iter().zip(new_uris) {
             let asset_id = record.summary.id.0.clone();
@@ -245,7 +372,7 @@ where
     pub fn local_asset_page(
         &self,
         params: LocalAssetPageParams,
-    ) -> Result<crate::dto::LocalAssetPage, AppError> {
+    ) -> Result<LocalAssetPage, AppError> {
         self.local.assets(
             params.album_id.as_deref(),
             params.cursor.as_deref(),

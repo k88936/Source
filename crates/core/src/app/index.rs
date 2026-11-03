@@ -1,31 +1,101 @@
 //! Catalog indexing of the remote library.
 
-use super::*;
+use std::collections::HashSet;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-impl<C, R, M> AppCore<C, R, M>
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+use crate::error::AppError;
+use crate::mapping::asset_record;
+use crate::remote::{CloudrevePort, RemoteEntry};
+use crate::store::{AlbumStore, FolderRef, FolderStore, MediaType, ServerStore};
+use crate::time::now_ms;
+
+use super::{folder_ref, is_media, upsert_remote_folder};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum IndexPhase {
+    Idle,
+    Scanning,
+    Paused,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct IndexStatus {
+    pub phase: IndexPhase,
+    pub folders_done: u32,
+    pub folders_total: u32,
+    pub assets_seen: i64,
+    pub started_at: Option<i64>,
+    pub error: Option<AppError>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StartIndexParams {
+    #[serde(default)]
+    pub full: bool,
+}
+
+pub struct IndexService<R, C> {
+    cloud: R,
+    catalog: C,
+    status: Mutex<IndexStatus>,
+    running: AtomicBool,
+    cancel: AtomicBool,
+}
+
+impl<R, C> IndexService<R, C> {
+    pub fn new(cloud: R, catalog: C) -> Self {
+        Self {
+            cloud,
+            catalog,
+            status: Mutex::new(IndexStatus {
+                phase: IndexPhase::Idle,
+                folders_done: 0,
+                folders_total: 0,
+                assets_seen: 0,
+                started_at: None,
+                error: None,
+            }),
+            running: AtomicBool::new(false),
+            cancel: AtomicBool::new(false),
+        }
+    }
+}
+
+impl<R, C> IndexService<R, C>
 where
-    C: AlbumStore + FolderStore + ServerStore,
     R: CloudrevePort,
+    C: AlbumStore + FolderStore + ServerStore,
 {
-    pub fn index_status(&self) -> IndexStatus {
-        self.index.lock().unwrap().clone()
+    pub fn status(&self) -> IndexStatus {
+        self.status.lock().unwrap().clone()
     }
 
-    pub async fn start_index(&self, params: StartIndexParams) -> Result<IndexStatus, AppError> {
-        if self.index_running.load(Ordering::SeqCst) {
-            return Ok(self.index_status());
+    pub async fn start(&self, params: StartIndexParams) -> Result<IndexStatus, AppError> {
+        if self.running.load(Ordering::SeqCst) {
+            return Ok(self.status());
         }
         if self.catalog.library_root().await?.is_none() {
             return Err(AppError::internal("请先在资料库中选择图库根目录"));
         }
-        self.index_cancel.store(false, Ordering::SeqCst);
+        self.cancel.store(false, Ordering::SeqCst);
         if params.full {
             self.catalog
                 .set_setting("index_full_requested", "1")
                 .await?;
         }
         {
-            let mut status = self.index.lock().unwrap();
+            let mut status = self.status.lock().unwrap();
             status.phase = IndexPhase::Scanning;
             status.folders_done = 0;
             status.folders_total = 0;
@@ -33,11 +103,11 @@ where
             status.started_at = Some(now_ms());
             status.error = None;
         }
-        Ok(self.index_status())
+        Ok(self.status())
     }
 
-    pub fn index_mark_started(&self) {
-        self.index_running.store(true, Ordering::SeqCst);
+    pub fn mark_started(&self) {
+        self.running.store(true, Ordering::SeqCst);
     }
 
     /// Ask a running pass to stop after the folder it is currently on.
@@ -45,27 +115,27 @@ where
     /// The pass stays resumable: folders already marked `done` are skipped by
     /// the next incremental run, and the phase becomes [`IndexPhase::Paused`]
     /// so the UI can offer "continue" instead of "start".
-    pub fn cancel_index(&self) -> IndexStatus {
-        if self.index_running.load(Ordering::SeqCst) {
-            self.index_cancel.store(true, Ordering::SeqCst);
-            let mut status = self.index.lock().unwrap();
+    pub fn cancel_pass(&self) -> IndexStatus {
+        if self.running.load(Ordering::SeqCst) {
+            self.cancel.store(true, Ordering::SeqCst);
+            let mut status = self.status.lock().unwrap();
             status.phase = IndexPhase::Paused;
             status.error = None;
         }
-        self.index_status()
+        self.status()
     }
 
-    pub async fn run_index(&self, full: bool) {
-        if self.index_running.swap(true, Ordering::SeqCst) {
+    pub async fn run(&self, full: bool) {
+        if self.running.swap(true, Ordering::SeqCst) {
             return;
         }
-        self.index_cancel.store(false, Ordering::SeqCst);
-        let result = self.run_index_inner(full).await;
+        self.cancel.store(false, Ordering::SeqCst);
+        let result = self.run_inner(full).await;
         {
-            let mut status = self.index.lock().unwrap();
+            let mut status = self.status.lock().unwrap();
             match result {
                 Ok(()) => {
-                    status.phase = if self.index_cancel.load(Ordering::SeqCst) {
+                    status.phase = if self.cancel.load(Ordering::SeqCst) {
                         IndexPhase::Paused
                     } else {
                         IndexPhase::Idle
@@ -78,11 +148,11 @@ where
                 }
             }
         }
-        self.index_running.store(false, Ordering::SeqCst);
+        self.running.store(false, Ordering::SeqCst);
         let _ = self.catalog.set_setting("index_full_requested", "0").await;
     }
 
-    pub(crate) async fn run_index_inner(&self, full: bool) -> Result<(), AppError> {
+    async fn run_inner(&self, full: bool) -> Result<(), AppError> {
         let root = self
             .catalog
             .library_root()
@@ -95,10 +165,10 @@ where
             name: root_info.name.clone(),
             path: root_info.path.clone(),
         };
-        self.upsert_remote_folder(&root, &root_info, None).await?;
+        upsert_remote_folder(&self.catalog, &root, &root_info, None).await?;
         // The remote may hand out a different id for the same folder than the
         // one stored at login; keep the root pointer in step with the catalog.
-        self.remember_library_root(&root).await?;
+        self.catalog.set_library_root(&root).await?;
 
         let mut stack = vec![root];
         let mut seen = HashSet::new();
@@ -107,7 +177,7 @@ where
         // has subtrees it never reached.
         let mut complete = true;
         while let Some(folder) = stack.pop() {
-            if self.index_cancel.load(Ordering::SeqCst) {
+            if self.cancel.load(Ordering::SeqCst) {
                 complete = false;
                 break;
             }
@@ -122,13 +192,13 @@ where
                     .map(|s| s.is_done() && s.remote_updated_at == Some(info.updated_at))
                     .unwrap_or(false)
             {
-                let mut status = self.index.lock().unwrap();
+                let mut status = self.status.lock().unwrap();
                 status.folders_done += 1;
                 continue;
             }
 
             {
-                let mut status = self.index.lock().unwrap();
+                let mut status = self.status.lock().unwrap();
                 status.folders_total = status.folders_total.max(status.folders_done + 1);
             }
 
@@ -140,7 +210,7 @@ where
                     self.catalog
                         .mark_folder(&folder.id.0, "failed", Some(&err.message), None, now_ms())
                         .await?;
-                    let mut status = self.index.lock().unwrap();
+                    let mut status = self.status.lock().unwrap();
                     status.folders_done += 1;
                     status.error = Some(err);
                     continue;
@@ -151,16 +221,15 @@ where
             for entry in &entries {
                 if entry.is_folder {
                     let child = folder_ref(entry);
-                    self.upsert_remote_folder(&child, entry, Some(&folder.id.0))
-                        .await?;
+                    upsert_remote_folder(&self.catalog, &child, entry, Some(&folder.id.0)).await?;
                     {
-                        let mut status = self.index.lock().unwrap();
+                        let mut status = self.status.lock().unwrap();
                         status.folders_total += 1;
                     }
                     stack.push(child);
                 } else {
-                    let is_image = crate::mapping::media_type(None, &entry.name)
-                        == crate::dto::MediaType::Image;
+                    let is_image =
+                        crate::mapping::media_type(None, &entry.name) == MediaType::Image;
                     let client_exif = if is_image && !entry.metadata.contains_key("exif:taken_at") {
                         self.cloud
                             .client_taken_at(&entry.uri)
@@ -188,7 +257,7 @@ where
                 .mark_folder(&folder.id.0, "done", None, Some(info.updated_at), now_ms())
                 .await?;
             {
-                let mut status = self.index.lock().unwrap();
+                let mut status = self.status.lock().unwrap();
                 status.folders_done += 1;
                 status.assets_seen += count;
             }
@@ -200,7 +269,7 @@ where
         Ok(())
     }
 
-    pub(crate) async fn list_all_entries(&self, uri: &str) -> Result<Vec<RemoteEntry>, AppError> {
+    async fn list_all_entries(&self, uri: &str) -> Result<Vec<RemoteEntry>, AppError> {
         let mut out = Vec::new();
         let mut token: Option<String> = None;
         loop {
@@ -212,26 +281,5 @@ where
             }
         }
         Ok(out)
-    }
-
-    pub(crate) async fn upsert_remote_folder(
-        &self,
-        folder: &FolderRef,
-        info: &RemoteEntry,
-        parent_id: Option<&str>,
-    ) -> Result<(), AppError> {
-        self.catalog
-            .upsert_folder(&FolderRecord {
-                id: folder.id.0.clone(),
-                parent_id: parent_id.map(str::to_owned),
-                name: folder.name.clone(),
-                uri: folder.uri.clone(),
-                path: folder.path.clone(),
-                updated_at: info.updated_at,
-                is_album: false,
-                cover_asset_id: info.metadata.get(COVER_KEY).cloned(),
-                description: info.metadata.get(DESCRIPTION_KEY).cloned(),
-            })
-            .await
     }
 }

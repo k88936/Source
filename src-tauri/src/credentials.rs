@@ -1,9 +1,9 @@
-//! Session tokens in the OS keychain.
+//! Session tokens: the platform keychain, plus a plaintext file for dev builds.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use source_cloudreve::{CredentialStore, FileCredentialStore};
+use source_core::CredentialStore;
 use tauri::AppHandle;
 use tauri_plugin_keyring::{CredentialType, CredentialValue, KeyringExt};
 
@@ -97,5 +97,43 @@ impl CredentialStore for KeyringCredentialStore {
                 .delete(Self::USER, CredentialType::Password);
         }
         self.fallback.clear();
+    }
+}
+
+/// Filesystem fallback/migration store, used by dev builds and to migrate a
+/// token written before the keyring was wired in.
+pub struct FileCredentialStore {
+    path: PathBuf,
+}
+
+impl FileCredentialStore {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl CredentialStore for FileCredentialStore {
+    fn read(&self) -> Option<String> {
+        std::fs::read_to_string(&self.path).ok()
+    }
+
+    fn write(&self, value: &str) {
+        if let Some(parent) = self.path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let tmp = self.path.with_extension("tmp");
+        if std::fs::write(&tmp, value).is_ok() {
+            let _ = std::fs::rename(&tmp, &self.path);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ =
+                    std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(0o600));
+            }
+        }
+    }
+
+    fn clear(&self) {
+        let _ = std::fs::remove_file(&self.path);
     }
 }

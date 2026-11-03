@@ -1,12 +1,11 @@
 //! Startup wiring: the composition root and resuming queued uploads.
 
-use std::path::Path;
 use std::sync::Arc;
 
-use source_catalog::SqliteCatalog;
-use source_cloudreve::{CloudreveService, CredentialStore};
-use source_core::{AppCore, AppError, UploadSessionPort};
-use source_media::{FsLocalMedia, ThumbCache};
+use source_core::{
+    AppError, BrowseService, CloudreveService, CredentialStore, FoldersService, FsLocalMedia,
+    IndexService, SessionService, SqliteCatalog, ThumbCache, UploadSessionPort, UploadsService,
+};
 use tauri::Manager;
 
 use crate::commands::uploads::run_upload_batch;
@@ -14,53 +13,57 @@ use crate::commands::uploads::run_upload_batch;
 use crate::credentials::KeyringCredentialStore;
 use crate::state::{App, AppState};
 
-/// Build the dependency graph.
+/// Open storage, build every service, and resume uploads left queued by a crash.
 ///
-/// This is the register section: the only place an adapter is constructed, and
-/// the concrete types are fixed by [`App`]. A second graph (Android media, an
-/// e2e harness) swaps an adapter by changing that alias and calling this again,
-/// not by touching the use cases.
+/// This is the register section and the only place an adapter is constructed.
+/// All services share one Cloudreve handle, so a login is visible to all of them
+/// at once; a second graph (Android media, an e2e harness) swaps an adapter by
+/// changing a type argument here, not by touching the use cases.
 ///
 /// Migrations run inside `SqliteCatalog::open`, so the catalog is ready before
 /// anything can touch it.
-pub(crate) async fn compose(
-    app_data: &Path,
-    store: Arc<dyn CredentialStore>,
-) -> Result<App, AppError> {
-    let catalog = SqliteCatalog::open(app_data.join("catalog.sqlite3")).await?;
-    let sessions: Arc<dyn UploadSessionPort> = Arc::new(catalog.clone());
-    let cloud = CloudreveService::new(store, sessions);
-    let local = FsLocalMedia::new(FsLocalMedia::default_roots());
-    Ok(AppCore::new(cloud, catalog, local))
-}
-
-/// Open storage, build the core, and resume uploads left queued by a crash.
 pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let app_data = app.path().app_data_dir()?;
     std::fs::create_dir_all(&app_data)?;
 
-    let store: Arc<dyn CredentialStore> = {
-        #[cfg(debug_assertions)]
-        {
-            crate::dev::credential_store(&app_data)
-        }
-        #[cfg(not(debug_assertions))]
-        {
-            Arc::new(KeyringCredentialStore::new(
-                app.handle().clone(),
-                app_data.join("credentials.json"),
-            ))
-        }
-    };
-    let core: Arc<App> = Arc::new(tauri::async_runtime::block_on(compose(&app_data, store))?);
-    let _ = tauri::async_runtime::block_on(core.bootstrap());
+    let core: Arc<App> = Arc::new(tauri::async_runtime::block_on(async {
+        let catalog = SqliteCatalog::open(app_data.join("catalog.sqlite3")).await?;
+        let sessions: Arc<dyn UploadSessionPort> = Arc::new(catalog.clone());
+        let cred_store: Arc<dyn CredentialStore> = {
+            #[cfg(debug_assertions)]
+            {
+                crate::dev::credential_store(&app_data)
+            }
+            #[cfg(not(debug_assertions))]
+            {
+                Arc::new(KeyringCredentialStore::new(
+                    app.handle().clone(),
+                    app_data.join("credentials.json"),
+                ))
+            }
+        };
+        let cloud = CloudreveService::new(cred_store, sessions);
+        let local = FsLocalMedia::new(FsLocalMedia::default_roots());
+        Ok::<_, AppError>(App {
+            session: Arc::new(SessionService::new(cloud.clone(), catalog.clone())),
+            index: Arc::new(IndexService::new(cloud.clone(), catalog.clone())),
+            folders: Arc::new(FoldersService::new(cloud.clone(), catalog.clone())),
+            browse: Arc::new(BrowseService::new(
+                cloud.clone(),
+                catalog.clone(),
+                local.clone(),
+            )),
+            uploads: Arc::new(UploadsService::new(cloud, catalog, local)),
+        })
+    })?);
+    let _ = tauri::async_runtime::block_on(core.session.bootstrap());
 
     #[cfg(debug_assertions)]
     crate::dev::autoconnect(&core);
 
     let cache = Arc::new(ThumbCache::default_cache(&app_data)?);
 
-    let pending = tauri::async_runtime::block_on(core.pending_uploads()).unwrap_or_default();
+    let pending = tauri::async_runtime::block_on(core.uploads.pending()).unwrap_or_default();
     let pending_ids = pending.into_iter().map(|t| t.id.0).collect::<Vec<_>>();
     if !pending_ids.is_empty() {
         let handle = app.handle().clone();

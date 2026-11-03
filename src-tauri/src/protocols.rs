@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use source_core::dto::{AppError, ErrorCode};
-use source_media::{LOCAL_THUMB_EDGE, fetch_bytes, fetch_range, preview_from_jpeg};
+use source_core::error::{AppError, ErrorCode};
+use source_core::{LOCAL_THUMB_EDGE, fetch_bytes, fetch_range, preview_from_jpeg};
 use tauri::http::{Response, StatusCode, header};
 use tauri::{AppHandle, Manager, UriSchemeResponder};
 
@@ -72,14 +72,14 @@ pub(crate) fn thumb(
             ));
             return;
         }
-        match core.thumb_url(&id).await {
+        match core.browse.thumb_url(&id).await {
             Ok(url) => match fetch_bytes(&url).await {
                 Ok(bytes) => {
                     let _ = cache.put(&id, &bytes);
                     // Derive the blur-up placeholder from the JPEG we already
                     // downloaded, so it never costs an extra request. Done
                     // before responding so the mosaic lands on first paint.
-                    let mosaic = match core.asset_thumb_hash(&id).await {
+                    let mosaic = match core.browse.asset_thumb_hash(&id).await {
                         Ok(Some(_)) => None,
                         _ => preview_from_jpeg(&bytes),
                     };
@@ -91,7 +91,7 @@ pub(crate) fn thumb(
                         "public, max-age=86400",
                     ));
                     if let Some(mosaic) = mosaic {
-                        let _ = core.set_asset_thumb_hash(&id, &mosaic).await;
+                        let _ = core.browse.set_asset_thumb_hash(&id, &mosaic).await;
                     }
                 }
                 Err(error) => responder.respond(error_response(&error)),
@@ -119,7 +119,7 @@ pub(crate) fn media(
             let state = app.state::<AppState>();
             Arc::clone(&state.core)
         };
-        match core.media_url(&id).await {
+        match core.browse.media_url(&id).await {
             Ok(url) => match fetch_range(&url, range.as_deref()).await {
                 Ok((status, body, content_range, content_type)) => {
                     responder.respond(http_response(
@@ -195,7 +195,7 @@ pub(crate) fn local_thumb(
         }
         let source = path.clone();
         let thumb = tauri::async_runtime::spawn_blocking(move || {
-            core.local_thumb(&source, LOCAL_THUMB_EDGE).ok()
+            core.browse.local_thumb(&source, LOCAL_THUMB_EDGE).ok()
         })
         .await
         .ok()

@@ -1,17 +1,65 @@
 //! Library root and remote folder listing.
 
-use super::*;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-impl<C, R, M> AppCore<C, R, M>
+use crate::error::AppError;
+use crate::remote::CloudrevePort;
+use crate::store::{FolderRef, FolderStore, ServerStore};
+
+use super::{folder_ref, upsert_remote_folder};
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ListRemoteFoldersParams {
+    #[serde(default = "root_uri")]
+    pub uri: String,
+    pub page_token: Option<String>,
+}
+
+fn root_uri() -> String {
+    "cloudreve://my".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RemoteFolderPage {
+    pub folders: Vec<FolderRef>,
+    /// Folder currently being browsed (absent for the user root).
+    pub parent: Option<FolderRef>,
+    pub next: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SetLibraryRootParams {
+    pub uri: String,
+}
+
+pub struct FoldersService<R, C> {
+    cloud: R,
+    catalog: C,
+}
+
+impl<R, C> FoldersService<R, C> {
+    pub fn new(cloud: R, catalog: C) -> Self {
+        Self { cloud, catalog }
+    }
+}
+
+impl<R, C> FoldersService<R, C>
 where
-    C: FolderStore + ServerStore,
     R: CloudrevePort,
+    C: FolderStore + ServerStore,
 {
     pub async fn list_remote_folders(
         &self,
         uri: &str,
         page_token: Option<&str>,
-    ) -> Result<crate::dto::RemoteFolderPage, AppError> {
+    ) -> Result<RemoteFolderPage, AppError> {
         let page = self.cloud.list_entries(uri, page_token).await?;
         let parent = page.parent.as_ref().map(folder_ref);
         let folders = page
@@ -20,7 +68,7 @@ where
             .filter(|e| e.is_folder)
             .map(|e| folder_ref(&e))
             .collect();
-        Ok(crate::dto::RemoteFolderPage {
+        Ok(RemoteFolderPage {
             folders,
             parent,
             next: page.next,
@@ -30,39 +78,8 @@ where
     pub async fn set_library_root(&self, uri: &str) -> Result<FolderRef, AppError> {
         let info = self.cloud.folder_info(uri).await?;
         let folder = folder_ref(&info);
-        self.catalog
-            .upsert_folder(&FolderRecord {
-                id: folder.id.0.clone(),
-                parent_id: None,
-                name: folder.name.clone(),
-                uri: folder.uri.clone(),
-                path: folder.path.clone(),
-                updated_at: info.updated_at,
-                is_album: false,
-                cover_asset_id: info.metadata.get(COVER_KEY).cloned(),
-                description: info.metadata.get(DESCRIPTION_KEY).cloned(),
-            })
-            .await?;
-        self.remember_library_root(&folder).await?;
+        upsert_remote_folder(&self.catalog, &folder, &info, None).await?;
+        self.catalog.set_library_root(&folder).await?;
         Ok(folder)
-    }
-
-    /// Point the stored root and the live session at `folder`.
-    ///
-    /// A full index re-derives the root's id from the remote, so the stored
-    /// root is refreshed whenever the server hands out a different one.
-    pub(crate) async fn remember_library_root(&self, folder: &FolderRef) -> Result<(), AppError> {
-        self.catalog.set_library_root(folder).await?;
-        let updated = {
-            let mut guard = self.session.lock().unwrap();
-            guard.as_mut().map(|session| {
-                session.library_root = Some(folder.clone());
-                session.clone()
-            })
-        };
-        if let Some(session) = updated {
-            self.cache_session(&session).await;
-        }
-        Ok(())
     }
 }

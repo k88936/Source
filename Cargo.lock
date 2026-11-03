@@ -4230,10 +4230,7 @@ dependencies = [
  "mime_guess",
  "serde",
  "serde_json",
- "source-catalog",
- "source-cloudreve",
  "source-core",
- "source-media",
  "tauri",
  "tauri-build",
  "tauri-plugin-keyring",
@@ -4244,64 +4241,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "source-catalog"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "diesel",
- "diesel-async",
- "diesel_migrations",
- "libsqlite3-sys",
- "serde_json",
- "source-core",
- "tokio",
-]
-
-[[package]]
-name = "source-cloudreve"
+name = "source-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "cloudreve-sdk-api",
  "cloudreve-sdk-uploader",
+ "diesel",
+ "diesel-async",
+ "diesel_migrations",
  "futures",
+ "image",
+ "imagesize",
+ "jpeg-decoder",
+ "kamadak-exif",
+ "libsqlite3-sys",
+ "mime_guess",
+ "regex",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "source-core",
- "tokio",
- "urlencoding",
-]
-
-[[package]]
-name = "source-core"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "imagesize",
- "kamadak-exif",
- "mime_guess",
- "regex",
- "serde",
- "serde_json",
+ "sha2",
  "time",
  "tokio",
  "ts-rs",
  "url",
-]
-
-[[package]]
-name = "source-media"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "image",
- "jpeg-decoder",
- "reqwest 0.12.28",
- "serde_json",
- "sha2",
- "source-core",
+ "urlencoding",
 ]
 
 [[package]]

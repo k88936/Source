@@ -3,7 +3,7 @@
 use tauri::Manager;
 
 use crate::prelude::*;
-use source_media::fetch_bytes;
+use source_core::fetch_bytes;
 
 #[tauri::command]
 pub(crate) fn cache_stats(state: State<'_, AppState>) -> CacheStats {
@@ -30,8 +30,8 @@ pub(crate) async fn export_assets(
         .map_err(|e| AppError::internal(format!("创建导出目录失败: {e}")))?;
     let mut exported = 0u32;
     for id in params.asset_ids {
-        let detail = state.core.asset_detail(&id.0).await?;
-        let url = state.core.media_url(&id.0).await?;
+        let detail = state.core.browse.asset_detail(&id.0).await?;
+        let url = state.core.browse.media_url(&id.0).await?;
         let bytes = fetch_bytes(&url).await?;
         let name = sanitize_filename(&detail.download_name);
         let path = unique_path(&directory, &name);

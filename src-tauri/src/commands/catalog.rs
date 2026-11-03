@@ -7,12 +7,12 @@ pub(crate) async fn timeline_page(
     state: State<'_, AppState>,
     params: TimelinePageParams,
 ) -> Result<TimelinePage, AppError> {
-    state.core.timeline_page(params).await
+    state.core.browse.timeline_page(params).await
 }
 
 #[tauri::command]
 pub(crate) async fn album_list(state: State<'_, AppState>) -> Result<Vec<AlbumSummary>, AppError> {
-    state.core.album_list().await
+    state.core.browse.album_list().await
 }
 
 #[tauri::command]
@@ -20,7 +20,7 @@ pub(crate) async fn album_page(
     state: State<'_, AppState>,
     params: AlbumPageParams,
 ) -> Result<TimelinePage, AppError> {
-    state.core.album_page(params).await
+    state.core.browse.album_page(params).await
 }
 
 #[tauri::command]
@@ -28,7 +28,7 @@ pub(crate) async fn asset_detail(
     state: State<'_, AppState>,
     params: AssetDetailParams,
 ) -> Result<AssetDetail, AppError> {
-    state.core.asset_detail(&params.asset_id.0).await
+    state.core.browse.asset_detail(&params.asset_id.0).await
 }
 
 #[tauri::command]
@@ -36,7 +36,7 @@ pub(crate) async fn search_assets(
     state: State<'_, AppState>,
     params: SearchParams,
 ) -> Result<TimelinePage, AppError> {
-    state.core.search(params).await
+    state.core.browse.search(params).await
 }
 
 #[tauri::command]
@@ -47,6 +47,7 @@ pub(crate) async fn set_favorite(
 ) -> Result<AssetSummary, AppError> {
     let asset = state
         .core
+        .browse
         .set_favorite(&params.asset_id.0, params.value)
         .await?;
     emit_assets(&app, vec![asset.clone()]);
@@ -68,10 +69,11 @@ pub(crate) async fn move_assets_to_album(
         .collect::<Vec<_>>();
     let moved = state
         .core
+        .browse
         .move_assets_to_album(&ids, &params.album_id.0)
         .await?;
     // Counts and mosaics of both the source and the target album changed.
-    if let Ok(albums) = state.core.album_list().await {
+    if let Ok(albums) = state.core.browse.album_list().await {
         let _ = app.emit(
             "catalog://changed",
             CatalogChangedEvent {
@@ -92,6 +94,7 @@ pub(crate) async fn set_album_cover(
 ) -> Result<AlbumSummary, AppError> {
     let album = state
         .core
+        .browse
         .set_album_cover(&params.album_id.0, &params.asset_id.0)
         .await?;
     emit_albums(&app, vec![album.clone()]);
@@ -106,6 +109,7 @@ pub(crate) async fn set_album_description(
 ) -> Result<AlbumSummary, AppError> {
     let album = state
         .core
+        .browse
         .set_album_description(&params.album_id.0, &params.description)
         .await?;
     emit_albums(&app, vec![album.clone()]);
