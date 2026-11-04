@@ -35,6 +35,7 @@ pnpm dev
 
 * NEVER write fallback code unless confirmation
 * NEVER write defensive code unless confirmation
-* prefer compile time (e.g. type system) solution 
+* prefer compile time (e.g. type system) solution
+* NEVER emoji, full-width punctuation.
 
 * Still in inner and rapid dev, Only consider cloudreve v4 , Never consider migration
