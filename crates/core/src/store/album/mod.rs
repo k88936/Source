@@ -38,6 +38,75 @@ pub trait AlbumStore: Send + Sync {
 /// How many covers the album mosaic shows.
 const MOSAIC_COVERS: i64 = 4;
 
+pub(crate) async fn mark_album(
+    cat: &SqliteCatalog,
+    folder_id: &str,
+    is_album: bool,
+) -> Result<(), AppError> {
+    let mut conn = cat.conn().await?;
+    diesel::update(folders::table.filter(folders::id.eq(folder_id)))
+        .set(folders::is_album.eq(is_album))
+        .execute(&mut conn)
+        .await
+        .map_err(db_err)?;
+    Ok(())
+}
+
+/// Recompute `is_album` from the assets table and drop covers that no
+/// longer exist.
+///
+/// Both steps read the small side (albums, covers) before writing, which
+/// keeps the statements plain DSL instead of correlated subqueries.
+pub(crate) async fn rebuild_albums(cat: &SqliteCatalog) -> Result<(), AppError> {
+    let mut conn = cat.conn().await?;
+
+    let album_ids = assets::table
+        .filter(assets::media_type.eq_any(MEDIA_TYPES))
+        .select(assets::folder_id)
+        .distinct()
+        .load::<String>(&mut conn)
+        .await
+        .map_err(db_err)?;
+
+    diesel::update(folders::table)
+        .set(folders::is_album.eq(false))
+        .execute(&mut conn)
+        .await
+        .map_err(db_err)?;
+    if !album_ids.is_empty() {
+        diesel::update(folders::table.filter(folders::id.eq_any(&album_ids)))
+            .set(folders::is_album.eq(true))
+            .execute(&mut conn)
+            .await
+            .map_err(db_err)?;
+    }
+
+    let covers = folders::table
+        .filter(folders::cover_asset_id.is_not_null())
+        .select(folders::cover_asset_id)
+        .load::<Option<String>>(&mut conn)
+        .await
+        .map_err(db_err)?;
+    let covers: Vec<String> = covers.into_iter().flatten().collect();
+    if !covers.is_empty() {
+        let known = assets::table
+            .filter(assets::id.eq_any(&covers))
+            .select(assets::id)
+            .load::<String>(&mut conn)
+            .await
+            .map_err(db_err)?;
+        let stale: Vec<&String> = covers.iter().filter(|id| !known.contains(id)).collect();
+        if !stale.is_empty() {
+            diesel::update(folders::table.filter(folders::cover_asset_id.eq_any(stale)))
+                .set(folders::cover_asset_id.eq(None::<String>))
+                .execute(&mut conn)
+                .await
+                .map_err(db_err)?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) async fn album_list(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>, AppError> {
     let mut conn = cat.conn().await?;
     let mut albums = folders::table
@@ -217,11 +286,11 @@ pub(crate) async fn set_album_description(
 #[async_trait]
 impl AlbumStore for SqliteCatalog {
     async fn mark_album(&self, folder_id: &str, is_album: bool) -> Result<(), AppError> {
-        super::asset::mark_album(self, folder_id, is_album).await
+        mark_album(self, folder_id, is_album).await
     }
 
     async fn rebuild_albums(&self) -> Result<(), AppError> {
-        super::asset::rebuild_albums(self).await
+        rebuild_albums(self).await
     }
 
     async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError> {
