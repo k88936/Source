@@ -277,7 +277,7 @@
         title="无法加载相册"
         description={metaError || timeline.error}
         actionLabel="重试"
-        onaction={() => void load(currentId)}
+        onAction={() => void load(currentId)}
     />
 {:else if timeline.items.length === 0}
     <EmptyState
@@ -285,7 +285,7 @@
         title="这个相册还是空的"
         description="从本机上传照片, 或把时间线里的照片移动进来."
         actionLabel="上传照片"
-        onaction={() => void goto('/library?upload=1')}
+        onAction={() => void goto('/library?upload=1')}
     />
 {:else}
     <AssetGrid
@@ -293,9 +293,9 @@
         columns={app.columns}
         selectionMode={selection.active}
         selected={selection.ids}
-        onopen={open}
-        ontoggle={(asset) => selection.toggle(asset.id)}
-        oncolumns={(columns) => app.setColumns(columns)}
+        onOpen={open}
+        onToggle={(asset) => selection.toggle(asset.id)}
+        onColumns={(columns) => app.setColumns(columns)}
     />
     {#if timeline.next}
         <button
@@ -317,13 +317,13 @@
     />
 {/if}
 
-<AlbumPickerSheet bind:open={pickerOpen} excludeId={currentId} onpick={(target) => void moveToAlbum(target)} />
+<AlbumPickerSheet bind:open={pickerOpen} excludeId={currentId} onPick={(target) => void moveToAlbum(target)} />
 
 <AlbumMenu
     bind:open={menuOpen}
-    oncover={() => (coverMode = true)}
-    ondescription={() => (descriptionOpen = true)}
-    onremove={() => (removeOpen = true)}
+    onCover={() => (coverMode = true)}
+    onDescription={() => (descriptionOpen = true)}
+    onRemove={() => (removeOpen = true)}
 />
 
 <ConfirmDialog
@@ -332,17 +332,17 @@
     message="只会删掉本机的登记与索引, 云端文件夹与文件不受影响. 同步到这个相册的本机相册也会一起移除."
     confirmLabel="移除"
     danger
-    onclose={() => (removeOpen = false)}
-    onconfirm={() => void remove()}
+    onClose={() => (removeOpen = false)}
+    onConfirm={() => void remove()}
 />
 
 <DescriptionDialog
     bind:open={descriptionOpen}
     bind:draft={descriptionDraft}
     {saving}
-    onsave={() => void saveDescription()}
+    onSave={() => void saveDescription()}
 />
 
 {#if viewerOpen}
-    <Viewer items={timeline.items} bind:index={viewerIndex} onclose={() => (viewerOpen = false)} />
+    <Viewer items={timeline.items} bind:index={viewerIndex} onClose={() => (viewerOpen = false)} />
 {/if}

@@ -7,7 +7,7 @@
 
     /// Browses the remote folder tree and hands back the folder the user settled
     /// on. A folder is an album, so the button reads "add this folder".
-    let {open = $bindable(false), onpick}: {open?: boolean; onpick?: (folder: FolderRef) => void} = $props();
+    let {open = $bindable(false), onPick}: {open?: boolean; onPick?: (folder: FolderRef) => void} = $props();
 
     let browse = $state<RemoteFolderPage | null>(null);
     let loading = $state(false);
@@ -57,7 +57,7 @@
         if (!browse || busy) return;
         busy = true;
         try {
-            onpick?.(browse.current);
+            onPick?.(browse.current);
             open = false;
         } finally {
             busy = false;
@@ -76,7 +76,7 @@
             });
             newName = '';
             creating = false;
-            onpick?.(folder);
+            onPick?.(folder);
             open = false;
         } catch (err) {
             error = app.describeError(err);

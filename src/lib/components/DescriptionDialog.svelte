@@ -3,12 +3,12 @@
         open = $bindable(false),
         draft = $bindable(''),
         saving = false,
-        onsave,
+        onSave,
     }: {
         open?: boolean;
         draft?: string;
         saving?: boolean;
-        onsave: () => void;
+        onSave: () => void;
     } = $props();
 </script>
 
@@ -26,7 +26,7 @@
                     取消
                 </button>
                 <button
-                    onclick={onsave}
+                    onclick={onSave}
                     disabled={saving}
                     class="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
                 >

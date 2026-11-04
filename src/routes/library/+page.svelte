@@ -94,4 +94,4 @@
     </div>
 </div>
 
-<UploadSheet bind:open={uploadOpen} onuploaded={() => void app.refreshUploads()} />
+<UploadSheet bind:open={uploadOpen} onUploaded={() => void app.refreshUploads()} />

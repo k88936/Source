@@ -103,10 +103,10 @@
         title="无法加载相册"
         description={error}
         actionLabel="重试"
-        onaction={() => void load()}
+        onAction={() => void load()}
     />
 {:else if albums.length === 0}
-    <EmptyState icon="albums" title="还没有相册" actionLabel="添加相册" onaction={() => (pickerOpen = true)} />
+    <EmptyState icon="albums" title="还没有相册" actionLabel="添加相册" onAction={() => (pickerOpen = true)} />
 {:else}
     <div class="px-4 pb-24 pt-2">
         <p class="mb-2 px-1 text-xs text-muted">相册就是云端的一个文件夹 - 只收录它直接包含的照片与视频</p>
@@ -118,7 +118,7 @@
     </div>
 {/if}
 
-<RemoteFolderPicker bind:open={pickerOpen} onpick={(folder) => void add(folder)} />
+<RemoteFolderPicker bind:open={pickerOpen} onPick={(folder) => void add(folder)} />
 
 {#if adding}
     <div class="fixed inset-x-0 top-14 z-30 flex justify-center">

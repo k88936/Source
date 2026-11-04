@@ -11,11 +11,11 @@
     let {
         items,
         index = $bindable(0),
-        onclose,
+        onClose,
     }: {
         items: AssetSummary[];
         index?: number;
-        onclose: () => void;
+        onClose: () => void;
     } = $props();
 
     let scale = $state(1);
@@ -83,7 +83,7 @@
 
     $effect(() => {
         const onKey = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onclose();
+            if (event.key === 'Escape') onClose();
             if (event.key === 'ArrowRight') next();
             if (event.key === 'ArrowLeft') previous();
             if (event.key === 'f') void toggleFavorite();
@@ -190,7 +190,7 @@
 <div class="fixed inset-0 z-50 flex flex-col bg-black text-white">
     <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 pt-[var(--safe-top)]">
         <button
-            onclick={onclose}
+            onclick={onClose}
             class="grid size-11 place-items-center justify-self-start rounded-full hover:bg-white/10"
             aria-label="关闭"
         >

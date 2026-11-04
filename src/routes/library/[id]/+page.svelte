@@ -178,7 +178,7 @@
                 badge={formatBytes(asset.size)}
                 selectionMode
                 selected={selected.includes(asset.id)}
-                ontoggle={() => toggle(asset)}
+                onToggle={() => toggle(asset)}
             />
         {/each}
     </div>
@@ -206,7 +206,7 @@
     </div>
 {/if}
 
-<UploadSheet bind:open={uploadOpen} bind:initialDest initialSelection={selected} onuploaded={uploaded} />
+<UploadSheet bind:open={uploadOpen} bind:initialDest initialSelection={selected} onUploaded={uploaded} />
 
 <ConfirmDialog
     open={unlinkOpen}
@@ -214,6 +214,6 @@
     message="只会删掉本机的登记, 云端文件与相册不受影响."
     confirmLabel="解除同步"
     danger
-    onclose={() => (unlinkOpen = false)}
-    onconfirm={() => void unlink()}
+    onClose={() => (unlinkOpen = false)}
+    onConfirm={() => void unlink()}
 />

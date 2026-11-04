@@ -185,6 +185,6 @@
     message={confirmCopy.message}
     confirmLabel={confirmCopy.confirmLabel}
     danger
-    onclose={() => (confirmAction = null)}
-    onconfirm={() => void runConfirm()}
+    onClose={() => (confirmAction = null)}
+    onConfirm={() => void runConfirm()}
 />

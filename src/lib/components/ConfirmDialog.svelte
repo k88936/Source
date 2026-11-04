@@ -7,8 +7,8 @@
         message,
         confirmLabel = '确定',
         danger = false,
-        onclose,
-        onconfirm,
+        onClose,
+        onConfirm,
     }: {
         open: boolean;
         title: string;
@@ -16,14 +16,14 @@
         confirmLabel?: string;
         /** Destructive actions tint the icon and confirm button with the danger token. */
         danger?: boolean;
-        onclose: () => void;
-        onconfirm: () => void;
+        onClose: () => void;
+        onConfirm: () => void;
     } = $props();
 </script>
 
 <svelte:window
     onkeydown={(event) => {
-        if (open && event.key === 'Escape') onclose();
+        if (open && event.key === 'Escape') onClose();
     }}
 />
 
@@ -31,7 +31,7 @@
      route through this dialog instead. -->
 {#if open}
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-        <button type="button" class="absolute inset-0 cursor-default" aria-label="关闭" onclick={onclose}></button>
+        <button type="button" class="absolute inset-0 cursor-default" aria-label="关闭" onclick={onClose}></button>
         <div class="relative w-full max-w-sm rounded-3xl bg-gray p-5 shadow-2xl ring-1 ring-line">
             <span
                 class="grid size-10 place-items-center rounded-full {danger
@@ -44,13 +44,13 @@
             <p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-muted">{message}</p>
             <div class="mt-5 flex justify-end gap-2">
                 <button
-                    onclick={onclose}
+                    onclick={onClose}
                     class="rounded-xl px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-line/40"
                 >
                     取消
                 </button>
                 <button
-                    onclick={onconfirm}
+                    onclick={onConfirm}
                     class="rounded-xl px-4 py-2 text-sm font-medium transition-colors {danger
                         ? 'bg-danger/10 text-danger hover:bg-danger/20'
                         : 'bg-primary text-on-primary hover:opacity-90'}"

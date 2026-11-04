@@ -8,7 +8,7 @@
     /// Walks the device directories one level at a time. Desktop starts at the
     /// home directory and can go back; on platforms that only expose a list of
     /// media directories there is no parent and no descent.
-    let {open = $bindable(false), onpick}: {open?: boolean; onpick?: (entry: LocalEntry) => void} = $props();
+    let {open = $bindable(false), onPick}: {open?: boolean; onPick?: (entry: LocalEntry) => void} = $props();
 
     let page = $state<LocalBrowsePage | null>(null);
     let loading = $state(false);
@@ -37,7 +37,7 @@
     function pick() {
         const entry = current();
         if (!entry) return;
-        onpick?.(entry);
+        onPick?.(entry);
         open = false;
     }
 </script>

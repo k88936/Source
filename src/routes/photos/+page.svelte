@@ -130,7 +130,7 @@
         title={timeline.error ? '加载失败' : '时间线还是空的'}
         description={timeline.error}
         actionLabel={timeline.error ? '重试' : '添加相册'}
-        onaction={() => (timeline.error ? void timeline.reload() : void goto('/albums'))}
+        onAction={() => (timeline.error ? void timeline.reload() : void goto('/albums'))}
     />
 {:else}
     <AssetGrid
@@ -138,9 +138,9 @@
         columns={app.columns}
         selectionMode={selection.active}
         selected={selection.ids}
-        onopen={open}
-        ontoggle={(asset) => selection.toggle(asset.id)}
-        oncolumns={(columns) => app.setColumns(columns)}
+        onOpen={open}
+        onToggle={(asset) => selection.toggle(asset.id)}
+        onColumns={(columns) => app.setColumns(columns)}
     />
 
     {#if timeline.next}
@@ -160,8 +160,8 @@
     />
 {/if}
 
-<AlbumPickerSheet bind:open={pickerOpen} onpick={(album) => void moveToAlbum(album)} />
+<AlbumPickerSheet bind:open={pickerOpen} onPick={(album) => void moveToAlbum(album)} />
 
 {#if viewerOpen}
-    <Viewer items={timeline.items} bind:index={viewerIndex} onclose={() => (viewerOpen = false)} />
+    <Viewer items={timeline.items} bind:index={viewerIndex} onClose={() => (viewerOpen = false)} />
 {/if}

@@ -11,14 +11,14 @@
         open = $bindable(false),
         initialDest = $bindable(''),
         initialSelection = [],
-        onclose,
-        onuploaded,
+        onClose,
+        onUploaded,
     }: {
         open?: boolean;
         initialDest?: string;
         initialSelection?: string[];
-        onclose?: () => void;
-        onuploaded?: () => void;
+        onClose?: () => void;
+        onUploaded?: () => void;
     } = $props();
 
     let assets = $state<LocalAsset[]>([]);
@@ -91,8 +91,8 @@
             });
             app.showToast(`已加入上传队列 - ${tasks.length} 项 -> ${destName()}`, 'success');
             open = false;
-            onuploaded?.();
-            onclose?.();
+            onUploaded?.();
+            onClose?.();
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         } finally {
@@ -102,7 +102,7 @@
 
     function close() {
         open = false;
-        onclose?.();
+        onClose?.();
     }
 </script>
 
@@ -171,7 +171,7 @@
                                 {video}
                                 selectionMode
                                 selected={selected.includes(asset.id)}
-                                ontoggle={() => toggle(asset)}
+                                onToggle={() => toggle(asset)}
                             />
                         {/each}
                     </div>

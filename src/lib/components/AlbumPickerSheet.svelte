@@ -10,7 +10,7 @@
         excludeId = '',
         title = '移动到相册',
         hint = 'Cloudreve 的相册就是文件夹, 移动后文件会离开原目录.',
-        onpick,
+        onPick,
     }: {
         open?: boolean;
         /** Album the assets already live in; it is hidden from the list. */
@@ -18,7 +18,7 @@
         /** The sheet is also used to pick a sync target, where nothing moves. */
         title?: string;
         hint?: string;
-        onpick: (album: AlbumSummary) => void;
+        onPick: (album: AlbumSummary) => void;
     } = $props();
 
     let albums = $state<AlbumSummary[]>([]);
@@ -84,7 +84,7 @@
                                 <button
                                     onclick={() => {
                                         open = false;
-                                        onpick(album);
+                                        onPick(album);
                                     }}
                                     class="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray"
                                 >

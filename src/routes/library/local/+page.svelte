@@ -87,7 +87,7 @@
         title="还没有同步的本机相册"
         description="选一个本机目录, 指向一个云端相册, 它就出现在这里."
         actionLabel="同步本机相册"
-        onaction={() => (pickerOpen = true)}
+        onAction={() => (pickerOpen = true)}
     />
 {:else}
     <ul class="space-y-2 px-4 py-3">
@@ -116,10 +116,10 @@
     </p>
 {/if}
 
-<LocalDirPicker bind:open={pickerOpen} onpick={chose} />
+<LocalDirPicker bind:open={pickerOpen} onPick={chose} />
 <AlbumPickerSheet
     bind:open={targetOpen}
     title="同步到哪个相册"
     hint="只记录这个本机目录归哪个相册, 不会移动或上传任何文件."
-    onpick={(album) => void register(album)}
+    onPick={(album) => void register(album)}
 />

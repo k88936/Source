@@ -16,8 +16,8 @@
         selected = false,
         /** Let the caller size the tile (justified rows) instead of forcing a square. */
         fill = false,
-        onopen,
-        ontoggle,
+        onOpen,
+        onToggle,
     }: {
         /** Resolved only once the tile scrolls into view, so a long grid asks the
          * backend for addresses it is about to paint and nothing more. */
@@ -33,8 +33,8 @@
         selectionMode?: boolean;
         selected?: boolean;
         fill?: boolean;
-        onopen?: () => void;
-        ontoggle?: () => void;
+        onOpen?: () => void;
+        onToggle?: () => void;
     } = $props();
 
     let host: HTMLButtonElement | undefined = $state();
@@ -72,8 +72,8 @@
     }
 
     function click() {
-        if (selectionMode) ontoggle?.();
-        else onopen?.();
+        if (selectionMode) onToggle?.();
+        else onOpen?.();
     }
 </script>
 

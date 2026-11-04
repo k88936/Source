@@ -3,16 +3,14 @@
 
     let {
         open = $bindable(false),
-        oncover,
-        ondescription,
-        onselect,
-        onremove,
+        onCover,
+        onDescription,
+        onRemove,
     }: {
         open?: boolean;
-        oncover: () => void;
-        ondescription: () => void;
-        onselect: () => void;
-        onremove: () => void;
+        onCover: () => void;
+        onDescription: () => void;
+        onRemove: () => void;
     } = $props();
 
     const itemClass = 'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-gray';
@@ -34,7 +32,7 @@
             <button
                 onclick={() => {
                     open = false;
-                    oncover();
+                    onCover();
                 }}
                 class={itemClass}
             >
@@ -43,7 +41,7 @@
             <button
                 onclick={() => {
                     open = false;
-                    ondescription();
+                    onDescription();
                 }}
                 class={itemClass}
             >
@@ -52,16 +50,7 @@
             <button
                 onclick={() => {
                     open = false;
-                    onselect();
-                }}
-                class={itemClass}
-            >
-                <Icon name="download" size={20} /> 选择并下载
-            </button>
-            <button
-                onclick={() => {
-                    open = false;
-                    onremove();
+                    onRemove();
                 }}
                 class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-red-500 hover:bg-gray"
             >

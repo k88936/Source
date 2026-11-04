@@ -6,13 +6,13 @@
         title,
         description = '',
         actionLabel = '',
-        onaction,
+        onAction,
     }: {
         icon?: 'image' | 'albums' | 'search' | 'cloud' | 'folder' | 'upload' | 'wifi-off';
         title: string;
         description?: string;
         actionLabel?: string;
-        onaction?: () => void;
+        onAction?: () => void;
     } = $props();
 </script>
 
@@ -27,9 +27,9 @@
                 <p class="mt-2 text-sm font-light text-muted">{description}</p>
             {/if}
         </div>
-        {#if actionLabel && onaction}
+        {#if actionLabel && onAction}
             <button
-                onclick={onaction}
+                onclick={onAction}
                 class="rounded-xl bg-primary px-6 py-2.5 text-sm font-medium text-on-primary transition-opacity hover:opacity-90"
             >
                 {actionLabel}

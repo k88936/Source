@@ -10,17 +10,17 @@
         columns = 3,
         selectionMode = false,
         selected = [],
-        onopen,
-        ontoggle,
-        oncolumns,
+        onOpen,
+        onToggle,
+        onColumns,
     }: {
         items: AssetSummary[];
         columns?: number;
         selectionMode?: boolean;
         selected?: string[];
-        onopen: (asset: AssetSummary) => void;
-        ontoggle?: (asset: AssetSummary) => void;
-        oncolumns?: (columns: number) => void;
+        onOpen: (asset: AssetSummary) => void;
+        onToggle?: (asset: AssetSummary) => void;
+        onColumns?: (columns: number) => void;
     } = $props();
 
     type Group = {key: string; label: string; items: AssetSummary[]};
@@ -132,7 +132,7 @@
         window.scrollTo({top: 0, behavior: 'smooth'});
     }
 
-    function pinch(node: HTMLElement, initial: {columns: number; onchange?: (n: number) => void}) {
+    function pinch(node: HTMLElement, initial: {columns: number; onChange?: (n: number) => void}) {
         let params = initial;
         let startDistance = 0;
         let startColumns = params.columns;
@@ -149,7 +149,7 @@
             const ratio = distance(event.touches) / startDistance;
             const next = Math.min(6, Math.max(2, Math.round(startColumns * ratio)));
             if (next !== params.columns) {
-                params.onchange?.(next);
+                params.onChange?.(next);
             }
         };
         const onEnd = () => {
@@ -159,7 +159,7 @@
         node.addEventListener('touchmove', onMove, {passive: false});
         node.addEventListener('touchend', onEnd);
         return {
-            update(next: {columns: number; onchange?: (n: number) => void}) {
+            update(next: {columns: number; onChange?: (n: number) => void}) {
                 params = next;
             },
             destroy() {
@@ -171,7 +171,7 @@
     }
 </script>
 
-<div use:pinch={{columns, onchange: oncolumns}} bind:clientWidth={gridWidth} class="pb-24 sidebar:pb-8">
+<div use:pinch={{columns, onChange: onColumns}} bind:clientWidth={gridWidth} class="pb-24 sidebar:pb-8">
     {#each sections as section (section.group.key)}
         <section id="day-{section.group.key}">
             <h2 class="pb-2 pt-6 text-xs font-medium text-muted md:text-sm">
@@ -197,8 +197,8 @@
                             fill
                             {selectionMode}
                             selected={selected.includes(asset.id)}
-                            onopen={() => onopen(asset)}
-                            ontoggle={ontoggle ? () => ontoggle(asset) : undefined}
+                            onOpen={() => onOpen(asset)}
+                            onToggle={onToggle ? () => onToggle(asset) : undefined}
                         />
                     </div>
                 {/each}

@@ -274,7 +274,7 @@
         title="搜索失败"
         description={timeline.error}
         actionLabel="重试"
-        onaction={() => void run({query, mediaType, favorite, from, to})}
+        onAction={() => void run({query, mediaType, favorite, from, to})}
     />
 {:else if timeline.loading && !searched}
     <div class="flex justify-center py-20">
@@ -286,7 +286,7 @@
         title="没有找到匹配项"
         description="试试文件名片段, 日期范围或收藏筛选."
         actionLabel="清除筛选"
-        onaction={clearFilters}
+        onAction={clearFilters}
     />
 {:else if !searched}
     <EmptyState icon="search" title="搜索你的照片" description="按文件名, 拍摄日期或收藏状态查找." />
@@ -315,9 +315,9 @@
         columns={app.columns}
         selectionMode={selection.active}
         selected={selection.ids}
-        onopen={open}
-        ontoggle={(asset) => selection.toggle(asset.id)}
-        oncolumns={(columns) => app.setColumns(columns)}
+        onOpen={open}
+        onToggle={(asset) => selection.toggle(asset.id)}
+        onColumns={(columns) => app.setColumns(columns)}
     />
     {#if timeline.next}
         <button
@@ -340,8 +340,8 @@
     />
 {/if}
 
-<AlbumPickerSheet bind:open={pickerOpen} onpick={(album) => void moveToAlbum(album)} />
+<AlbumPickerSheet bind:open={pickerOpen} onPick={(album) => void moveToAlbum(album)} />
 
 {#if viewerOpen}
-    <Viewer items={timeline.items} bind:index={viewerIndex} onclose={() => (viewerOpen = false)} />
+    <Viewer items={timeline.items} bind:index={viewerIndex} onClose={() => (viewerOpen = false)} />
 {/if}
