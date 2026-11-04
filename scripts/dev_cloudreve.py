@@ -43,7 +43,6 @@ CONTAINER_PORT = 5212
 
 EMAIL = "dev@source.local"
 PASSWORD = "source-dev"
-LIBRARY_ROOT = "cloudreve://my/"
 REMOTE_DIR = "cloudreve://my/example-dir"
 
 IMAGE_COUNT = 6
@@ -340,7 +339,6 @@ def write_config(endpoint: str) -> None:
                 "endpoint": endpoint,
                 "email": EMAIL,
                 "password": PASSWORD,
-                "uri": LIBRARY_ROOT,
             },
             indent=2,
         )

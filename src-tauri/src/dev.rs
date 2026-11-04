@@ -154,7 +154,6 @@ struct CloudreveConfig {
     endpoint: String,
     email: String,
     password: String,
-    uri: String,
 }
 
 fn read_json<T: for<'de> Deserialize<'de>>(name: &str) -> Option<T> {
@@ -245,11 +244,11 @@ pub(crate) fn autoconnect(core: &App) {
             && let Err(error) = core
                 .albums
                 .add_album(source_core::app::albums::AddAlbumParams {
-                    uri: config.uri.clone(),
+                    uri: "cloudreve://my/example-dir".into(),
                 })
                 .await
         {
-            eprintln!("dev: cannot use {} as an album: {error}", config.uri);
+            eprintln!("dev: cannot add default album: {error}");
         }
         println!("dev: connected to {} as {}", config.endpoint, config.email);
     });
