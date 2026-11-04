@@ -1,7 +1,10 @@
 import type { AppInfo } from "./bindings/AppInfo";
 import type { Capacity } from "./bindings/Capacity";
 import type { CacheStats } from "./bindings/CacheStats";
+import type { AddAlbumParams } from "./bindings/AddAlbumParams";
+import type { AddLocalAlbumParams } from "./bindings/AddLocalAlbumParams";
 import type { AlbumPageParams } from "./bindings/AlbumPageParams";
+import type { AlbumParams } from "./bindings/AlbumParams";
 import type { AlbumSummary } from "./bindings/AlbumSummary";
 import type { AssetDetail } from "./bindings/AssetDetail";
 import type { AssetDetailParams } from "./bindings/AssetDetailParams";
@@ -9,12 +12,15 @@ import type { AssetSummary } from "./bindings/AssetSummary";
 import type { EnqueueUploadsParams } from "./bindings/EnqueueUploadsParams";
 import type { ExportAssetsParams } from "./bindings/ExportAssetsParams";
 import type { ExportResult } from "./bindings/ExportResult";
+import type { CreateFolderParams } from "./bindings/CreateFolderParams";
 import type { FolderRef } from "./bindings/FolderRef";
-import type { IndexStatus } from "./bindings/IndexStatus";
 import type { ListRemoteFoldersParams } from "./bindings/ListRemoteFoldersParams";
-import type { LocalAlbum } from "./bindings/LocalAlbum";
+import type { LocalAlbumParams } from "./bindings/LocalAlbumParams";
+import type { LocalAlbumSummary } from "./bindings/LocalAlbumSummary";
 import type { LocalAssetPage } from "./bindings/LocalAssetPage";
 import type { LocalAssetPageParams } from "./bindings/LocalAssetPageParams";
+import type { LocalBrowsePage } from "./bindings/LocalBrowsePage";
+import type { LocalBrowseParams } from "./bindings/LocalBrowseParams";
 import type { Login2faParams } from "./bindings/Login2faParams";
 import type { LoginOutcome } from "./bindings/LoginOutcome";
 import type { LoginParams } from "./bindings/LoginParams";
@@ -26,10 +32,8 @@ import type { AccountState } from "./bindings/AccountState";
 import type { SetAlbumCoverParams } from "./bindings/SetAlbumCoverParams";
 import type { SetAlbumDescriptionParams } from "./bindings/SetAlbumDescriptionParams";
 import type { SetFavoriteParams } from "./bindings/SetFavoriteParams";
-import type { SetLibraryRootParams } from "./bindings/SetLibraryRootParams";
 import type { SetServerParams } from "./bindings/SetServerParams";
 import type { SiteInfo } from "./bindings/SiteInfo";
-import type { StartIndexParams } from "./bindings/StartIndexParams";
 import type { TimelinePage } from "./bindings/TimelinePage";
 import type { TimelinePageParams } from "./bindings/TimelinePageParams";
 import type { UploadTask } from "./bindings/UploadTask";
@@ -72,19 +76,22 @@ export const api = {
 
   listRemoteFolders: (params: ListRemoteFoldersParams) =>
     call<RemoteFolderPage>("list_remote_folders", params),
-  setLibraryRoot: (params: SetLibraryRootParams) =>
-    call<FolderRef>("set_library_root", params),
-
-  startIndex: (params: StartIndexParams) =>
-    call<IndexStatus>("start_index", params),
-  cancelIndex: () => call<IndexStatus>("cancel_index"),
-  indexStatus: () => call<IndexStatus>("index_status"),
+  createFolder: (params: CreateFolderParams) =>
+    call<FolderRef>("create_folder", params),
 
   timelinePage: (params: TimelinePageParams) =>
     call<TimelinePage>("timeline_page", params),
   albumList: () => call<AlbumSummary[]>("album_list"),
+  albumGet: (params: AlbumParams) =>
+    call<AlbumSummary | null>("album_get", params),
   albumPage: (params: AlbumPageParams) =>
     call<TimelinePage>("album_page", params),
+  addAlbum: (params: AddAlbumParams) =>
+    call<AlbumSummary>("album_add", params),
+  removeAlbum: (params: AlbumParams) => call<void>("album_remove", params),
+  refreshAlbum: (params: AlbumParams) =>
+    call<AlbumSummary>("album_refresh", params),
+  refreshAllAlbums: () => call<AlbumSummary[]>("album_refresh_all"),
   assetDetail: (params: AssetDetailParams) =>
     call<AssetDetail>("asset_detail", params),
   searchAssets: (params: SearchParams) =>
@@ -102,7 +109,13 @@ export const api = {
     call<MediaPermissionState>("media_permission_state"),
   requestMediaPermission: () =>
     call<MediaPermissionState>("request_media_permission"),
-  localAlbumList: () => call<LocalAlbum[]>("local_album_list"),
+  localBrowse: (params: LocalBrowseParams) =>
+    call<LocalBrowsePage>("local_browse", params),
+  localAlbumList: () => call<LocalAlbumSummary[]>("local_album_list"),
+  addLocalAlbum: (params: AddLocalAlbumParams) =>
+    call<LocalAlbumSummary>("local_album_add", params),
+  removeLocalAlbum: (params: LocalAlbumParams) =>
+    call<void>("local_album_remove", params),
   localAssetPage: (params: LocalAssetPageParams) =>
     call<LocalAssetPage>("local_asset_page", params),
 

@@ -8,11 +8,16 @@
 	let {
 		open = $bindable(false),
 		excludeId = '',
+		title = '移动到相册',
+		hint = 'Cloudreve 的相册就是文件夹，移动后文件会离开原目录。',
 		onpick,
 	}: {
 		open?: boolean;
 		/** Album the assets already live in; it is hidden from the list. */
 		excludeId?: string;
+		/** The sheet is also used to pick a sync target, where nothing moves. */
+		title?: string;
+		hint?: string;
 		onpick: (album: AlbumSummary) => void;
 	} = $props();
 
@@ -61,12 +66,12 @@
 			class="flex max-h-[80vh] w-full max-w-md flex-col rounded-t-3xl bg-light p-4 shadow-2xl sm:rounded-3xl"
 		>
 			<div class="mb-2 flex items-center justify-between">
-				<h2 class="text-base font-semibold">移动到相册</h2>
+				<h2 class="text-base font-semibold">{title}</h2>
 				<button onclick={() => (open = false)} class="rounded-full p-2 hover:bg-gray" aria-label="关闭">
 					<Icon name="close" size={20} />
 				</button>
 			</div>
-			<p class="mb-3 text-xs text-muted">Cloudreve 的相册就是文件夹，移动后文件会离开原目录。</p>
+			<p class="mb-3 text-xs text-muted">{hint}</p>
 			<input
 				bind:value={filter}
 				type="search"

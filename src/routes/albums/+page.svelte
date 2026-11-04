@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { api } from '#lib/api/client';
 	import type { AlbumSummary } from '#lib/api/bindings/AlbumSummary';
+	import type { FolderRef } from '#lib/api/bindings/FolderRef';
 	import AlbumCard from '#lib/components/AlbumCard.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Icon from '#lib/components/Icon.svelte';
-	import IndexButton from '#lib/components/IndexButton.svelte';
+	import RemoteFolderPicker from '#lib/components/RemoteFolderPicker.svelte';
 	import TopBar from '#lib/components/TopBar.svelte';
 	import { app } from '#lib/state/app.svelte';
 	import { changes } from '#lib/state/changes';
@@ -14,6 +14,9 @@
 	let albums = $state<AlbumSummary[]>([]);
 	let loading = $state(true);
 	let error = $state('');
+	let pickerOpen = $state(false);
+	let adding = $state(false);
+	let refreshing = $state(false);
 
 	$effect(() => {
 		// Counts and mosaics come from assets too, so any catalog write refreshes
@@ -26,7 +29,6 @@
 	});
 
 	async function load() {
-		loading = true;
 		error = '';
 		try {
 			albums = await api.albumList();
@@ -36,32 +38,63 @@
 			loading = false;
 		}
 	}
+
+	async function add(folder: FolderRef) {
+		adding = true;
+		try {
+			const album = await api.addAlbum({ uri: folder.uri });
+			albums = [album, ...albums.filter((entry) => entry.id !== album.id)];
+			app.showToast(`已添加相册「${album.name}」`, 'success');
+		} catch (err) {
+			app.showToast(app.describeError(err), 'error');
+		} finally {
+			adding = false;
+		}
+	}
+
+	async function refreshAll() {
+		if (refreshing) return;
+		refreshing = true;
+		try {
+			albums = await api.refreshAllAlbums();
+			app.showToast('相册已刷新', 'success');
+		} catch (err) {
+			app.showToast(app.describeError(err), 'error');
+		} finally {
+			refreshing = false;
+		}
+	}
 </script>
 
 <svelte:head><title>相册 · Source</title></svelte:head>
 
-<TopBar title="相册" subtitle={loading ? '正在加载…' : `${albums.length} 个目录`}>
+<TopBar
+	title="相册"
+	subtitle={loading ? '正在加载…' : `${albums.length} 个相册`}
+>
 	{#snippet actions()}
 		<button
-			onclick={() => void goto('/library?upload=1')}
+			onclick={() => void refreshAll()}
 			class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-			aria-label="上传"
+			aria-label="刷新全部相册"
 		>
-			<Icon name="upload" size={21} />
+			{#if refreshing}
+				<div class="size-4 animate-spin rounded-full border-2 border-line border-t-primary"></div>
+			{:else}
+				<Icon name="sync" size={20} />
+			{/if}
 		</button>
-		<IndexButton />
+		<button
+			onclick={() => (pickerOpen = true)}
+			class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
+			aria-label="添加相册"
+		>
+			<Icon name="albums" size={22} />
+		</button>
 	{/snippet}
 </TopBar>
 
-{#if !app.account?.libraryRoot}
-	<EmptyState
-		icon="albums"
-		title="先选择图库根目录"
-		description="图库根目录下的每个文件夹都会成为一个相册。"
-		actionLabel="去资料库设置"
-		onaction={() => void goto('/library?setup=1')}
-	/>
-{:else if loading && albums.length === 0}
+{#if loading && albums.length === 0}
 	<div class="grid grid-cols-2 gap-3 p-4">
 		{#each Array(4) as _}
 			<div class="aspect-square animate-pulse rounded-2xl bg-gray"></div>
@@ -79,19 +112,25 @@
 	<EmptyState
 		icon="albums"
 		title="还没有相册"
-		description="运行索引后，Library Root 下的文件夹会出现在这里。"
-		actionLabel="开始索引"
-		onaction={() => void app.startIndex(false)}
+		description="把 Cloudreve 里的一个文件夹加进来，它就成为一个相册。"
+		actionLabel="添加相册"
+		onaction={() => (pickerOpen = true)}
 	/>
 {:else}
 	<div class="px-4 pb-24 pt-2">
-		<p class="mb-2 px-1 text-xs text-muted">
-			目录即相册 · 封面与描述保存在 Cloudreve metadata
-		</p>
+		<p class="mb-2 px-1 text-xs text-muted">相册就是云端的一个文件夹 · 只收录它直接包含的照片与视频</p>
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 sidebar:grid-cols-4">
 			{#each albums as album (album.id)}
 				<AlbumCard {album} />
 			{/each}
 		</div>
+	</div>
+{/if}
+
+<RemoteFolderPicker bind:open={pickerOpen} onpick={(folder) => void add(folder)} />
+
+{#if adding}
+	<div class="fixed inset-x-0 top-14 z-30 flex justify-center">
+		<div class="rounded-full bg-dark/85 px-4 py-2 text-xs text-light">正在添加相册…</div>
 	</div>
 {/if}

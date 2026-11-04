@@ -8,22 +8,25 @@ pub(crate) use tauri::{AppHandle, Emitter, State};
 pub(crate) use source_core::app::account::{
     AccountState, Login2faParams, LoginOutcome, LoginParams, SetServerParams,
 };
+pub(crate) use source_core::app::albums::{
+    AddAlbumParams, AddLocalAlbumParams, AlbumPageParams, AlbumParams, LocalAlbumParams,
+    LocalAlbumSummary, LocalBrowseParams, MoveAssetsParams, SetAlbumCoverParams,
+    SetAlbumDescriptionParams,
+};
 pub(crate) use source_core::app::browse::{
-    AlbumPageParams, AssetDetail, AssetDetailParams, ExportAssetsParams, ExportResult,
-    MoveAssetsParams, SearchParams, SetAlbumCoverParams, SetAlbumDescriptionParams,
+    AssetDetail, AssetDetailParams, ExportAssetsParams, ExportResult, SearchParams,
     SetFavoriteParams, TimelinePageParams,
 };
 pub(crate) use source_core::app::folders::{
-    ListRemoteFoldersParams, RemoteFolderPage, SetLibraryRootParams,
+    CreateFolderParams, ListRemoteFoldersParams, RemoteFolderPage,
 };
-pub(crate) use source_core::app::index::{IndexPhase, IndexStatus, StartIndexParams};
 pub(crate) use source_core::app::uploads::{
     EnqueueUploadsParams, UploadStateEvent, UploadTaskParams,
 };
 pub(crate) use source_core::app::{AppInfo, CatalogChangeKind, CatalogChangedEvent};
 pub(crate) use source_core::error::AppError;
 pub(crate) use source_core::media::{
-    CacheStats, LocalAlbum, LocalAssetPage, LocalAssetPageParams, MediaPermissionState,
+    CacheStats, LocalAssetPage, LocalAssetPageParams, LocalBrowsePage, MediaPermissionState,
 };
 pub(crate) use source_core::remote::{Capacity, SiteInfo};
 pub(crate) use source_core::store::{

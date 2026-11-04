@@ -26,14 +26,27 @@ pub use thumbs::{THUMB_BUDGET_BYTES, ThumbCache};
 pub trait LocalMediaPort: Send + Sync {
     fn permission_state(&self) -> MediaPermissionState;
     fn request_permission(&self) -> MediaPermissionState;
-    fn albums(&self) -> Result<Vec<LocalAlbum>, AppError>;
+
+    /// The directories one level below `parent`, so the user can pick one.
+    ///
+    /// `parent = None` starts wherever the platform thinks browsing should
+    /// begin (the home directory on desktop). Sub-directories only: a local
+    /// album is a directory, never a file.
+    fn browse(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError>;
+
+    /// The direct media files of one local album, newest first.
+    ///
+    /// Never recursive: nested files belong to their own album if the user
+    /// adds that directory too.
     fn assets(
         &self,
-        album_id: Option<&str>,
+        album_uri: &str,
         cursor: Option<&str>,
         limit: u32,
     ) -> Result<LocalAssetPage, AppError>;
     fn asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError>;
+    /// How many assets [`Self::assets`] would report, without reading them.
+    fn count(&self, album_uri: &str) -> Result<u32, AppError>;
 
     /// Small JPEG preview for a grid tile.
     ///

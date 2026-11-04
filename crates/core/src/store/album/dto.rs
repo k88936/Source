@@ -21,4 +21,20 @@ pub struct AlbumSummary {
     pub cover_asset_ids: Vec<AssetId>,
     pub description: Option<String>,
     pub updated_at: i64,
+    /// Outcome of the last listing; absent while the album was never listed.
+    pub sync: Option<AlbumSync>,
+}
+
+/// How the last listing of an album went.
+///
+/// A folder can disappear or be renamed on the server without the album row
+/// going anywhere, so the row keeps its assets and reports the failure instead:
+/// the album stays visible and the user can point it at another folder.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AlbumSync {
+    pub failed: bool,
+    pub error: Option<String>,
+    pub listed_at: Option<i64>,
 }

@@ -1,6 +1,5 @@
 import { api, listen } from "#lib/api/client";
 import type { CatalogChangedEvent } from "#lib/api/bindings/CatalogChangedEvent";
-import type { IndexStatus } from "#lib/api/bindings/IndexStatus";
 import type { AccountState } from "#lib/api/bindings/AccountState";
 import type { UploadTask } from "#lib/api/bindings/UploadTask";
 import { changes } from "./changes";
@@ -10,22 +9,10 @@ export type ToastKind = "success" | "error" | "info";
 export class AppState {
   account = $state<AccountState | null>(null);
   ready = $state(false);
-  index = $state<IndexStatus>({
-    phase: "idle",
-    foldersDone: 0,
-    foldersTotal: 0,
-    assetsSeen: 0,
-    startedAt: null,
-    error: null,
-  });
   uploads = $state<UploadTask[]>([]);
   columns = $state(3);
   toast = $state<{ message: string; kind: ToastKind } | null>(null);
   private started = false;
-
-  get scanning(): boolean {
-    return this.index.phase === "scanning";
-  }
 
   async init(): Promise<void> {
     if (this.started) return;
@@ -49,9 +36,6 @@ export class AppState {
       this.ready = true;
     }
 
-    await listen<IndexStatus>("catalog://index", (payload) => {
-      this.index = payload;
-    });
     await listen<CatalogChangedEvent>("catalog://changed", (payload) => {
       changes.emit(payload);
     });
@@ -80,11 +64,6 @@ export class AppState {
 
   async afterLogin(): Promise<void> {
     await this.refreshUploads();
-    try {
-      this.index = await api.indexStatus();
-    } catch {
-      // ignore status errors on first run
-    }
   }
 
   async refreshAccount(): Promise<void> {
@@ -99,31 +78,6 @@ export class AppState {
     }
   }
 
-  async refreshIndex(): Promise<void> {
-    try {
-      this.index = await api.indexStatus();
-    } catch (err) {
-      this.showToast(this.describeError(err), "error");
-    }
-  }
-
-  async startIndex(full = false): Promise<void> {
-    try {
-      this.index = await api.startIndex({ full });
-      this.showToast(full ? "已开始完整索引" : "已开始增量索引", "info");
-    } catch (err) {
-      this.showToast(this.describeError(err), "error");
-    }
-  }
-
-  async cancelIndex(): Promise<void> {
-    try {
-      this.index = await api.cancelIndex();
-      this.showToast("索引已暂停，可随时继续", "info");
-    } catch (err) {
-      this.showToast(this.describeError(err), "error");
-    }
-  }
 
   async retryUpload(taskId: string): Promise<void> {
     try {

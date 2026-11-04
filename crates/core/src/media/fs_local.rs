@@ -1,5 +1,9 @@
 //! Desktop filesystem local library. On Android the MediaStore adapter is used
 //! instead so that partial grants and content URIs are handled by the platform.
+//!
+//! There is no configured root here: the user adds the directories they care
+//! about one by one, and every directory they add is one local album whose
+//! direct media files are its assets.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,63 +14,37 @@ use crate::store::MediaType;
 use crate::time::system_millis;
 
 use super::{
-    LocalAlbum, LocalAsset, LocalAssetPage, LocalMediaPort, MediaPermissionState, PermissionGrant,
-    jpeg_thumb_from_path, video_thumb_from_path,
+    LocalAsset, LocalAssetPage, LocalBrowsePage, LocalEntry, LocalMediaPort, MediaPermissionState,
+    PermissionGrant, jpeg_thumb_from_path, video_thumb_from_path,
 };
 
-#[derive(Clone)]
-pub struct FsLocalMedia {
-    roots: Vec<PathBuf>,
-}
+#[derive(Clone, Default)]
+pub struct FsLocalMedia;
 
 impl FsLocalMedia {
-    pub fn new(roots: Vec<PathBuf>) -> Self {
-        Self { roots }
-    }
-
-    pub fn default_roots() -> Vec<PathBuf> {
-        if let Ok(root) = std::env::var("CLOUDREVE_ALBUM_LOCAL_ROOT")
-            && !root.trim().is_empty()
-        {
-            return vec![PathBuf::from(root)];
-        }
-        let home = std::env::var("HOME").ok().map(PathBuf::from);
-        let mut roots = Vec::new();
-        if let Some(home) = home {
-            for candidate in ["Pictures", "DCIM", "Downloads"] {
-                let path = home.join(candidate);
-                if path.is_dir() {
-                    roots.push(path);
-                }
-            }
-        }
-        roots
-    }
-
-    fn all_files(&self) -> Vec<PathBuf> {
-        let mut out = Vec::new();
-        for root in &self.roots {
-            collect(root, &mut out, 0);
-        }
-        out.sort();
-        out
+    pub fn new() -> Self {
+        Self
     }
 }
 
-fn collect(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
-    if depth > 6 {
-        return;
-    }
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect(&path, out, depth + 1);
-        } else if is_media_path(&path) {
-            out.push(path);
-        }
+/// The directory browsing starts at.
+fn home() -> Result<PathBuf, AppError> {
+    std::env::var("HOME")
+        .map(PathBuf::from)
+        .map_err(|_| AppError::internal("无法确定主目录"))
+}
+
+fn display_name(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string_lossy().to_string())
+}
+
+fn entry(path: &Path) -> LocalEntry {
+    LocalEntry {
+        uri: path.to_string_lossy().to_string(),
+        name: display_name(path),
+        path: None,
     }
 }
 
@@ -78,15 +56,24 @@ fn is_media_path(path: &Path) -> bool {
     matches!(media_type(None, name), MediaType::Image | MediaType::Video)
 }
 
-fn media_count(dir: &Path) -> u32 {
-    fs::read_dir(dir)
-        .map(|entries| {
-            entries
-                .flatten()
-                .filter(|e| is_media_path(&e.path()))
-                .count() as u32
-        })
-        .unwrap_or(0)
+/// The direct media files of `dir`, newest first.
+fn direct_media(dir: &Path) -> Result<Vec<PathBuf>, AppError> {
+    let entries = fs::read_dir(dir)
+        .map_err(|error| AppError::internal(format!("无法读取目录 {}: {error}", dir.display())))?;
+    let mut files: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file() && is_media_path(path))
+        .collect();
+    files.sort_by_key(|path| {
+        std::cmp::Reverse(
+            fs::metadata(path)
+                .and_then(|meta| meta.modified())
+                .map(system_millis)
+                .unwrap_or(0),
+        )
+    });
+    Ok(files)
 }
 
 fn local_asset_from_path(path: &Path) -> Option<LocalAsset> {
@@ -96,7 +83,9 @@ fn local_asset_from_path(path: &Path) -> Option<LocalAsset> {
     let date_taken = meta.modified().ok().map(system_millis).unwrap_or(0);
     Some(LocalAsset {
         id: path.to_string_lossy().to_string(),
-        album_id: None,
+        album_id: path
+            .parent()
+            .map(|parent| parent.to_string_lossy().to_string()),
         name,
         mime,
         size: meta.len() as i64,
@@ -120,85 +109,41 @@ impl LocalMediaPort for FsLocalMedia {
         self.permission_state()
     }
 
-    fn albums(&self) -> Result<Vec<LocalAlbum>, AppError> {
-        let mut albums = Vec::new();
-        for root in &self.roots {
-            if !root.is_dir() {
-                continue;
-            }
-            let name = root
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("本机")
-                .to_string();
-            albums.push(LocalAlbum {
-                id: format!("dir:{}", root.to_string_lossy()),
-                name,
-                asset_count: media_count(root),
-            });
-            let Ok(entries) = fs::read_dir(root) else {
-                continue;
-            };
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if !path.is_dir() {
-                    continue;
-                }
-                let count = media_count(&path);
-                if count == 0 {
-                    continue;
-                }
-                albums.push(LocalAlbum {
-                    id: format!("dir:{}", path.to_string_lossy()),
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("相册")
-                        .to_string(),
-                    asset_count: count,
-                });
-            }
-        }
-        albums.sort_by_key(|a| std::cmp::Reverse(a.asset_count));
-        Ok(albums)
+    fn browse(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
+        let dir = match parent {
+            Some(uri) => PathBuf::from(uri),
+            None => home()?,
+        };
+        let entries = fs::read_dir(&dir)
+            .map_err(|error| AppError::internal(format!("无法读取目录 {}: {error}", dir.display())))?;
+        let mut entries: Vec<LocalEntry> = entries
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| path.is_dir())
+            .map(|path| entry(&path))
+            .collect();
+        entries.sort_by_key(|entry| entry.name.to_lowercase());
+        Ok(LocalBrowsePage {
+            current: Some(entry(&dir)),
+            parent: dir.parent().map(entry),
+            entries,
+        })
     }
 
     fn assets(
         &self,
-        album_id: Option<&str>,
+        album_uri: &str,
         cursor: Option<&str>,
         limit: u32,
     ) -> Result<LocalAssetPage, AppError> {
-        let dir = album_id
-            .and_then(|id| id.strip_prefix("dir:"))
-            .map(PathBuf::from);
-        let mut files: Vec<PathBuf> = match &dir {
-            Some(dir) => fs::read_dir(dir)
-                .map(|entries| {
-                    entries
-                        .flatten()
-                        .map(|e| e.path())
-                        .filter(|p| p.is_file() && is_media_path(p))
-                        .collect()
-                })
-                .unwrap_or_default(),
-            None => self.all_files(),
-        };
-        files.sort_by_key(|p| {
-            std::cmp::Reverse(
-                fs::metadata(p)
-                    .and_then(|m| m.modified())
-                    .map(system_millis)
-                    .unwrap_or(0),
-            )
-        });
+        let files = direct_media(Path::new(album_uri))?;
         let offset = cursor.and_then(|c| c.parse::<usize>().ok()).unwrap_or(0);
         let limit = limit.clamp(1, 200) as usize;
         let items: Vec<LocalAsset> = files
             .iter()
             .skip(offset)
             .take(limit)
-            .filter_map(|p| local_asset_from_path(p))
+            .filter_map(|path| local_asset_from_path(path))
             .collect();
         let next = if offset + limit < files.len() {
             Some((offset + limit).to_string())
@@ -208,14 +153,12 @@ impl LocalMediaPort for FsLocalMedia {
         Ok(LocalAssetPage { items, next })
     }
 
+    fn count(&self, album_uri: &str) -> Result<u32, AppError> {
+        Ok(direct_media(Path::new(album_uri))?.len() as u32)
+    }
+
     fn asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
-        let path = PathBuf::from(id);
-        Ok(local_asset_from_path(&path).map(|mut asset| {
-            asset.album_id = path
-                .parent()
-                .map(|p| format!("dir:{}", p.to_string_lossy()));
-            asset
-        }))
+        Ok(local_asset_from_path(Path::new(id)))
     }
 
     fn thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {

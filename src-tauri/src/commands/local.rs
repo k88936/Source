@@ -1,4 +1,5 @@
-//! Device library commands.
+//! Device library commands: the browser the picker is built on, the registered
+//! local albums, and their direct media files.
 
 use crate::prelude::*;
 
@@ -12,9 +13,36 @@ pub(crate) fn request_media_permission(state: State<'_, AppState>) -> MediaPermi
     state.core.browse.request_media_permission()
 }
 
+/// One step of the device directory browser (`$HOME` when `parent` is absent).
 #[tauri::command]
-pub(crate) fn local_album_list(state: State<'_, AppState>) -> Result<Vec<LocalAlbum>, AppError> {
-    state.core.browse.local_album_list()
+pub(crate) fn local_browse(
+    state: State<'_, AppState>,
+    params: LocalBrowseParams,
+) -> Result<LocalBrowsePage, AppError> {
+    state.core.albums.local_browse(params.parent.as_deref())
+}
+
+#[tauri::command]
+pub(crate) async fn local_album_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<LocalAlbumSummary>, AppError> {
+    state.core.albums.local_album_list().await
+}
+
+#[tauri::command]
+pub(crate) async fn local_album_add(
+    state: State<'_, AppState>,
+    params: AddLocalAlbumParams,
+) -> Result<LocalAlbumSummary, AppError> {
+    state.core.albums.add_local_album(params).await
+}
+
+#[tauri::command]
+pub(crate) async fn local_album_remove(
+    state: State<'_, AppState>,
+    params: LocalAlbumParams,
+) -> Result<(), AppError> {
+    state.core.albums.remove_local_album(&params.id).await
 }
 
 #[tauri::command]
@@ -22,5 +50,5 @@ pub(crate) fn local_asset_page(
     state: State<'_, AppState>,
     params: LocalAssetPageParams,
 ) -> Result<LocalAssetPage, AppError> {
-    state.core.browse.local_asset_page(params)
+    state.core.albums.local_asset_page(params)
 }

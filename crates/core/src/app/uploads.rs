@@ -14,21 +14,20 @@ use crate::mapping::asset_record;
 use crate::media::LocalMediaPort;
 use crate::remote::{RemoteStorage, UploadProgress, UploadRequest};
 use crate::store::{
-    AccountStore, AlbumStore, AssetStore, AssetSummary, FolderId, FolderRef, FolderStore,
-    LocalStore, UploadQueueStore, UploadState, UploadTask, UploadTaskId,
+    AlbumId, AssetStore, AssetSummary, FolderId, FolderStore, LocalStore, UploadQueueStore,
+    UploadState, UploadTask, UploadTaskId,
 };
 use crate::time::now_ms;
 
-use super::{PROGRESS_WRITE_INTERVAL, folder_ref, library_root, upsert_remote_folder};
+use super::PROGRESS_WRITE_INTERVAL;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct EnqueueUploadsParams {
     pub local_ids: Vec<String>,
-    /// Empty means "Library Root / Inbox".
-    #[serde(default)]
-    pub dest_uri: String,
+    /// The album (remote folder) every file of this batch lands in.
+    pub album_id: AlbumId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -90,21 +89,18 @@ impl<R, C, M> UploadsService<R, C, M> {
 impl<R, C, M> UploadsService<R, C, M>
 where
     R: RemoteStorage,
-    C: AlbumStore
-        + AssetStore
-        + FolderStore
-        + LocalStore
-        + AccountStore
-        + UploadQueueStore
-        + Clone
-        + 'static,
+    C: AssetStore + FolderStore + LocalStore + UploadQueueStore + Clone + 'static,
     M: LocalMediaPort,
 {
     pub async fn enqueue(&self, params: EnqueueUploadsParams) -> Result<Vec<UploadTask>, AppError> {
         if params.local_ids.is_empty() {
             return Ok(Vec::new());
         }
-        let dest = self.resolve_dest(&params.dest_uri).await?;
+        let dest = self
+            .catalog
+            .folder(&params.album_id.0)
+            .await?
+            .ok_or_else(|| AppError::not_found("相册不存在"))?;
         let mut tasks = Vec::new();
         for local_id in params.local_ids {
             let Some(asset) = self.local.asset(&local_id)? else {
@@ -129,43 +125,6 @@ where
             tasks.push(task);
         }
         Ok(tasks)
-    }
-
-    /// Where a task without an explicit destination lands: the library root's
-    /// `Inbox` folder, created on first use.
-    async fn resolve_dest(&self, dest_uri: &str) -> Result<FolderRef, AppError> {
-        if !dest_uri.trim().is_empty() {
-            if let Some(folder) = self.catalog.folder_by_uri(dest_uri).await? {
-                return Ok(FolderRef {
-                    id: folder.id.into(),
-                    uri: folder.uri,
-                    name: folder.name,
-                    path: folder.path,
-                });
-            }
-            let info = self.cloud.folder_info(dest_uri).await?;
-            let folder = folder_ref(&info);
-            upsert_remote_folder(&self.catalog, &folder, &info, None).await?;
-            return Ok(folder);
-        }
-
-        let root = library_root(&self.catalog)
-            .await?
-            .ok_or_else(|| AppError::internal("未选择图库根"))?;
-        let page = self.cloud.list_entries(&root.uri, None).await?;
-        if let Some(inbox) = page
-            .entries
-            .into_iter()
-            .find(|e| e.is_folder && e.name == "Inbox")
-        {
-            let folder = folder_ref(&inbox);
-            upsert_remote_folder(&self.catalog, &folder, &inbox, Some(&root.id.0)).await?;
-            return Ok(folder);
-        }
-        let inbox = self.cloud.create_folder(&root.uri, "Inbox").await?;
-        let folder = folder_ref(&inbox);
-        upsert_remote_folder(&self.catalog, &folder, &inbox, Some(&root.id.0)).await?;
-        Ok(folder)
     }
 
     pub async fn tasks(&self) -> Result<Vec<UploadTask>, AppError> {
@@ -366,8 +325,6 @@ where
                 let record = asset_record(&entry, &fid, client_exif.as_ref());
                 let summary = record.summary.clone();
                 self.catalog.upsert_asset(&record).await?;
-                self.catalog.mark_album(&fid.0, true).await?;
-                self.catalog.rebuild_albums().await?;
                 task.state = UploadState::Done;
                 task.uploaded = task.total;
                 task.speed = 0;

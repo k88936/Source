@@ -47,6 +47,14 @@ pub fn media_type(mime: Option<&str>, name: &str) -> MediaType {
     }
 }
 
+/// Classify a remote entry by the MIME type the server reported, else its name.
+pub fn entry_media_type(entry: &RemoteEntry) -> MediaType {
+    media_type(
+        entry.metadata.get("sys:mime").map(String::as_str),
+        &entry.name,
+    )
+}
+
 fn parse_number(raw: &str) -> Option<i64> {
     let raw = raw.trim();
     if let Ok(v) = raw.parse::<i64>() {
@@ -120,7 +128,7 @@ pub fn asset_record(
         .get("sys:mime")
         .cloned()
         .or_else(|| mime_for(&entry.name).map(str::to_owned));
-    let mt = media_type(mime.as_deref(), &entry.name);
+    let mt = entry_media_type(entry);
     let exif_taken = client_exif.and_then(|e| e.taken_at);
     let (taken_at, taken_at_source) =
         infer_taken_at(&entry.metadata, exif_taken, entry.updated_at, &entry.name);

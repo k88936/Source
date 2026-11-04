@@ -19,7 +19,7 @@ pub mod store;
 pub mod time;
 
 pub use app::{
-    AccountService, AccountState, BrowseService, FoldersService, IndexService, LoginOutcome,
+    AccountService, AccountState, AlbumsService, BrowseService, FoldersService, LoginOutcome,
     UploadOutcome, UploadsService,
 };
 pub use credential::CredentialStore;

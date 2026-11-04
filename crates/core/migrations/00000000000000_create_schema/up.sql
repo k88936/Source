@@ -2,24 +2,20 @@ CREATE TABLE account (
   base_url TEXT PRIMARY KEY,
   user TEXT,
   site_name TEXT,
-  library_root TEXT,
   created_at INTEGER NOT NULL
 );
 
 CREATE TABLE folders (
   id TEXT PRIMARY KEY,
-  parent_id TEXT,
   name TEXT NOT NULL,
   uri TEXT NOT NULL DEFAULT '',
   path TEXT NOT NULL,
   updated_at INTEGER NOT NULL,
   indexed_at INTEGER,
-  is_album INTEGER NOT NULL DEFAULT 0,
   cover_asset_id TEXT,
   description TEXT
 );
 CREATE INDEX folders_path ON folders(path);
-CREATE INDEX folders_parent ON folders(parent_id);
 
 CREATE TABLE assets (
   id TEXT PRIMARY KEY,
@@ -59,9 +55,16 @@ CREATE TABLE sync_state (
 
 CREATE TABLE local_albums (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  asset_count INTEGER
+  uri TEXT NOT NULL,
+  name TEXT NOT NULL
 );
+CREATE UNIQUE INDEX local_albums_uri ON local_albums(uri);
+
+CREATE TABLE local_album_mapping (
+  local_album_id TEXT PRIMARY KEY REFERENCES local_albums(id) ON DELETE CASCADE,
+  album_id TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE
+);
+CREATE INDEX local_album_mapping_album ON local_album_mapping(album_id);
 
 CREATE TABLE local_assets (
   id TEXT PRIMARY KEY,

@@ -4,13 +4,11 @@
 diesel::table! {
     folders (id) {
         id -> Text,
-        parent_id -> Nullable<Text>,
         name -> Text,
         uri -> Text,
         path -> Text,
         updated_at -> BigInt,
         indexed_at -> Nullable<BigInt>,
-        is_album -> Bool,
         cover_asset_id -> Nullable<Text>,
         description -> Nullable<Text>,
     }

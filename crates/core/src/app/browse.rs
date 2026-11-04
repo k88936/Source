@@ -4,15 +4,12 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::AppError;
-use crate::mapping::{COVER_KEY, DESCRIPTION_KEY, ExifField, FAVORITE_KEY, exif_fields};
-use crate::media::{
-    LocalAlbum, LocalAsset, LocalAssetPage, LocalAssetPageParams, LocalMediaPort,
-    MediaPermissionState,
-};
+use crate::mapping::{ExifField, FAVORITE_KEY, exif_fields};
+use crate::media::{LocalAsset, LocalMediaPort, MediaPermissionState};
 use crate::remote::{MediaRange, RemoteStorage};
 use crate::store::{
-    AlbumId, AlbumStore, AlbumSummary, AssetId, AssetStore, AssetSummary, FolderId, FolderStore,
-    MediaType, SearchQuery, TimelineCursor, TimelinePage, TimelineStore,
+    AssetId, AssetStore, AssetSummary, FolderStore, MediaType, SearchQuery, TimelineCursor,
+    TimelinePage, TimelineStore,
 };
 
 use super::clamp_limit;
@@ -21,15 +18,6 @@ use super::clamp_limit;
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct TimelinePageParams {
-    pub cursor: Option<TimelineCursor>,
-    pub limit: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct AlbumPageParams {
-    pub album_id: AlbumId,
     pub cursor: Option<TimelineCursor>,
     pub limit: u32,
 }
@@ -60,31 +48,6 @@ pub struct SearchParams {
 pub struct SetFavoriteParams {
     pub asset_id: AssetId,
     pub value: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct SetAlbumCoverParams {
-    pub album_id: AlbumId,
-    pub asset_id: AssetId,
-}
-
-/// Move a batch of assets into an album (a folder move on Cloudreve).
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct MoveAssetsParams {
-    pub asset_ids: Vec<AssetId>,
-    pub album_id: AlbumId,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct SetAlbumDescriptionParams {
-    pub album_id: AlbumId,
-    pub description: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -132,7 +95,7 @@ impl<R, C, M> BrowseService<R, C, M> {
 impl<R, C, M> BrowseService<R, C, M>
 where
     R: RemoteStorage,
-    C: AlbumStore + AssetStore + FolderStore + TimelineStore,
+    C: AssetStore + FolderStore + TimelineStore,
     M: LocalMediaPort,
 {
     pub async fn timeline_page(
@@ -142,24 +105,6 @@ where
         self.catalog
             .timeline_page(params.cursor.as_ref(), clamp_limit(params.limit))
             .await
-    }
-
-    pub async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError> {
-        self.catalog.album_list().await
-    }
-
-    pub async fn album_page(&self, params: AlbumPageParams) -> Result<TimelinePage, AppError> {
-        self.catalog
-            .album_page(
-                &params.album_id.0,
-                params.cursor.as_ref(),
-                clamp_limit(params.limit),
-            )
-            .await
-    }
-
-    pub async fn album(&self, album_id: &str) -> Result<Option<AlbumSummary>, AppError> {
-        self.catalog.album(album_id).await
     }
 
     pub async fn asset_detail(&self, asset_id: &str) -> Result<AssetDetail, AppError> {
@@ -250,103 +195,6 @@ where
         })
     }
 
-    pub async fn set_album_cover(
-        &self,
-        album_id: &str,
-        asset_id: &str,
-    ) -> Result<AlbumSummary, AppError> {
-        let folder = self
-            .catalog
-            .folder(album_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("相册不存在"))?;
-        let patch = (COVER_KEY.to_string(), Some(asset_id.to_string()));
-        self.cloud.patch_metadata(&folder.uri, &[patch]).await?;
-        self.catalog
-            .set_album_cover(album_id, Some(asset_id))
-            .await?;
-        self.catalog
-            .album(album_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("相册不存在"))
-    }
-
-    pub async fn set_album_description(
-        &self,
-        album_id: &str,
-        description: &str,
-    ) -> Result<AlbumSummary, AppError> {
-        let folder = self
-            .catalog
-            .folder(album_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("相册不存在"))?;
-        let value = if description.trim().is_empty() {
-            None
-        } else {
-            Some(description.to_string())
-        };
-        self.cloud
-            .patch_metadata(&folder.uri, &[(DESCRIPTION_KEY.to_string(), value.clone())])
-            .await?;
-        self.catalog
-            .set_album_description(album_id, value.as_deref())
-            .await?;
-        self.catalog
-            .album(album_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("相册不存在"))
-    }
-
-    /// Move assets into an album.
-    ///
-    /// In Cloudreve an album is a folder, so this is a real move: the files
-    /// leave their current folder. The catalog rows are re-pointed only after
-    /// the remote move succeeded.
-    pub async fn move_assets_to_album(
-        &self,
-        asset_ids: &[String],
-        album_id: &str,
-    ) -> Result<Vec<AssetSummary>, AppError> {
-        if asset_ids.is_empty() {
-            return Ok(Vec::new());
-        }
-        let folder = self
-            .catalog
-            .folder(album_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("相册不存在"))?;
-        let mut records = Vec::with_capacity(asset_ids.len());
-        for id in asset_ids {
-            let record = self
-                .catalog
-                .asset(id)
-                .await?
-                .ok_or_else(|| AppError::not_found("资产不存在"))?;
-            records.push(record);
-        }
-        let uris: Vec<String> = records.iter().map(|r| r.uri.clone()).collect();
-        let new_uris = self.cloud.move_assets(&uris, &folder.uri).await?;
-        if new_uris.len() != records.len() {
-            return Err(AppError::internal("移动结果与请求不一致"));
-        }
-
-        let album_id = FolderId::new(folder.id);
-        let mut moved = Vec::with_capacity(records.len());
-        for (record, new_uri) in records.into_iter().zip(new_uris) {
-            let asset_id = record.summary.id.0.clone();
-            self.catalog
-                .move_asset(&asset_id, &album_id.0, &new_uri)
-                .await?;
-            moved.push(AssetSummary {
-                folder_id: album_id.clone(),
-                ..record.summary
-            });
-        }
-        self.catalog.rebuild_albums().await?;
-        Ok(moved)
-    }
-
     /// Blur-up mosaic already stored for an asset, if any.
     pub async fn asset_thumb_hash(&self, asset_id: &str) -> Result<Option<String>, AppError> {
         Ok(self
@@ -370,21 +218,6 @@ where
 
     pub fn request_media_permission(&self) -> MediaPermissionState {
         self.local.request_permission()
-    }
-
-    pub fn local_album_list(&self) -> Result<Vec<LocalAlbum>, AppError> {
-        self.local.albums()
-    }
-
-    pub fn local_asset_page(
-        &self,
-        params: LocalAssetPageParams,
-    ) -> Result<LocalAssetPage, AppError> {
-        self.local.assets(
-            params.album_id.as_deref(),
-            params.cursor.as_deref(),
-            clamp_limit(params.limit),
-        )
     }
 
     pub fn local_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {

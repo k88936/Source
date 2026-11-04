@@ -5,7 +5,6 @@ diesel::table! {
         base_url -> Text,
         user -> Nullable<Text>,
         site_name -> Nullable<Text>,
-        library_root -> Nullable<Text>,
         created_at -> BigInt,
     }
 }

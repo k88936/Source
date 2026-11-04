@@ -3,7 +3,7 @@
 /**
  * What a `catalog://changed` event invalidates.
  *
- * `Folders` is the coarse signal emitted after an index pass finished; the
- * other two carry the affected rows so the UI can patch instead of reload.
+ * `Albums` is the coarse signal for a listing pass and carries the refreshed
+ * rows; `Assets` carries the rows an upload or a favorite wrote.
  */
-export type CatalogChangeKind = "assets" | "albums" | "folders";
+export type CatalogChangeKind = "assets" | "albums";

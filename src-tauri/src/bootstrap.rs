@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use source_core::{
-    AccountService, AppError, BrowseService, CloudreveAuth, CloudreveStorage, CredentialStore,
-    FoldersService, FsLocalMedia, IndexService, SqliteCatalog, ThumbCache, UploadSessionPort,
+    AccountService, AlbumsService, AppError, BrowseService, CloudreveAuth, CloudreveStorage,
+    CredentialStore, FoldersService, FsLocalMedia, SqliteCatalog, ThumbCache, UploadSessionPort,
     UploadsService,
 };
 use tauri::Manager;
@@ -42,11 +42,15 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         };
         let auth = CloudreveAuth::new(cred_store);
         let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
-        let local = FsLocalMedia::new(FsLocalMedia::default_roots());
+        let local = FsLocalMedia::new();
         Ok::<_, AppError>(App {
             account: Arc::new(AccountService::new(auth, cloud.clone(), catalog.clone())),
-            index: Arc::new(IndexService::new(cloud.clone(), catalog.clone())),
             folders: Arc::new(FoldersService::new(cloud.clone(), catalog.clone())),
+            albums: Arc::new(AlbumsService::new(
+                cloud.clone(),
+                catalog.clone(),
+                local.clone(),
+            )),
             browse: Arc::new(BrowseService::new(
                 cloud.clone(),
                 catalog.clone(),

@@ -1,7 +1,4 @@
-//! The library root and the remote folders mirrored from the server: the
-//! contract and the diesel statements behind it.
-
-use std::collections::HashSet;
+//! The albums a user added: the contract and the diesel statements behind it.
 
 use async_trait::async_trait;
 
@@ -36,13 +33,7 @@ pub trait FolderStore: Send + Sync {
         &self,
         folder_id: &str,
         assets: &[AssetRecord],
-        now: i64,
     ) -> Result<(), AppError>;
-    /// Drop every folder outside `keep`, with its assets and sync state.
-    ///
-    /// Only a completed full pass has listed the whole tree, so a caller must
-    /// not prune after a partial or incremental run.
-    async fn retain_folders(&self, keep: &HashSet<String>) -> Result<(), AppError>;
 }
 
 pub(crate) async fn upsert_folder(
@@ -70,19 +61,16 @@ pub(crate) async fn upsert_folder(
     diesel::insert_into(folders::table)
         .values((
             folders::id.eq(folder.id.clone()),
-            folders::parent_id.eq(folder.parent_id.clone()),
             folders::name.eq(folder.name.clone()),
             folders::uri.eq(folder.uri.clone()),
             folders::path.eq(folder.path.clone()),
             folders::updated_at.eq(folder.updated_at),
-            folders::is_album.eq(false),
             folders::cover_asset_id.eq(cover_asset_id),
             folders::description.eq(description),
         ))
         .on_conflict(folders::id)
         .do_update()
         .set((
-            folders::parent_id.eq(excluded(folders::parent_id)),
             folders::name.eq(excluded(folders::name)),
             folders::uri.eq(excluded(folders::uri)),
             folders::path.eq(excluded(folders::path)),
@@ -192,49 +180,40 @@ pub(crate) async fn mark_folder(
     Ok(())
 }
 
-/// Drop every folder outside `keep`, with its assets and sync state.
+/// Replace an album's assets with a fresh one-level listing.
 ///
-/// The assets go through the `ON DELETE CASCADE` foreign key, so a remote
-/// deletion cannot leave a timeline entry pointing at a folder that no longer
-/// exists in the tree.
-pub(crate) async fn retain_folders(
-    cat: &SqliteCatalog,
-    keep: &HashSet<String>,
-) -> Result<(), AppError> {
-    let mut conn = cat.conn().await?;
-    let known = folders::table
-        .select(folders::id)
-        .load::<String>(&mut conn)
-        .await
-        .map_err(db_err)?;
-    let stale: Vec<String> = known.into_iter().filter(|id| !keep.contains(id)).collect();
-    if stale.is_empty() {
-        return Ok(());
-    }
-    conn.transaction::<(), TxError, _>(async |conn| {
-        diesel::delete(sync_state::table.filter(sync_state::folder_id.eq_any(&stale)))
-            .execute(&mut *conn)
-            .await?;
-        diesel::delete(folders::table.filter(folders::id.eq_any(&stale)))
-            .execute(&mut *conn)
-            .await?;
-        Ok(())
-    })
-    .await
-    .map_err(|error| error.0)
-}
-
+/// Assets still present keep their row, so the thumbnail hash and the parsed
+/// EXIF survive a refresh; only the ones missing from the listing are deleted.
 pub(crate) async fn replace_folder_assets(
     cat: &SqliteCatalog,
     folder_id: &str,
     asset_records: &[AssetRecord],
-    _now: i64,
 ) -> Result<(), AppError> {
     let mut conn = cat.conn().await?;
     conn.transaction::<(), TxError, _>(async |conn| {
-        diesel::delete(assets::table.filter(assets::folder_id.eq(folder_id)))
-            .execute(&mut *conn)
-            .await?;
+        let keep = asset_records
+            .iter()
+            .map(|row| row.summary.id.0.clone())
+            .collect::<Vec<_>>();
+        let stale = if keep.is_empty() {
+            assets::table
+                .filter(assets::folder_id.eq(folder_id))
+                .select(assets::id)
+                .load::<String>(&mut *conn)
+                .await?
+        } else {
+            assets::table
+                .filter(assets::folder_id.eq(folder_id))
+                .filter(diesel::dsl::not(assets::id.eq_any(&keep)))
+                .select(assets::id)
+                .load::<String>(&mut *conn)
+                .await?
+        };
+        if !stale.is_empty() {
+            diesel::delete(assets::table.filter(assets::id.eq_any(&stale)))
+                .execute(&mut *conn)
+                .await?;
+        }
         for asset in asset_records {
             upsert_asset_row(conn, asset).await?;
         }
@@ -277,12 +256,7 @@ impl FolderStore for SqliteCatalog {
         &self,
         folder_id: &str,
         asset_records: &[AssetRecord],
-        now: i64,
     ) -> Result<(), AppError> {
-        replace_folder_assets(self, folder_id, asset_records, now).await
-    }
-
-    async fn retain_folders(&self, keep: &HashSet<String>) -> Result<(), AppError> {
-        retain_folders(self, keep).await
+        replace_folder_assets(self, folder_id, asset_records).await
     }
 }

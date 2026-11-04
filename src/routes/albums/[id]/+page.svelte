@@ -35,6 +35,7 @@
 	let saving = $state(false);
 	let pickerOpen = $state(false);
 	let moving = $state(false);
+	let refreshing = $state(false);
 
 	$effect(() => {
 		const id = page.params.id;
@@ -47,10 +48,6 @@
 
 	$effect(() => {
 		return changes.subscribe((change) => {
-			if (change.kind === 'folders') {
-				void load(currentId, true);
-				return;
-			}
 			if (change.kind === 'albums') {
 				const updated = change.albums.find((entry) => entry.id === currentId);
 				if (updated) album = updated;
@@ -66,16 +63,48 @@
 		if (!keepItems) timeline.reset();
 		metaError = '';
 		try {
-			const albums = await api.albumList();
-			album = albums.find((entry) => entry.id === id) ?? null;
+			album = await api.albumGet({ albumId: id });
 			if (!album) {
-				metaError = '相册不存在或已被移动';
+				metaError = '相册不存在或已被移除';
 				return;
 			}
 			descriptionDraft = album.description ?? '';
 			await timeline.reload();
 		} catch (err) {
 			metaError = app.describeError(err);
+		}
+	}
+
+	/// List this folder once. A failure means the folder is gone or renamed on
+	/// the server: the album stays, its assets stay, and `sync.failed` shows the
+	/// banner offering a retry.
+	async function refresh() {
+		if (refreshing) return;
+		refreshing = true;
+		try {
+			album = await api.refreshAlbum({ albumId: currentId });
+			await timeline.reload();
+			app.showToast('相册已刷新', 'success');
+		} catch (err) {
+			await load(currentId, true);
+			app.showToast(app.describeError(err), 'error');
+		} finally {
+			refreshing = false;
+		}
+	}
+
+	async function remove() {
+		if (!album) return;
+		const ok = window.confirm(
+			`移除相册「${album.name}」？\n\n只会删掉本机的登记与索引，云端文件夹与文件不受影响。同步到这个相册的本机相册也会一起移除。`,
+		);
+		if (!ok) return;
+		try {
+			await api.removeAlbum({ albumId: album.id });
+			app.showToast('相册已移除', 'success');
+			await goto('/albums');
+		} catch (err) {
+			app.showToast(app.describeError(err), 'error');
 		}
 	}
 
@@ -191,6 +220,19 @@
 			</button>
 		{:else}
 			<button
+				onclick={() => void refresh()}
+				class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
+				aria-label="刷新相册"
+			>
+				{#if refreshing}
+					<div
+						class="size-4 animate-spin rounded-full border-2 border-line border-t-primary"
+					></div>
+				{:else}
+					<Icon name="sync" size={20} />
+				{/if}
+			</button>
+			<button
 				onclick={() => selection.start()}
 				class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
 				aria-label="选择"
@@ -207,6 +249,27 @@
 		{/if}
 	{/snippet}
 </TopBar>
+
+{#if album?.sync?.failed && !coverMode}
+	<div class="mx-4 mt-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+		<p class="text-xs font-medium text-amber-600">这个文件夹在服务器上已不可访问</p>
+		<p class="mt-0.5 text-[11px] text-muted">
+			{album.sync?.error ?? '目录可能已被删除或改名'} · 已保留上次索引的照片
+		</p>
+		<div class="mt-2 flex gap-2">
+			<button
+				onclick={() => void refresh()}
+				class="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-on-primary disabled:opacity-40"
+				disabled={refreshing}>重试</button
+			>
+			<button
+				onclick={() => void remove()}
+				class="rounded-lg border border-line px-3 py-1.5 text-xs text-muted hover:bg-gray"
+				>移除相册</button
+			>
+		</div>
+	</div>
+{/if}
 
 {#if album?.description && !coverMode}
 	<p class="whitespace-pre-wrap px-4 pt-2 text-sm text-muted">
@@ -277,6 +340,7 @@
 	oncover={() => (coverMode = true)}
 	ondescription={() => (descriptionOpen = true)}
 	onselect={() => selection.start()}
+	onremove={() => void remove()}
 />
 
 <DescriptionDialog

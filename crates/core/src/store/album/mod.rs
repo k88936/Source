@@ -1,5 +1,5 @@
-//! Albums: folders that contain media, with derived counts and covers. The
-//! contract and the diesel statements behind it.
+//! Albums: the remote folders a user added, with derived counts and covers.
+//! The contract and the diesel statements behind it.
 
 use std::collections::HashMap;
 
@@ -7,7 +7,8 @@ use async_trait::async_trait;
 
 use super::asset::schema::assets;
 use super::folder::rows::FolderRow;
-use super::folder::schema::folders;
+use super::folder::schema::{folders, sync_state};
+use super::local::schema::{local_album_mapping, local_albums};
 use super::query::*;
 use super::*;
 
@@ -17,8 +18,10 @@ pub use dto::*;
 
 #[async_trait]
 pub trait AlbumStore: Send + Sync {
-    async fn mark_album(&self, folder_id: &str, is_album: bool) -> Result<(), AppError>;
-    async fn rebuild_albums(&self) -> Result<(), AppError>;
+    /// Store the folder a user added, or refresh its name and URI.
+    async fn save_album(&self, album: &FolderRecord) -> Result<(), AppError>;
+    /// Forget an album, its assets and every local album syncing into it.
+    async fn delete_album(&self, id: &str) -> Result<(), AppError>;
     async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError>;
     async fn album(&self, id: &str) -> Result<Option<AlbumSummary>, AppError>;
     async fn album_page(
@@ -38,91 +41,93 @@ pub trait AlbumStore: Send + Sync {
 /// How many covers the album mosaic shows.
 const MOSAIC_COVERS: i64 = 4;
 
-pub(crate) async fn mark_album(
-    cat: &SqliteCatalog,
-    folder_id: &str,
-    is_album: bool,
-) -> Result<(), AppError> {
-    let mut conn = cat.conn().await?;
-    diesel::update(folders::table.filter(folders::id.eq(folder_id)))
-        .set(folders::is_album.eq(is_album))
-        .execute(&mut conn)
-        .await
-        .map_err(db_err)?;
-    Ok(())
+/// Add or refresh the album a user picked, keeping cover and description.
+pub(crate) async fn save_album(cat: &SqliteCatalog, album: &FolderRecord) -> Result<(), AppError> {
+    upsert_folder(cat, album).await
 }
 
-/// Recompute `is_album` from the assets table and drop covers that no
-/// longer exist.
+/// Forget an album: its assets, its covers, its local sync targets and the
+/// local albums that were syncing into it.
 ///
-/// Both steps read the small side (albums, covers) before writing, which
-/// keeps the statements plain DSL instead of correlated subqueries.
-pub(crate) async fn rebuild_albums(cat: &SqliteCatalog) -> Result<(), AppError> {
+/// The remote folder is never touched; only the catalog forgets it, so the
+/// same folder can be added again later.
+pub(crate) async fn delete_album(cat: &SqliteCatalog, id: &str) -> Result<(), AppError> {
     let mut conn = cat.conn().await?;
-
-    let album_ids = assets::table
-        .filter(assets::media_type.eq_any(MEDIA_TYPES))
-        .select(assets::folder_id)
-        .distinct()
+    let locals = local_album_mapping::table
+        .filter(local_album_mapping::album_id.eq(id))
+        .select(local_album_mapping::local_album_id)
         .load::<String>(&mut conn)
         .await
         .map_err(db_err)?;
 
-    diesel::update(folders::table)
-        .set(folders::is_album.eq(false))
-        .execute(&mut conn)
-        .await
-        .map_err(db_err)?;
-    if !album_ids.is_empty() {
-        diesel::update(folders::table.filter(folders::id.eq_any(&album_ids)))
-            .set(folders::is_album.eq(true))
-            .execute(&mut conn)
-            .await
-            .map_err(db_err)?;
-    }
-
-    let covers = folders::table
-        .filter(folders::cover_asset_id.is_not_null())
-        .select(folders::cover_asset_id)
-        .load::<Option<String>>(&mut conn)
-        .await
-        .map_err(db_err)?;
-    let covers: Vec<String> = covers.into_iter().flatten().collect();
-    if !covers.is_empty() {
-        let known = assets::table
-            .filter(assets::id.eq_any(&covers))
-            .select(assets::id)
-            .load::<String>(&mut conn)
-            .await
-            .map_err(db_err)?;
-        let stale: Vec<&String> = covers.iter().filter(|id| !known.contains(id)).collect();
-        if !stale.is_empty() {
-            diesel::update(folders::table.filter(folders::cover_asset_id.eq_any(stale)))
-                .set(folders::cover_asset_id.eq(None::<String>))
-                .execute(&mut conn)
-                .await
-                .map_err(db_err)?;
+    conn.transaction::<(), TxError, _>(async |conn| {
+        diesel::delete(local_album_mapping::table.filter(local_album_mapping::album_id.eq(id)))
+            .execute(&mut *conn)
+            .await?;
+        if !locals.is_empty() {
+            diesel::delete(local_albums::table.filter(local_albums::id.eq_any(&locals)))
+                .execute(&mut *conn)
+                .await?;
         }
-    }
-    Ok(())
+        diesel::delete(sync_state::table.filter(sync_state::folder_id.eq(id)))
+            .execute(&mut *conn)
+            .await?;
+        diesel::delete(folders::table.filter(folders::id.eq(id)))
+            .execute(&mut *conn)
+            .await?;
+        Ok(())
+    })
+    .await
+    .map_err(|error| error.0)
+}
+
+/// The last listing outcome of every album in `ids`, keyed by album id.
+async fn sync_states(
+    conn: &mut Conn,
+    ids: &[String],
+) -> Result<HashMap<String, AlbumSync>, AppError> {
+    let rows = sync_state::table
+        .filter(sync_state::folder_id.eq_any(ids))
+        .select((
+            sync_state::folder_id,
+            sync_state::status,
+            sync_state::last_error,
+            sync_state::last_listed_at,
+        ))
+        .load::<(String, String, Option<String>, Option<i64>)>(conn)
+        .await
+        .map_err(db_err)?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, status, error, listed_at)| {
+            (
+                id,
+                AlbumSync {
+                    failed: status != SYNC_DONE,
+                    error,
+                    listed_at,
+                },
+            )
+        })
+        .collect())
 }
 
 pub(crate) async fn album_list(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>, AppError> {
     let mut conn = cat.conn().await?;
     let mut albums = folders::table
-        .filter(folders::is_album.eq(true))
         .select(FolderRow::as_select())
         .load::<FolderRow>(&mut conn)
         .await
         .map_err(db_err)?;
-    // `ORDER BY path COLLATE NOCASE` has no DSL equivalent in diesel, and
-    // the set is small enough to sort here.
-    albums.sort_by_key(|album| album.path.to_lowercase());
+    // `ORDER BY name COLLATE NOCASE` has no DSL equivalent in diesel, and the
+    // set is small enough to sort here.
+    albums.sort_by_key(|album| album.name.to_lowercase());
 
     let ids: Vec<String> = albums.iter().map(|album| album.id.clone()).collect();
     if ids.is_empty() {
         return Ok(Vec::new());
     }
+    let mut sync = sync_states(&mut conn, &ids).await?;
 
     let counts = assets::table
         .filter(assets::folder_id.eq_any(&ids))
@@ -178,6 +183,7 @@ pub(crate) async fn album_list(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>,
                 .into_iter()
                 .map(AssetId)
                 .collect();
+            let sync = sync.remove(&album.id);
             AlbumSummary {
                 id: AlbumId(album.id),
                 name: album.name,
@@ -186,6 +192,7 @@ pub(crate) async fn album_list(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>,
                 asset_count,
                 cover_asset_ids: cover_ids,
                 description: album.description,
+                sync,
                 updated_at: album.updated_at,
             }
         })
@@ -199,7 +206,6 @@ pub(crate) async fn album(cat: &SqliteCatalog, id: &str) -> Result<Option<AlbumS
     let mut conn = cat.conn().await?;
     let Some(folder) = folders::table
         .filter(folders::id.eq(id))
-        .filter(folders::is_album.eq(true))
         .select(FolderRow::as_select())
         .first::<FolderRow>(&mut conn)
         .await
@@ -233,6 +239,8 @@ pub(crate) async fn album(cat: &SqliteCatalog, id: &str) -> Result<Option<AlbumS
         covers.truncate(MOSAIC_COVERS as usize);
     }
 
+    let sync = sync_states(&mut conn, &[id.to_string()]).await?.remove(id);
+
     Ok(Some(AlbumSummary {
         id: AlbumId(folder.id),
         name: folder.name,
@@ -241,6 +249,7 @@ pub(crate) async fn album(cat: &SqliteCatalog, id: &str) -> Result<Option<AlbumS
         asset_count,
         cover_asset_ids: covers.into_iter().map(AssetId).collect(),
         description: folder.description,
+        sync,
         updated_at: folder.updated_at,
     }))
 }
@@ -285,12 +294,12 @@ pub(crate) async fn set_album_description(
 
 #[async_trait]
 impl AlbumStore for SqliteCatalog {
-    async fn mark_album(&self, folder_id: &str, is_album: bool) -> Result<(), AppError> {
-        mark_album(self, folder_id, is_album).await
+    async fn save_album(&self, album: &FolderRecord) -> Result<(), AppError> {
+        save_album(self, album).await
     }
 
-    async fn rebuild_albums(&self) -> Result<(), AppError> {
-        rebuild_albums(self).await
+    async fn delete_album(&self, id: &str) -> Result<(), AppError> {
+        delete_album(self, id).await
     }
 
     async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError> {

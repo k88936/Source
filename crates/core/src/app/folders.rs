@@ -1,13 +1,14 @@
-//! Library root and remote folder listing.
+//! Picking a remote folder: the listing the album picker browses, and the
+//! folders it can create on the way.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::AppError;
 use crate::remote::RemoteStorage;
-use crate::store::{AccountStore, FolderRef, FolderStore};
+use crate::store::{FolderRef, FolderStore};
 
-use super::{folder_ref, upsert_remote_folder};
+use super::{folder_record, folder_ref};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -35,8 +36,10 @@ pub struct RemoteFolderPage {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct SetLibraryRootParams {
-    pub uri: String,
+pub struct CreateFolderParams {
+    /// The folder the new one is created in.
+    pub parent_uri: String,
+    pub name: String,
 }
 
 pub struct FoldersService<R, C> {
@@ -53,8 +56,10 @@ impl<R, C> FoldersService<R, C> {
 impl<R, C> FoldersService<R, C>
 where
     R: RemoteStorage,
-    C: FolderStore + AccountStore,
+    C: FolderStore,
 {
+    /// One level of folders below `uri`, files excluded: the picker only ever
+    /// selects a folder.
     pub async fn list_remote_folders(
         &self,
         uri: &str,
@@ -75,17 +80,21 @@ where
         })
     }
 
-    pub async fn set_library_root(&self, uri: &str) -> Result<FolderRef, AppError> {
-        let account = self
-            .catalog
-            .current_account()
-            .await?
-            .ok_or_else(|| AppError::internal("尚未选择服务器"))?;
-        let info = self.cloud.folder_info(uri).await?;
-        let folder = folder_ref(&info);
-        upsert_remote_folder(&self.catalog, &folder, &info, None).await?;
+    /// Create a folder from inside the picker and hand back the selectable
+    /// reference, so the user does not have to leave the app to add an album.
+    pub async fn create_folder(
+        &self,
+        parent_uri: &str,
+        name: &str,
+    ) -> Result<FolderRef, AppError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(AppError::internal("文件夹名不能为空"));
+        }
+        let entry = self.cloud.create_folder(parent_uri, name).await?;
+        let folder = folder_ref(&entry);
         self.catalog
-            .set_library_root(&account.base_url, &folder)
+            .upsert_folder(&folder_record(&folder, &entry))
             .await?;
         Ok(folder)
     }

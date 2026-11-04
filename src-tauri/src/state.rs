@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use source_core::{
-    AccountService, BrowseService, CloudreveAuth, CloudreveStorage, FoldersService, FsLocalMedia,
-    IndexService, SqliteCatalog, ThumbCache, UploadsService,
+    AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, FoldersService,
+    FsLocalMedia, SqliteCatalog, ThumbCache, UploadsService,
 };
 
 /// The composed dependency graph.
@@ -15,15 +15,15 @@ use source_core::{
 /// `bootstrap::setup` builds these, and it shares one Cloudreve auth handle so a
 /// login is visible to every service at once.
 pub(crate) type Account = AccountService<CloudreveAuth, CloudreveStorage, SqliteCatalog>;
-pub(crate) type Index = IndexService<CloudreveStorage, SqliteCatalog>;
 pub(crate) type Folders = FoldersService<CloudreveStorage, SqliteCatalog>;
+pub(crate) type Albums = AlbumsService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
 pub(crate) type Browse = BrowseService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
 pub(crate) type Uploads = UploadsService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
 
 pub(crate) struct App {
     pub(crate) account: Arc<Account>,
-    pub(crate) index: Arc<Index>,
     pub(crate) folders: Arc<Folders>,
+    pub(crate) albums: Arc<Albums>,
     pub(crate) browse: Arc<Browse>,
     pub(crate) uploads: Arc<Uploads>,
 }

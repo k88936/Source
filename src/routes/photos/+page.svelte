@@ -8,7 +8,6 @@
 	import AssetGrid from '#lib/components/AssetGrid.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Icon from '#lib/components/Icon.svelte';
-	import IndexButton from '#lib/components/IndexButton.svelte';
 	import SelectionBar from '#lib/components/SelectionBar.svelte';
 	import TopBar from '#lib/components/TopBar.svelte';
 	import Viewer from '#lib/components/Viewer.svelte';
@@ -27,9 +26,9 @@
 	let moving = $state(false);
 
 	$effect(() => {
-		// Patch on writes, refetch only when an index pass moved the ground.
+		// Patch on writes, refetch only when a listing pass moved the ground.
 		return changes.subscribe((change) => {
-			if (change.kind === 'folders') {
+			if (change.kind === 'albums') {
 				void timeline.reload();
 				return;
 			}
@@ -119,20 +118,11 @@
 			>
 				<Icon name="select" size={20} />
 			</button>
-			<IndexButton />
 		{/if}
 	{/snippet}
 </TopBar>
 
-{#if !app.account?.libraryRoot}
-	<EmptyState
-		icon="cloud"
-		title="还没有选择图库根目录"
-		description="选择一个 Cloudreve 文件夹作为相册图库，索引后即可按时间浏览。"
-		actionLabel="选择图库根目录"
-		onaction={() => void goto('/library?setup=1')}
-	/>
-{:else if !timeline.loaded}
+{#if !timeline.loaded}
 	<div
 		class="grid gap-[2px]"
 		style:grid-template-columns="repeat({app.columns}, minmax(0, 1fr))"
@@ -144,10 +134,10 @@
 {:else if timeline.items.length === 0 && !timeline.loading}
 	<EmptyState
 		icon="image"
-		title={timeline.error ? '加载失败' : '图库还是空的'}
-		description={timeline.error || '运行一次索引，把 Cloudreve 中的照片和视频带到时间线。'}
-		actionLabel={timeline.error ? '重试' : '开始索引'}
-		onaction={() => (timeline.error ? void timeline.reload() : void app.startIndex(false))}
+		title={timeline.error ? '加载失败' : '时间线还是空的'}
+		description={timeline.error || '把 Cloudreve 里的文件夹添加为相册，它的照片与视频就会出现在这里。'}
+		actionLabel={timeline.error ? '重试' : '添加相册'}
+		onaction={() => (timeline.error ? void timeline.reload() : void goto('/albums'))}
 	/>
 {:else}
 	<AssetGrid

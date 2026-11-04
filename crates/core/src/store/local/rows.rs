@@ -1,8 +1,9 @@
-//! Row struct mirroring the `local_assets` table, plus its media conversion.
+//! Row structs of the local tables, plus their conversions.
 
 use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 
+use super::dto::LocalAlbumRecord;
 use super::schema;
 use crate::media::LocalAsset;
 
@@ -35,6 +36,28 @@ impl From<LocalAssetRow> for LocalAsset {
             width: row.width,
             height: row.height,
             duration_ms: row.duration_ms,
+        }
+    }
+}
+
+/// One row of `local_albums` joined to the album it syncs into.
+#[derive(Queryable)]
+pub(crate) struct LocalAlbumRow {
+    pub(crate) id: String,
+    pub(crate) uri: String,
+    pub(crate) name: String,
+    pub(crate) album_id: String,
+    pub(crate) album_name: String,
+}
+
+impl From<LocalAlbumRow> for LocalAlbumRecord {
+    fn from(row: LocalAlbumRow) -> Self {
+        LocalAlbumRecord {
+            id: row.id,
+            uri: row.uri,
+            name: row.name,
+            album_id: row.album_id,
+            album_name: row.album_name,
         }
     }
 }

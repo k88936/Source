@@ -66,7 +66,7 @@
 	async function finish(account: AccountState) {
 		app.account = account;
 		await app.afterLogin();
-		await goto(account.libraryRoot ? '/photos' : '/library?setup=1');
+		await goto('/photos');
 	}
 </script>
 

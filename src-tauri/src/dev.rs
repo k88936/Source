@@ -236,19 +236,20 @@ pub(crate) fn autoconnect(core: &App) {
                 return;
             }
         }
-        let has_root = core
-            .account
-            .account_state()
+        let has_album = core
+            .albums
+            .album_list()
             .await
-            .ok()
-            .flatten()
-            .and_then(|account| account.library_root)
-            .is_some();
-        if !has_root && let Err(error) = core.folders.set_library_root(&config.uri).await {
-            eprintln!(
-                "dev: cannot use {} as the library root: {error}",
-                config.uri
-            );
+            .is_ok_and(|albums| !albums.is_empty());
+        if !has_album
+            && let Err(error) = core
+                .albums
+                .add_album(source_core::app::albums::AddAlbumParams {
+                    uri: config.uri.clone(),
+                })
+                .await
+        {
+            eprintln!("dev: cannot use {} as an album: {error}", config.uri);
         }
         println!("dev: connected to {} as {}", config.endpoint, config.email);
     });

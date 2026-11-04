@@ -68,7 +68,7 @@
 
 	$effect(() => {
 		return changes.subscribe((change) => {
-			if (change.kind === 'folders' && searched) void run({ query, mediaType, favorite, from, to });
+			if (change.kind === 'albums' && searched) void run({ query, mediaType, favorite, from, to });
 		});
 	});
 

@@ -1,5 +1,4 @@
-//! Folder payloads: the root reference, the mirrored folder record and its
-//! sync state.
+//! Folder payloads: the album reference, the album record and its sync state.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -23,15 +22,20 @@ pub struct FolderRef {
 #[derive(Debug, Clone)]
 pub struct FolderRecord {
     pub id: String,
-    pub parent_id: Option<String>,
     pub name: String,
     pub uri: String,
     pub path: String,
     pub updated_at: i64,
-    pub is_album: bool,
     pub cover_asset_id: Option<String>,
     pub description: Option<String>,
 }
+
+/// `sync_state.status` of an album whose last listing succeeded.
+pub const SYNC_DONE: &str = "done";
+
+/// `sync_state.status` of an album whose last listing failed: the folder is
+/// gone or unreadable, and the album has to be pointed somewhere else.
+pub const SYNC_FAILED: &str = "failed";
 
 #[derive(Debug, Clone)]
 pub struct FolderSyncState {
@@ -44,6 +48,6 @@ pub struct FolderSyncState {
 
 impl FolderSyncState {
     pub fn is_done(&self) -> bool {
-        self.status == "done"
+        self.status == SYNC_DONE
     }
 }

@@ -2,14 +2,19 @@
 //! behind it.
 //!
 //! The catalog indexes one account at a time, so every read goes through
-//! [`AccountStore::current_account`] instead of keeping a copy of the server or
-//! of the library root anywhere else.
+//! [`AccountStore::current_account`] instead of keeping a copy of the server
+//! anywhere else.
 
 use async_trait::async_trait;
 
 use self::rows::AccountRow;
 use self::schema::account;
+use super::asset::schema::assets;
+use super::folder::schema::{folders, sync_state};
+use super::local::schema::{local_album_mapping, local_albums};
+use super::queue::schema::upload_queue;
 use super::settings::schema::app_state;
+use super::upload_session::schema::upload_sessions;
 use super::*;
 use crate::time::now_ms;
 
@@ -31,8 +36,12 @@ pub trait AccountStore: Send + Sync {
     async fn account(&self, base_url: &str) -> Result<Option<Account>, AppError>;
     /// Insert or update the row and make it the current account.
     async fn save_account(&self, value: &Account) -> Result<(), AppError>;
-    /// Point the library of `base_url` at `root`.
-    async fn set_library_root(&self, base_url: &str, root: &FolderRef) -> Result<(), AppError>;
+    /// Drop everything that belongs to the previous server.
+    ///
+    /// The catalog is single-account: albums, their assets, the local album
+    /// registry and its mapping all point at folders of the server the current
+    /// account lives on, so they cannot survive a different one.
+    async fn reset_catalog(&self) -> Result<(), AppError>;
 }
 
 pub(crate) async fn current_account(cat: &SqliteCatalog) -> Result<Option<Account>, AppError> {
@@ -67,7 +76,6 @@ async fn account_row(conn: &mut Conn, base_url: &str) -> Result<Option<AccountRo
             account::base_url,
             account::user,
             account::site_name,
-            account::library_root,
         ))
         .first::<AccountRow>(conn)
         .await
@@ -77,7 +85,6 @@ async fn account_row(conn: &mut Conn, base_url: &str) -> Result<Option<AccountRo
 
 pub(crate) async fn save_account(cat: &SqliteCatalog, value: &Account) -> Result<(), AppError> {
     let user = rows::encode(&value.user)?;
-    let library_root = rows::encode(&value.library_root)?;
     let mut conn = cat.conn().await?;
     conn.transaction::<(), TxError, _>(async |conn| {
         diesel::insert_into(account::table)
@@ -85,7 +92,6 @@ pub(crate) async fn save_account(cat: &SqliteCatalog, value: &Account) -> Result
                 account::base_url.eq(&value.base_url),
                 account::user.eq(&user),
                 account::site_name.eq(&value.site_name),
-                account::library_root.eq(&library_root),
                 account::created_at.eq(now_ms()),
             ))
             .on_conflict(account::base_url)
@@ -93,7 +99,6 @@ pub(crate) async fn save_account(cat: &SqliteCatalog, value: &Account) -> Result
             .set((
                 account::user.eq(excluded(account::user)),
                 account::site_name.eq(excluded(account::site_name)),
-                account::library_root.eq(excluded(account::library_root)),
             ))
             .execute(&mut *conn)
             .await?;
@@ -114,19 +119,22 @@ pub(crate) async fn save_account(cat: &SqliteCatalog, value: &Account) -> Result
     Ok(())
 }
 
-pub(crate) async fn set_library_root(
-    cat: &SqliteCatalog,
-    base_url: &str,
-    root: &FolderRef,
-) -> Result<(), AppError> {
-    let root = serde_json::to_string(root)
-        .map_err(|error| AppError::internal(format!("无法序列化图库根: {error}")))?;
+pub(crate) async fn reset_catalog(cat: &SqliteCatalog) -> Result<(), AppError> {
     let mut conn = cat.conn().await?;
-    diesel::update(account::table.filter(account::base_url.eq(base_url)))
-        .set(account::library_root.eq(root))
-        .execute(&mut conn)
-        .await
-        .map_err(db_err)?;
+    conn.transaction::<(), TxError, _>(async |conn| {
+        diesel::delete(upload_sessions::table).execute(&mut *conn).await?;
+        diesel::delete(upload_queue::table).execute(&mut *conn).await?;
+        diesel::delete(local_album_mapping::table)
+            .execute(&mut *conn)
+            .await?;
+        diesel::delete(local_albums::table).execute(&mut *conn).await?;
+        diesel::delete(sync_state::table).execute(&mut *conn).await?;
+        diesel::delete(assets::table).execute(&mut *conn).await?;
+        diesel::delete(folders::table).execute(&mut *conn).await?;
+        Ok(())
+    })
+    .await
+    .map_err(|error| error.0)?;
     Ok(())
 }
 
@@ -144,7 +152,7 @@ impl AccountStore for SqliteCatalog {
         save_account(self, value).await
     }
 
-    async fn set_library_root(&self, base_url: &str, root: &FolderRef) -> Result<(), AppError> {
-        set_library_root(self, base_url, root).await
+    async fn reset_catalog(&self) -> Result<(), AppError> {
+        reset_catalog(self).await
     }
 }

@@ -1,4 +1,4 @@
-//! Connection, login and library-root commands.
+//! Connection, login and remote-folder commands.
 
 use crate::prelude::*;
 
@@ -72,10 +72,15 @@ pub(crate) async fn list_remote_folders(
         .await
 }
 
+/// Create a folder from inside the album picker.
 #[tauri::command]
-pub(crate) async fn set_library_root(
+pub(crate) async fn create_folder(
     state: State<'_, AppState>,
-    params: SetLibraryRootParams,
+    params: CreateFolderParams,
 ) -> Result<FolderRef, AppError> {
-    state.core.folders.set_library_root(&params.uri).await
+    state
+        .core
+        .folders
+        .create_folder(&params.parent_uri, &params.name)
+        .await
 }

@@ -12,12 +12,10 @@ use super::schema;
 #[diesel(check_for_backend(Sqlite))]
 pub(crate) struct FolderRow {
     pub(crate) id: String,
-    pub(crate) parent_id: Option<String>,
     pub(crate) name: String,
     pub(crate) uri: String,
     pub(crate) path: String,
     pub(crate) updated_at: i64,
-    pub(crate) is_album: bool,
     pub(crate) cover_asset_id: Option<String>,
     pub(crate) description: Option<String>,
 }
@@ -37,12 +35,10 @@ impl From<FolderRow> for FolderRecord {
     fn from(row: FolderRow) -> Self {
         FolderRecord {
             id: row.id,
-            parent_id: row.parent_id,
             name: row.name,
             uri: row.uri,
             path: row.path,
             updated_at: row.updated_at,
-            is_album: row.is_album,
             cover_asset_id: row.cover_asset_id,
             description: row.description,
         }

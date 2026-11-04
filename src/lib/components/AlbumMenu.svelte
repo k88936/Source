@@ -6,11 +6,13 @@
 		oncover,
 		ondescription,
 		onselect,
+		onremove,
 	}: {
 		open?: boolean;
 		oncover: () => void;
 		ondescription: () => void;
 		onselect: () => void;
+		onremove: () => void;
 	} = $props();
 
 	const itemClass =
@@ -56,6 +58,15 @@
 				class={itemClass}
 			>
 				<Icon name="download" size={20} /> 选择并下载
+			</button>
+			<button
+				onclick={() => {
+					open = false;
+					onremove();
+				}}
+				class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-red-500 hover:bg-gray"
+			>
+				<Icon name="trash" size={20} /> 移除相册
 			</button>
 		</div>
 	</div>

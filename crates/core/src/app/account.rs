@@ -1,16 +1,16 @@
 //! Account: server selection, sign-in, 2FA and the account snapshot.
 //!
-//! The account row is the authority. It holds the server, the identity and the
-//! library root, so this service keeps no state of its own and every read is a
-//! query — that is also why a restart, a logout or a second window all see the
-//! same account without anything being patched in between.
+//! The account row is the authority. It holds the server and the identity, so
+//! this service keeps no state of its own and every read is a query — that is
+//! also why a restart, a logout or a second window all see the same account
+//! without anything being patched in between.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::{AppError, ErrorCode};
 use crate::remote::{Capacity, RemoteAuth, RemoteStorage, SignInOutcome, SignedIn, SiteInfo};
-use crate::store::{Account, AccountStore, FolderRef, UserInfo};
+use crate::store::{Account, AccountStore, UserInfo};
 
 use super::normalize_base_url;
 
@@ -21,7 +21,6 @@ pub struct AccountState {
     pub server: String,
     pub site_name: Option<String>,
     pub user: UserInfo,
-    pub library_root: Option<FolderRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -101,25 +100,32 @@ where
                     server: account.base_url,
                     site_name: account.site_name,
                     user,
-                    library_root: account.library_root,
                 })
             }
             Err(_) => None,
         }
     }
 
-    /// Remember the server before the first sign-in, keeping the identity and
-    /// the library root of an account that used this server before.
+    /// Remember the server before the first sign-in, keeping the identity of
+    /// an account that used this server before.
+    ///
+    /// Switching to a different server drops the catalog: albums, their assets
+    /// and the local album mapping all point at folders of the server the
+    /// current account lives on.
     pub async fn set_server(&self, base_url: &str) -> Result<SiteInfo, AppError> {
         let base = normalize_base_url(base_url)?;
         let info = self.auth.site_info(&base).await?;
         let known = self.account_store.account(&base).await?;
+        if let Some(previous) = self.account_store.current_account().await?
+            && previous.base_url != base
+        {
+            self.account_store.reset_catalog().await?;
+        }
         self.account_store
             .save_account(&Account {
                 base_url: base,
                 user: known.as_ref().and_then(|account| account.user.clone()),
                 site_name: Some(info.name.clone()),
-                library_root: known.and_then(|account| account.library_root),
             })
             .await?;
         Ok(info)
@@ -157,8 +163,8 @@ where
             return Ok(());
         };
         let _ = self.auth.sign_out(&account.base_url).await;
-        // The row keeps the server and the library root so the next sign-in
-        // starts from the same place; only the identity is dropped.
+        // The row keeps the server so the next sign-in starts from the same
+        // place; only the identity is dropped.
         self.forget_user(account).await?;
         Ok(())
     }
@@ -171,7 +177,6 @@ where
             server: account.base_url,
             site_name: account.site_name,
             user,
-            library_root: account.library_root,
         }))
     }
 
@@ -195,14 +200,12 @@ where
             base_url: account.base_url.clone(),
             user: Some(signed_in.user.clone()),
             site_name: signed_in.site_name.or_else(|| account.site_name.clone()),
-            library_root: account.library_root.clone(),
         };
         self.account_store.save_account(&saved).await?;
         Ok(AccountState {
             server: saved.base_url,
             site_name: saved.site_name,
             user: signed_in.user,
-            library_root: saved.library_root,
         })
     }
 
@@ -211,7 +214,6 @@ where
             base_url: account.base_url,
             user: None,
             site_name: account.site_name,
-            library_root: account.library_root,
         };
         self.account_store.save_account(&cleared).await?;
         Ok(cleared)

@@ -73,7 +73,7 @@
 		</div>
 		<div class="mt-3 flex gap-2">
 			<button
-				onclick={() => void app.refreshIndex()}
+				onclick={() => void app.refreshAccount()}
 				class="flex-1 rounded-xl border border-line py-2 text-xs font-medium transition-colors hover:bg-line/40"
 			>
 				刷新状态
@@ -139,22 +139,6 @@
 		</button>
 	</section>
 
-	<section class="mt-3 rounded-2xl bg-gray p-4">
-		<p class="text-sm font-medium">图库索引</p>
-		<p class="mt-1 text-[11px] text-muted">
-			{app.index.phase === 'scanning'
-				? `正在索引 ${app.index.foldersDone}/${app.index.foldersTotal}`
-				: `已收录 ${app.index.assetsSeen} 项`}
-		</p>
-		<button
-			onclick={() => void app.startIndex(true)}
-			disabled={app.scanning}
-			class="mt-3 w-full rounded-xl bg-primary py-2 text-xs font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
-		>
-			完整重建索引
-		</button>
-	</section>
-
 	<section class="mt-3 rounded-2xl bg-gray px-4 py-3 text-xs text-muted">
 		<div class="flex justify-between py-1.5">
 			<span>应用</span><span>{info?.name ?? 'Source'}</span>
@@ -165,12 +149,9 @@
 		<div class="flex justify-between py-1.5">
 			<span>平台</span><span>{info?.platform ?? 'web'}</span>
 		</div>
-		<div class="flex justify-between py-1.5">
-			<span>图库根</span><span class="max-w-[60%] truncate">{app.account?.libraryRoot?.path ?? '未设置'}</span>
-		</div>
 	</section>
 
 	<p class="mt-4 text-center text-[11px] leading-relaxed text-muted">
-		原图始终留在 Cloudreve · 索引可离线浏览
+		原图始终留在 Cloudreve · 相册就是云端文件夹
 	</p>
 </div>

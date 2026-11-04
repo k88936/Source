@@ -1,5 +1,5 @@
-//! What the local library reports and accepts: permission state, albums,
-//! assets and the thumbnail cache counters.
+//! What the local library reports and accepts: permission state, the
+//! directories it can offer, assets and the thumbnail cache counters.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -32,13 +32,30 @@ pub struct CacheStats {
     pub budget_bytes: i64,
 }
 
+/// One directory the user can add as a local album.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct LocalAlbum {
-    pub id: String,
+pub struct LocalEntry {
+    /// What the adapter calls this directory; the registered album keeps it.
+    pub uri: String,
     pub name: String,
-    pub asset_count: u32,
+    /// Where the directory sits, for platforms whose names collide
+    /// (`DCIM/Camera` on Android). The desktop name is the last component.
+    pub path: Option<String>,
+}
+
+/// One step of the local directory browser.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LocalBrowsePage {
+    /// The directory being listed; `None` means the platform has no notion of
+    /// a current directory (it only offers a list to pick from).
+    pub current: Option<LocalEntry>,
+    /// Where "上一级" goes; `None` at the top.
+    pub parent: Option<LocalEntry>,
+    pub entries: Vec<LocalEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -61,7 +78,7 @@ pub struct LocalAsset {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct LocalAssetPageParams {
-    pub album_id: Option<String>,
+    pub album_uri: String,
     pub cursor: Option<String>,
     pub limit: u32,
 }

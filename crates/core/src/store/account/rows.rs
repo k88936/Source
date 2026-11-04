@@ -12,7 +12,6 @@ pub(crate) struct AccountRow {
     pub(crate) base_url: String,
     pub(crate) user: Option<String>,
     pub(crate) site_name: Option<String>,
-    pub(crate) library_root: Option<String>,
 }
 
 impl AccountRow {
@@ -21,13 +20,12 @@ impl AccountRow {
             base_url: self.base_url,
             user: decode(self.user, "用户")?,
             site_name: self.site_name,
-            library_root: decode(self.library_root, "图库根")?,
         })
     }
 }
 
-/// The user and the library root are single values, so each is one JSON column
-/// instead of a set of columns that could disagree with each other.
+/// The user is a single value, so it is one JSON column instead of a set of
+/// columns that could disagree with each other.
 pub(crate) fn encode<T: Serialize>(value: &Option<T>) -> Result<Option<String>, AppError> {
     value
         .as_ref()

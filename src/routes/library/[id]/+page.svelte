@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '#lib/api/client';
-	import type { LocalAlbum } from '#lib/api/bindings/LocalAlbum';
+	import type { LocalAlbumSummary } from '#lib/api/bindings/LocalAlbumSummary';
 	import type { LocalAsset } from '#lib/api/bindings/LocalAsset';
 	import AssetThumb from '#lib/components/AssetThumb.svelte';
 	import Icon from '#lib/components/Icon.svelte';
@@ -13,7 +14,7 @@
 
 	const PAGE = 200;
 
-	let album = $state<LocalAlbum | null>(null);
+	let album = $state<LocalAlbumSummary | null>(null);
 	let items = $state<LocalAsset[]>([]);
 	let next = $state<string | null>(null);
 	let loading = $state(true);
@@ -21,6 +22,8 @@
 	let sentinel: HTMLDivElement | undefined = $state();
 	let selected = $state<string[]>([]);
 	let uploadOpen = $state(false);
+	// Uploads pick their target every time: the mapping records intent, it does
+	// not drive the queue yet.
 	let initialDest = $state('');
 	let currentId = $state('');
 
@@ -50,7 +53,12 @@
 		try {
 			const albums = await api.localAlbumList();
 			album = albums.find((entry) => entry.id === id) ?? null;
-			const result = await api.localAssetPage({ albumId: id, cursor: null, limit: PAGE });
+			if (!album) return;
+			const result = await api.localAssetPage({
+				albumUri: album.uri,
+				cursor: null,
+				limit: PAGE,
+			});
 			items = result.items;
 			next = result.next;
 		} catch (err) {
@@ -61,12 +69,13 @@
 	}
 
 	async function loadMore() {
-		if (!next || loadingMore) return;
+		if (!next || loadingMore || !album) return;
 		loadingMore = true;
 		const id = currentId;
 		const cursor = next;
+		const uri = album.uri;
 		try {
-			const result = await api.localAssetPage({ albumId: id, cursor, limit: PAGE });
+			const result = await api.localAssetPage({ albumUri: uri, cursor, limit: PAGE });
 			if (id !== currentId) return;
 			items = [...items, ...result.items];
 			next = result.next;
@@ -92,13 +101,32 @@
 		selected = [];
 		app.showToast('上传任务已创建，可在资料库查看进度', 'success');
 	}
+
+	/// Unlink only. Files already on the server stay, and the album they went to
+	/// is untouched.
+	async function unlink() {
+		if (!album) return;
+		const ok = window.confirm(
+			`解除「${album.name}」的同步？\n\n只会删掉本机的登记，云端文件与相册不受影响。`,
+		);
+		if (!ok) return;
+		try {
+			await api.removeLocalAlbum({ id: album.id });
+			app.showToast('已解除同步', 'success');
+			await goto('/library/local');
+		} catch (err) {
+			app.showToast(app.describeError(err), 'error');
+		}
+	}
 </script>
 
 <svelte:head><title>{album?.name ?? '本机相册'} · Source</title></svelte:head>
 
 <TopBar
 	title={selected.length ? `已选择 ${selected.length} 项` : (album?.name ?? '本机相册')}
-	subtitle={loading ? '加载中…' : `${album?.assetCount ?? items.length} 项 · 本机`}
+	subtitle={loading
+		? '加载中…'
+		: `${album?.assetCount ?? items.length} 项 · 同步到「${album?.albumName ?? ''}」`}
 	back={selected.length === 0}
 >
 	{#snippet actions()}
@@ -113,6 +141,13 @@
 				<Icon name="close" size={21} />
 			</button>
 		{:else}
+			<button
+				onclick={() => void unlink()}
+				class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
+				aria-label="解除同步"
+			>
+				<Icon name="trash" size={19} />
+			</button>
 			<button
 				onclick={openUpload}
 				class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
@@ -133,7 +168,7 @@
 {:else if items.length === 0}
 	<div class="flex flex-col items-center gap-3 px-8 py-20 text-center">
 		<Icon name="folder" size={34} class="text-muted" />
-		<p class="text-sm font-medium">这个相册是空的</p>
+		<p class="text-sm font-medium">这个目录里没有照片</p>
 		<button
 			onclick={openUpload}
 			class="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-on-primary"
