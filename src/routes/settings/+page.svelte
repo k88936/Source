@@ -10,25 +10,28 @@
     import {formatBytes} from '#lib/format';
     import {app} from '#lib/state/app.svelte';
 
+    type ConfirmAction = 'clearCache' | 'logout';
+
     let cache = $state<CacheStats | null>(null);
     let info = $state<AppInfo | null>(null);
     let theme = $state<'dark' | 'light'>('dark');
     let clearing = $state(false);
-    let confirmAction = $state<'clearCache' | 'logout' | null>(null);
+    let confirmAction = $state<ConfirmAction | null>(null);
 
-    const confirmCopy = $derived(
-        confirmAction === 'logout'
-            ? {
-                  title: '退出登录',
-                  message: '本地索引会保留, 下次登录后可以继续使用.',
-                  confirmLabel: '退出登录',
-              }
-            : {
-                  title: '清除缓存',
-                  message: '清除所有缩略图缓存? 下次浏览会重新下载.',
-                  confirmLabel: '清除',
-              },
-    );
+    const CONFIRM_COPY: Record<ConfirmAction, {title: string; message: string; confirmLabel: string}> = {
+        clearCache: {
+            title: '清除缓存',
+            message: '清除所有缩略图缓存? 下次浏览会重新下载.',
+            confirmLabel: '清除',
+        },
+        logout: {
+            title: '退出登录',
+            message: '本地索引会保留, 下次登录后可以继续使用.',
+            confirmLabel: '退出登录',
+        },
+    };
+
+    const confirmCopy = $derived(confirmAction === null ? null : CONFIRM_COPY[confirmAction]);
 
     onMount(() => {
         void load();
@@ -179,12 +182,14 @@
     <p class="mt-4 text-center text-[11px] leading-relaxed text-muted">原图始终留在 Cloudreve - 相册就是云端文件夹</p>
 </div>
 
-<ConfirmDialog
-    open={confirmAction !== null}
-    title={confirmCopy.title}
-    message={confirmCopy.message}
-    confirmLabel={confirmCopy.confirmLabel}
-    danger
-    onClose={() => (confirmAction = null)}
-    onConfirm={() => void runConfirm()}
-/>
+{#if confirmCopy}
+    <ConfirmDialog
+        open
+        title={confirmCopy.title}
+        message={confirmCopy.message}
+        confirmLabel={confirmCopy.confirmLabel}
+        danger
+        onClose={() => (confirmAction = null)}
+        onConfirm={() => void runConfirm()}
+    />
+{/if}
