@@ -106,7 +106,8 @@
                 onclick={() => (confirmAction = 'logout')}
                 class="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-danger transition-colors hover:bg-danger/10"
             >
-                <LogOut size={15} /> 退出登录
+                <LogOut size={15} />
+                退出登录
             </button>
         </div>
     </section>
