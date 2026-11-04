@@ -34,11 +34,14 @@
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
 		role="dialog"
 		aria-modal="true"
-		onclick={(event) => {
-			if (event.target === event.currentTarget) onclose();
-		}}
 	>
-		<div class="w-full max-w-sm rounded-3xl bg-light p-5 shadow-2xl">
+		<button
+			type="button"
+			class="absolute inset-0 cursor-default"
+			aria-label="关闭"
+			onclick={onclose}
+		></button>
+		<div class="relative w-full max-w-sm rounded-3xl bg-gray p-5 shadow-2xl ring-1 ring-line">
 			<span
 				class="grid size-10 place-items-center rounded-full {danger
 					? 'bg-danger/10 text-danger'
@@ -51,7 +54,7 @@
 			<div class="mt-5 flex justify-end gap-2">
 				<button
 					onclick={onclose}
-					class="rounded-xl px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-gray"
+					class="rounded-xl px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-line/40"
 				>
 					取消
 				</button>
