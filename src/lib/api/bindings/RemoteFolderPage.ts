@@ -4,8 +4,8 @@ import type { FolderRef } from "./FolderRef";
 export type RemoteFolderPage = {
   folders: Array<FolderRef>;
   /**
-   * Folder currently being browsed (absent for the user root).
+   * Folder currently being browsed; the drive root has an empty name.
    */
-  parent: FolderRef | null;
+  current: FolderRef;
   next: string | null;
 };

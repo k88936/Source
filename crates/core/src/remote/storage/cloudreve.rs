@@ -112,8 +112,8 @@ impl CloudreveStorage {
 }
 use cloudreve_sdk_api::api::{ExplorerApi, UserApi};
 use cloudreve_sdk_api::models::explorer::{
-    CreateFileService, FileURLService, GetFileInfoService, ListFileService, MetadataPatch,
-    MoveFileService, PatchMetadataService,
+    CreateFileService, FileURLService, ListFileService, MetadataPatch, MoveFileService,
+    PatchMetadataService,
 };
 
 #[async_trait]
@@ -146,39 +146,23 @@ impl RemoteStorage for CloudreveStorage {
         let entries = response
             .files
             .iter()
-            .map(|f| to_entry(uri, f))
+            .map(|f| to_entry(&join_uri(uri, &f.name), f))
             .collect::<Vec<_>>();
-        let parent = response.parent.as_ref().map(|p| {
-            if is_root_uri(uri) {
-                root_entry(uri, Some(p))
-            } else {
-                to_entry(uri, p)
-            }
-        });
+        let current = response
+            .parent
+            .as_ref()
+            .ok_or_else(|| AppError::internal("服务器未返回当前目录"))?;
         Ok(RemoteEntryPage {
             entries,
             next: response.pagination.next_token,
-            parent,
+            current: to_entry(uri.trim_end_matches('/'), current),
         })
     }
 
+    /// A folder's own entry, taken from a listing: the listing's `parent` field
+    /// describes the folder that was listed, the drive root included.
     async fn folder_info(&self, uri: &str) -> Result<RemoteEntry, AppError> {
-        if is_root_uri(uri) {
-            let page = self.list_entries(uri, None).await?;
-            return Ok(page.parent.unwrap_or_else(|| root_entry(uri, None)));
-        }
-        let client = self.client()?;
-        let info = client
-            .get_file_info(&GetFileInfoService {
-                uri: Some(uri.to_string()),
-                id: None,
-                extended: Some(false),
-                folder_summary: Some(false),
-            })
-            .await
-            .map_err(map_api_error)?;
-        let parent = uri.rsplit_once('/').map(|(p, _)| p).unwrap_or(uri);
-        Ok(to_entry(parent, &info))
+        Ok(self.list_entries(uri, None).await?.current)
     }
 
     async fn thumb_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError> {
@@ -243,7 +227,7 @@ impl RemoteStorage for CloudreveStorage {
             })
             .await
             .map_err(map_api_error)?;
-        Ok(to_entry(parent_uri, &created))
+        Ok(to_entry(&uri, &created))
     }
 
     async fn move_assets(&self, uris: &[String], dest_uri: &str) -> Result<Vec<String>, AppError> {

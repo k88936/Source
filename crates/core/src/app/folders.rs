@@ -14,6 +14,7 @@ use super::{folder_record, folder_ref};
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ListRemoteFoldersParams {
+    /// The folder to list; the drive root when absent.
     #[serde(default = "root_uri")]
     pub uri: String,
     pub page_token: Option<String>,
@@ -28,8 +29,8 @@ fn root_uri() -> String {
 #[ts(export)]
 pub struct RemoteFolderPage {
     pub folders: Vec<FolderRef>,
-    /// Folder currently being browsed (absent for the user root).
-    pub parent: Option<FolderRef>,
+    /// Folder currently being browsed; the drive root has an empty name.
+    pub current: FolderRef,
     pub next: Option<String>,
 }
 
@@ -66,7 +67,7 @@ where
         page_token: Option<&str>,
     ) -> Result<RemoteFolderPage, AppError> {
         let page = self.cloud.list_entries(uri, page_token).await?;
-        let parent = page.parent.as_ref().map(folder_ref);
+        let current = folder_ref(&page.current);
         let folders = page
             .entries
             .into_iter()
@@ -75,18 +76,14 @@ where
             .collect();
         Ok(RemoteFolderPage {
             folders,
-            parent,
+            current,
             next: page.next,
         })
     }
 
     /// Create a folder from inside the picker and hand back the selectable
     /// reference, so the user does not have to leave the app to add an album.
-    pub async fn create_folder(
-        &self,
-        parent_uri: &str,
-        name: &str,
-    ) -> Result<FolderRef, AppError> {
+    pub async fn create_folder(&self, parent_uri: &str, name: &str) -> Result<FolderRef, AppError> {
         let name = name.trim();
         if name.is_empty() {
             return Err(AppError::internal("文件夹名不能为空"));

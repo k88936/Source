@@ -30,12 +30,14 @@ pub trait RemoteStorage: Send + Sync {
     /// The account's quota, read from the server rather than cached.
     async fn capacity(&self) -> Result<Capacity, AppError>;
 
+    /// One page of `uri`'s children, with `uri` itself as `current`.
     async fn list_entries(
         &self,
         uri: &str,
         page_token: Option<&str>,
     ) -> Result<RemoteEntryPage, AppError>;
 
+    /// The folder `uri` itself, the drive root included.
     async fn folder_info(&self, uri: &str) -> Result<RemoteEntry, AppError>;
 
     /// Thumbnail bytes for `uri`, signed and fetched in one step so the URL

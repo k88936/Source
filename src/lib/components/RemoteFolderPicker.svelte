@@ -18,9 +18,16 @@
 	let creating = $state(false);
 	let newName = $state('');
 	let busy = $state(false);
+	/// The drive root, where browsing starts.
+	const ROOT_URI = 'cloudreve://my';
+	/// The folders walked through to get here, so `上一级` climbs back out.
+	let trail = $state<string[]>([]);
 
 	$effect(() => {
-		if (open) void browseTo('cloudreve://my');
+		if (open) {
+			trail = [];
+			void browseTo(ROOT_URI);
+		}
 	});
 
 	async function browseTo(uri: string) {
@@ -36,11 +43,24 @@
 		}
 	}
 
+	function enter(folder: FolderRef) {
+		if (!browse) return;
+		trail = [...trail, browse.current.uri];
+		void browseTo(folder.uri);
+	}
+
+	function up() {
+		const parent = trail.at(-1);
+		if (parent === undefined) return;
+		trail = trail.slice(0, -1);
+		void browseTo(parent);
+	}
+
 	async function pick() {
-		if (!browse?.parent || busy) return;
+		if (!browse || busy) return;
 		busy = true;
 		try {
-			onpick?.(browse.parent);
+			onpick?.(browse.current);
 			open = false;
 		} finally {
 			busy = false;
@@ -49,12 +69,12 @@
 
 	async function create() {
 		const name = newName.trim();
-		if (!name || busy) return;
+		if (!name || !browse || busy) return;
 		busy = true;
 		error = '';
 		try {
 			const folder = await api.createFolder({
-				parentUri: browse?.parent?.uri ?? 'cloudreve://my',
+				parentUri: browse.current.uri,
 				name,
 			});
 			newName = '';
@@ -75,11 +95,13 @@
 		role="dialog"
 		aria-modal="true"
 	>
-		<div class="flex h-[80dvh] w-full max-w-lg flex-col rounded-t-3xl bg-light sm:h-[70dvh] sm:rounded-3xl">
+		<div
+			class="flex h-[80dvh] w-full max-w-lg flex-col rounded-t-3xl bg-light sm:h-[70dvh] sm:rounded-3xl"
+		>
 			<div class="flex items-center justify-between px-4 pb-2 pt-3">
 				<div class="min-w-0">
 					<h2 class="text-base font-semibold">添加相册</h2>
-					<p class="truncate text-xs text-muted">当前：{browse?.parent?.path ?? '/'}</p>
+					<p class="truncate text-xs text-muted">当前：{browse?.current.path ?? '/'}</p>
 				</div>
 				<div class="flex items-center gap-1">
 					<button
@@ -123,9 +145,9 @@
 			{/if}
 
 			<div class="flex-1 overflow-y-auto px-2">
-				{#if browse?.parent}
+				{#if trail.length > 0}
 					<button
-						onclick={() => void browseTo(browse?.parent?.uri ?? 'cloudreve://my')}
+						onclick={up}
 						class="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
 					>
 						<Icon name="back" size={18} class="text-muted" /> 上一级
@@ -133,7 +155,9 @@
 				{/if}
 				{#if loading}
 					<div class="flex justify-center py-12">
-						<div class="size-6 animate-spin rounded-full border-2 border-line border-t-primary"></div>
+						<div
+							class="size-6 animate-spin rounded-full border-2 border-line border-t-primary"
+						></div>
 					</div>
 				{:else if error}
 					<p class="px-3 py-6 text-center text-xs text-red-500">{error}</p>
@@ -142,7 +166,7 @@
 				{:else}
 					{#each browse?.folders ?? [] as folder (folder.id)}
 						<button
-							onclick={() => void browseTo(folder.uri)}
+							onclick={() => enter(folder)}
 							class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
 						>
 							<Icon name="folder" size={20} class="text-amber-500" />
@@ -156,10 +180,10 @@
 			<div class="border-t border-line p-4 pb-[calc(1rem+var(--safe-bottom))]">
 				<button
 					onclick={() => void pick()}
-					disabled={!browse?.parent || busy}
+					disabled={!browse || busy}
 					class="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
 				>
-					{browse?.parent ? `添加「${browse.parent.name}」为相册` : '请先进入一个文件夹'}
+					{browse ? `添加「${browse.current.name}」为相册` : '加载中'}
 				</button>
 			</div>
 		</div>

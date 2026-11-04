@@ -35,12 +35,14 @@ pub(crate) fn join_uri(parent: &str, name: &str) -> String {
     format!("{trimmed}/{}", urlencoding::encode(name))
 }
 
-pub(crate) fn to_entry(parent_uri: &str, file: &FileResponse) -> RemoteEntry {
-    let uri = join_uri(parent_uri, &file.name);
+/// The address is always decided by the caller: a listing's `files` are children
+/// of the listed folder, while the listing's `parent` field is that folder
+/// itself, so neither can be derived from the other.
+pub(crate) fn to_entry(uri: &str, file: &FileResponse) -> RemoteEntry {
     let metadata = file.metadata.clone().unwrap_or_default();
     RemoteEntry {
         id: file.id.clone(),
-        uri,
+        uri: uri.to_string(),
         name: file.name.clone(),
         path: file.path.clone(),
         is_folder: file.file_type == 1,
@@ -48,38 +50,5 @@ pub(crate) fn to_entry(parent_uri: &str, file: &FileResponse) -> RemoteEntry {
         created_at: crate::time::parse_rfc3339(&file.created_at).unwrap_or(0),
         updated_at: crate::time::parse_rfc3339(&file.updated_at).unwrap_or(0),
         metadata,
-    }
-}
-
-pub(crate) fn is_root_uri(uri: &str) -> bool {
-    uri.trim_end_matches('/') == "cloudreve://my"
-}
-
-pub(crate) fn root_entry(uri: &str, file: Option<&FileResponse>) -> RemoteEntry {
-    RemoteEntry {
-        id: file
-            .map(|f| f.id.clone())
-            .unwrap_or_else(|| "root".to_string()),
-        uri: if uri.ends_with('/') {
-            uri.to_string()
-        } else {
-            format!("{uri}/")
-        },
-        name: file
-            .map(|f| f.name.clone())
-            .unwrap_or_else(|| "我的文件".to_string()),
-        path: file
-            .map(|f| f.path.clone())
-            .filter(|path| !path.is_empty())
-            .unwrap_or_else(|| "cloudreve://my/".to_string()),
-        is_folder: true,
-        size: 0,
-        created_at: file
-            .map(|f| crate::time::parse_rfc3339(&f.created_at).unwrap_or(0))
-            .unwrap_or(0),
-        updated_at: file
-            .map(|f| crate::time::parse_rfc3339(&f.updated_at).unwrap_or(0))
-            .unwrap_or(0),
-        metadata: file.and_then(|f| f.metadata.clone()).unwrap_or_default(),
     }
 }

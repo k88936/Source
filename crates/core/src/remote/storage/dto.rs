@@ -55,7 +55,8 @@ pub struct RemoteEntry {
 pub struct RemoteEntryPage {
     pub entries: Vec<RemoteEntry>,
     pub next: Option<String>,
-    pub parent: Option<RemoteEntry>,
+    /// The folder this page was taken of.
+    pub current: RemoteEntry,
 }
 
 /// One media response as the server sent it: status, body and the two headers

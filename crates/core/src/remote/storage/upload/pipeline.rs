@@ -61,17 +61,13 @@ impl CloudreveStorage {
             ));
         }
 
-        read_back_entry(&client, &remote_uri, &request.dest_uri).await
+        read_back_entry(&client, &remote_uri).await
     }
 }
 
 /// Metadata extraction may lag behind the upload, so retry briefly until the
 /// new asset can be read back with its id and timestamps.
-async fn read_back_entry(
-    client: &Client,
-    remote_uri: &str,
-    dest_uri: &str,
-) -> Result<RemoteEntry, AppError> {
+async fn read_back_entry(client: &Client, remote_uri: &str) -> Result<RemoteEntry, AppError> {
     for attempt in 0..5 {
         match client
             .get_file_info(&GetFileInfoService {
@@ -82,7 +78,7 @@ async fn read_back_entry(
             })
             .await
         {
-            Ok(info) => return Ok(to_entry(dest_uri, &info)),
+            Ok(info) => return Ok(to_entry(remote_uri, &info)),
             Err(_) if attempt < 4 => {
                 tokio::time::sleep(std::time::Duration::from_millis(250 * (attempt + 1))).await;
             }
