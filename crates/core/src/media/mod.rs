@@ -4,7 +4,8 @@
 //!
 //! The port is synchronous on purpose: MediaStore and JNI calls are blocking,
 //! and a `Result`-returning sync trait keeps the adapters free of an async
-//! runtime.
+//! runtime. Remote bytes are not fetched here: that belongs to
+//! [`crate::remote::RemoteStorage`].
 
 use crate::error::AppError;
 
@@ -12,7 +13,6 @@ mod dto;
 mod fs_local;
 mod hash;
 mod image_thumb;
-mod net;
 mod thumb_hash;
 mod thumbs;
 
@@ -20,7 +20,6 @@ pub use dto::*;
 pub use fs_local::FsLocalMedia;
 pub use hash::sha256_file;
 pub use image_thumb::{LOCAL_THUMB_EDGE, jpeg_thumb_from_path, video_thumb_from_path};
-pub use net::{fetch_bytes, fetch_range};
 pub use thumb_hash::preview_from_jpeg;
 pub use thumbs::{THUMB_BUDGET_BYTES, ThumbCache};
 

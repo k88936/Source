@@ -14,8 +14,8 @@ pub(crate) mod storage;
 pub use auth::{CloudreveAuth, CurrentAccount, RemoteAuth, SignInOutcome, SignedIn, SiteInfo};
 pub(crate) use error::map_api_error;
 pub use storage::{
-    Capacity, CloudreveStorage, ProgressSink, RemoteEntry, RemoteEntryPage, RemoteStorage,
-    UploadProgress, UploadRequest,
+    Capacity, CloudreveStorage, MediaRange, ProgressSink, RemoteEntry, RemoteEntryPage,
+    RemoteStorage, UploadProgress, UploadRequest,
 };
 
 pub(crate) const USER_AGENT: &str = "Source/0.1";

@@ -24,12 +24,10 @@ pub use app::{
 };
 pub use credential::CredentialStore;
 pub use error::{AppError, ErrorCode};
-pub use media::{
-    FsLocalMedia, LOCAL_THUMB_EDGE, ThumbCache, fetch_bytes, fetch_range, preview_from_jpeg,
-};
+pub use media::{FsLocalMedia, LOCAL_THUMB_EDGE, ThumbCache, preview_from_jpeg};
 pub use remote::{
-    CloudreveAuth, CloudreveStorage, CurrentAccount, ProgressSink, RemoteAuth, RemoteEntry,
-    RemoteEntryPage, RemoteStorage, SignInOutcome, SignedIn, SiteInfo, UploadProgress,
+    CloudreveAuth, CloudreveStorage, CurrentAccount, MediaRange, ProgressSink, RemoteAuth,
+    RemoteEntry, RemoteEntryPage, RemoteStorage, SignInOutcome, SignedIn, SiteInfo, UploadProgress,
     UploadRequest,
 };
 pub use sqlite::SqliteCatalog;

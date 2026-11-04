@@ -19,7 +19,7 @@ mod upload;
 
 pub use cloudreve::CloudreveStorage;
 pub use dto::{
-    Capacity, ProgressSink, RemoteEntry, RemoteEntryPage, UploadProgress, UploadRequest,
+    Capacity, MediaRange, ProgressSink, RemoteEntry, RemoteEntryPage, UploadProgress, UploadRequest,
 };
 pub(crate) use entries::*;
 
@@ -38,11 +38,16 @@ pub trait RemoteStorage: Send + Sync {
 
     async fn folder_info(&self, uri: &str) -> Result<RemoteEntry, AppError>;
 
-    /// Signed (short-lived) URL for a Cloudreve thumbnail.
-    async fn thumb_url(&self, uri: &str) -> Result<String, AppError>;
+    /// Thumbnail bytes for `uri`, signed and fetched in one step so the URL
+    /// never leaves the adapter.
+    async fn thumb_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError>;
 
-    /// Signed (short-lived) URL for the original media/stream.
-    async fn media_url(&self, uri: &str) -> Result<String, AppError>;
+    /// Whole original file for `uri`.
+    async fn media_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError>;
+
+    /// A `Range` request against the original file, answered as the server
+    /// sent it. `range=None` fetches the whole file.
+    async fn media_range(&self, uri: &str, range: Option<&str>) -> Result<MediaRange, AppError>;
 
     /// Download just the head of a remote file and parse its EXIF timestamp.
     /// Used only when Cloudreve did not extract `exif:taken_at` server-side.

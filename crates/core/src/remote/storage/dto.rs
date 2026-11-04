@@ -1,5 +1,5 @@
-//! What crosses the remote contract: upload attempts, their progress, and the
-//! navigator entries the server returns.
+//! What crosses the remote contract: upload attempts, their progress, the
+//! navigator entries the server returns, and the media bytes it streams back.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -56,6 +56,23 @@ pub struct RemoteEntryPage {
     pub entries: Vec<RemoteEntry>,
     pub next: Option<String>,
     pub parent: Option<RemoteEntry>,
+}
+
+/// One media response as the server sent it: status, body and the two headers
+/// a range request needs to be replayed. `status` is passed through untouched
+/// because `206`, `200` and errors are all legitimate answers to a range.
+#[derive(Debug, Clone)]
+pub struct MediaRange {
+    pub status: u16,
+    pub body: Vec<u8>,
+    pub content_range: Option<String>,
+    pub content_type: Option<String>,
+}
+
+impl MediaRange {
+    pub fn is_success(&self) -> bool {
+        (200..300).contains(&self.status)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

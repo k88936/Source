@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use source_core::error::{AppError, ErrorCode};
-use source_core::{LOCAL_THUMB_EDGE, fetch_bytes, fetch_range, preview_from_jpeg};
+use source_core::{LOCAL_THUMB_EDGE, preview_from_jpeg};
 use tauri::http::{Response, StatusCode, header};
 use tauri::{AppHandle, Manager, UriSchemeResponder};
 
@@ -72,30 +72,27 @@ pub(crate) fn thumb(
             ));
             return;
         }
-        match core.browse.thumb_url(&id).await {
-            Ok(url) => match fetch_bytes(&url).await {
-                Ok(bytes) => {
-                    let _ = cache.put(&id, &bytes);
-                    // Derive the blur-up placeholder from the JPEG we already
-                    // downloaded, so it never costs an extra request. Done
-                    // before responding so the mosaic lands on first paint.
-                    let mosaic = match core.browse.asset_thumb_hash(&id).await {
-                        Ok(Some(_)) => None,
-                        _ => preview_from_jpeg(&bytes),
-                    };
-                    responder.respond(http_response(
-                        200,
-                        "image/jpeg",
-                        bytes,
-                        None,
-                        "public, max-age=86400",
-                    ));
-                    if let Some(mosaic) = mosaic {
-                        let _ = core.browse.set_asset_thumb_hash(&id, &mosaic).await;
-                    }
+        match core.browse.thumb_bytes(&id).await {
+            Ok(bytes) => {
+                let _ = cache.put(&id, &bytes);
+                // Derive the blur-up placeholder from the JPEG we already
+                // downloaded, so it never costs an extra request. Done
+                // before responding so the mosaic lands on first paint.
+                let mosaic = match core.browse.asset_thumb_hash(&id).await {
+                    Ok(Some(_)) => None,
+                    _ => preview_from_jpeg(&bytes),
+                };
+                responder.respond(http_response(
+                    200,
+                    "image/jpeg",
+                    bytes,
+                    None,
+                    "public, max-age=86400",
+                ));
+                if let Some(mosaic) = mosaic {
+                    let _ = core.browse.set_asset_thumb_hash(&id, &mosaic).await;
                 }
-                Err(error) => responder.respond(error_response(&error)),
-            },
+            }
             Err(error) => responder.respond(error_response(&error)),
         }
     });
@@ -119,21 +116,17 @@ pub(crate) fn media(
             let state = app.state::<AppState>();
             Arc::clone(&state.core)
         };
-        match core.browse.media_url(&id).await {
-            Ok(url) => match fetch_range(&url, range.as_deref()).await {
-                Ok((status, body, content_range, content_type)) => {
-                    responder.respond(http_response(
-                        status,
-                        content_type
-                            .as_deref()
-                            .unwrap_or("application/octet-stream"),
-                        body,
-                        content_range,
-                        "no-store",
-                    ))
-                }
-                Err(error) => responder.respond(error_response(&error)),
-            },
+        match core.browse.media_range(&id, range.as_deref()).await {
+            Ok(media) => responder.respond(http_response(
+                media.status,
+                media
+                    .content_type
+                    .as_deref()
+                    .unwrap_or("application/octet-stream"),
+                media.body,
+                media.content_range,
+                "no-store",
+            )),
             Err(error) => responder.respond(error_response(&error)),
         }
     });

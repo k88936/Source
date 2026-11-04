@@ -9,7 +9,7 @@ use crate::media::{
     LocalAlbum, LocalAsset, LocalAssetPage, LocalAssetPageParams, LocalMediaPort,
     MediaPermissionState,
 };
-use crate::remote::RemoteStorage;
+use crate::remote::{MediaRange, RemoteStorage};
 use crate::store::{
     AlbumId, AlbumStore, AlbumSummary, AssetId, AssetStore, AssetSummary, FolderId, FolderStore,
     MediaType, SearchQuery, TimelineCursor, TimelinePage, TimelineStore,
@@ -178,24 +178,31 @@ where
         })
     }
 
-    pub async fn asset_uri(&self, asset_id: &str) -> Result<Option<String>, AppError> {
-        Ok(self.catalog.asset(asset_id).await?.map(|a| a.uri))
+    async fn asset_uri(&self, asset_id: &str) -> Result<String, AppError> {
+        self.catalog
+            .asset(asset_id)
+            .await?
+            .map(|a| a.uri)
+            .ok_or_else(|| AppError::not_found("资产不存在"))
     }
 
-    pub async fn thumb_url(&self, asset_id: &str) -> Result<String, AppError> {
-        let uri = self
-            .asset_uri(asset_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("资产不存在"))?;
-        self.cloud.thumb_url(&uri).await
+    pub async fn thumb_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
+        let uri = self.asset_uri(asset_id).await?;
+        self.cloud.thumb_bytes(&uri).await
     }
 
-    pub async fn media_url(&self, asset_id: &str) -> Result<String, AppError> {
-        let uri = self
-            .asset_uri(asset_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("资产不存在"))?;
-        self.cloud.media_url(&uri).await
+    pub async fn media_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
+        let uri = self.asset_uri(asset_id).await?;
+        self.cloud.media_bytes(&uri).await
+    }
+
+    pub async fn media_range(
+        &self,
+        asset_id: &str,
+        range: Option<&str>,
+    ) -> Result<MediaRange, AppError> {
+        let uri = self.asset_uri(asset_id).await?;
+        self.cloud.media_range(&uri, range).await
     }
 
     pub fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {

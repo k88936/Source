@@ -28,6 +28,87 @@ impl CloudreveStorage {
     pub(crate) fn base(&self) -> Result<String, AppError> {
         Ok(self.account.current()?.base_url)
     }
+
+    async fn signed_thumb_url(&self, uri: &str) -> Result<String, AppError> {
+        let client = self.client()?;
+        let base = self.base()?;
+        client
+            .get_file_thumb(uri, None)
+            .await
+            .map(|response| rewrite_loopback_url(&base, &response.url))
+            .map_err(map_api_error)
+    }
+
+    async fn signed_media_url(&self, uri: &str) -> Result<String, AppError> {
+        let client = self.client()?;
+        let response = client
+            .get_file_url(&FileURLService {
+                uris: vec![uri.to_string()],
+                ..Default::default()
+            })
+            .await
+            .map_err(map_api_error)?;
+        let base = self.base()?;
+        response
+            .urls
+            .first()
+            .map(|u| rewrite_loopback_url(&base, &u.url))
+            .ok_or_else(|| AppError::not_found("无法获取媒体地址"))
+    }
+
+    /// Whole body of a signed URL, refusing anything the server did not
+    /// answer with 2xx.
+    async fn get_bytes(&self, url: &str) -> Result<Vec<u8>, AppError> {
+        let response = self
+            .http
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| AppError::network(format!("下载媒体失败: {e}")))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(AppError::network(format!("下载媒体失败: HTTP {status}")));
+        }
+        response
+            .bytes()
+            .await
+            .map(|bytes| bytes.to_vec())
+            .map_err(|e| AppError::network(format!("读取媒体失败: {e}")))
+    }
+
+    /// One `Range` request, kept verbatim so the caller can replay the answer.
+    async fn get_range(&self, url: &str, range: Option<&str>) -> Result<MediaRange, AppError> {
+        let mut request = self.http.get(url);
+        if let Some(range) = range {
+            request = request.header(reqwest::header::RANGE, range);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|e| AppError::network(format!("请求媒体失败: {e}")))?;
+        let status = response.status().as_u16();
+        let content_range = response
+            .headers()
+            .get(reqwest::header::CONTENT_RANGE)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+        let body = response
+            .bytes()
+            .await
+            .map_err(|e| AppError::network(format!("读取媒体失败: {e}")))?
+            .to_vec();
+        Ok(MediaRange {
+            status,
+            body,
+            content_range,
+            content_type,
+        })
+    }
 }
 use cloudreve_sdk_api::api::{ExplorerApi, UserApi};
 use cloudreve_sdk_api::models::explorer::{
@@ -100,50 +181,27 @@ impl RemoteStorage for CloudreveStorage {
         Ok(to_entry(parent, &info))
     }
 
-    async fn thumb_url(&self, uri: &str) -> Result<String, AppError> {
-        let client = self.client()?;
-        let base = self.base()?;
-        client
-            .get_file_thumb(uri, None)
-            .await
-            .map(|response| rewrite_loopback_url(&base, &response.url))
-            .map_err(map_api_error)
+    async fn thumb_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError> {
+        let url = self.signed_thumb_url(uri).await?;
+        self.get_bytes(&url).await
     }
 
-    async fn media_url(&self, uri: &str) -> Result<String, AppError> {
-        let client = self.client()?;
-        let response = client
-            .get_file_url(&FileURLService {
-                uris: vec![uri.to_string()],
-                ..Default::default()
-            })
-            .await
-            .map_err(map_api_error)?;
-        let base = self.base()?;
-        response
-            .urls
-            .first()
-            .map(|u| rewrite_loopback_url(&base, &u.url))
-            .ok_or_else(|| AppError::not_found("无法获取媒体地址"))
+    async fn media_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError> {
+        let url = self.signed_media_url(uri).await?;
+        self.get_bytes(&url).await
+    }
+
+    async fn media_range(&self, uri: &str, range: Option<&str>) -> Result<MediaRange, AppError> {
+        let url = self.signed_media_url(uri).await?;
+        self.get_range(&url, range).await
     }
 
     async fn client_taken_at(&self, uri: &str) -> Result<Option<i64>, AppError> {
-        let url = self.media_url(uri).await?;
-        let response = self
-            .http
-            .get(&url)
-            .header(reqwest::header::RANGE, "bytes=0-262143")
-            .send()
-            .await
-            .map_err(|e| AppError::network(format!("读取 EXIF 失败: {e}")))?;
-        if !response.status().is_success() {
+        let head = self.media_range(uri, Some("bytes=0-262143")).await?;
+        if !head.is_success() {
             return Ok(None);
         }
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|e| AppError::network(format!("读取 EXIF 失败: {e}")))?;
-        Ok(crate::exif::parse_exif(&bytes).taken_at)
+        Ok(crate::exif::parse_exif(&head.body).taken_at)
     }
 
     async fn patch_metadata(
