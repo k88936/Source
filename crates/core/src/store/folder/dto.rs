@@ -24,6 +24,8 @@ pub struct FolderRecord {
     pub id: String,
     pub name: String,
     pub uri: String,
+    /// Cloudreve's own path (`cloudreve://my/%E9%AA%8C%E8%AF%81`), kept as the
+    /// server sent it; `display_path` is the form the UI reads.
     pub path: String,
     pub updated_at: i64,
     pub cover_asset_id: Option<String>,

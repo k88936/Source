@@ -10,7 +10,7 @@ use std::time::Duration;
 use crate::error::AppError;
 use crate::mapping::{COVER_KEY, DESCRIPTION_KEY};
 use crate::remote::RemoteEntry;
-use crate::store::{FolderRecord, FolderRef};
+use crate::store::{FolderRecord, FolderRef, display_path};
 
 pub mod account;
 pub mod albums;
@@ -37,7 +37,7 @@ pub(crate) fn folder_ref(entry: &RemoteEntry) -> FolderRef {
         id: entry.id.clone().into(),
         uri: entry.uri.clone(),
         name: entry.name.clone(),
-        path: entry.path.clone(),
+        path: display_path(&entry.path),
     }
 }
 
@@ -46,7 +46,7 @@ pub(crate) fn folder_record(folder: &FolderRef, info: &RemoteEntry) -> FolderRec
         id: folder.id.0.clone(),
         name: folder.name.clone(),
         uri: folder.uri.clone(),
-        path: folder.path.clone(),
+        path: info.path.clone(),
         updated_at: info.updated_at,
         cover_asset_id: info.metadata.get(COVER_KEY).cloned(),
         description: info.metadata.get(DESCRIPTION_KEY).cloned(),

@@ -6,6 +6,7 @@ use diesel::sqlite::Sqlite;
 
 use super::dto::{FolderRecord, FolderSyncState};
 use super::schema;
+use crate::store::display_path;
 
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = schema::folders)]
@@ -37,7 +38,7 @@ impl From<FolderRow> for FolderRecord {
             id: row.id,
             name: row.name,
             uri: row.uri,
-            path: row.path,
+            path: display_path(&row.path),
             updated_at: row.updated_at,
             cover_asset_id: row.cover_asset_id,
             description: row.description,
