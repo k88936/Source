@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "playwright-cli": {
+      "source": "microsoft/playwright-cli",
+      "sourceType": "github",
+      "skillPath": "skills/playwright-cli/SKILL.md",
+      "computedHash": "56941c3c0464ad22ccdf3ec975fc4bd518c5daea34b73329c232bc1f37f9a6b7"
+    },
+    "teamcity-cli": {
+      "source": "JetBrains/teamcity-skills",
+      "sourceType": "github",
+      "skillPath": "skills/teamcity-cli/SKILL.md",
+      "computedHash": "8809177a530e122f1ddfd982dee20ee4a27a9d76f3a0732f760e3982e39bc561"
+    }
+  }
+}
