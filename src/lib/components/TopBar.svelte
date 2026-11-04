@@ -1,6 +1,8 @@
 <script lang="ts">
     import type {Snippet} from 'svelte';
     import {ChevronLeft} from '@lucide/svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {common} from '#lib/i18n/common.i18n';
 
     let {
         title,
@@ -15,6 +17,8 @@
         transparent?: boolean;
         actions?: Snippet;
     } = $props();
+
+    const t = $derived(i18n.pick(common));
 
     function goBack() {
         if (history.length > 1) history.back();
@@ -32,7 +36,7 @@
             <button
                 onclick={goBack}
                 class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-                aria-label="返回"
+                aria-label={t.back}
             >
                 <ChevronLeft size={22} />
             </button>

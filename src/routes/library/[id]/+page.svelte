@@ -10,7 +10,10 @@
     import TopBar from '#lib/components/TopBar.svelte';
     import UploadSheet from '#lib/components/UploadSheet.svelte';
     import {formatBytes} from '#lib/format';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {localAlbum as text} from './page.i18n';
 
     const PAGE = 200;
 
@@ -27,6 +30,9 @@
     // not drive the queue yet.
     let initialDest = $state('');
     let currentId = $state('');
+
+    const t = $derived(i18n.pick(text));
+    const c = $derived(i18n.pick(common));
 
     $effect(() => {
         const id = page.params.id ?? '';
@@ -98,7 +104,7 @@
 
     function uploaded() {
         selected = [];
-        app.showToast('上传任务已创建, 可在资料库查看进度', 'success');
+        app.showToast(t.uploadCreated, 'success');
     }
 
     /// Unlink only. Files already on the server stay, and the album they went to
@@ -108,7 +114,7 @@
         unlinkOpen = false;
         try {
             await api.removeLocalAlbum({id: album.id});
-            app.showToast('已解除同步', 'success');
+            app.showToast(t.unlinked, 'success');
             await goto('/library/local');
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
@@ -116,11 +122,11 @@
     }
 </script>
 
-<svelte:head><title>{album?.name ?? '本机相册'} - Source</title></svelte:head>
+<svelte:head><title>{album?.name ?? t.fallback} - Source</title></svelte:head>
 
 <TopBar
-    title={selected.length ? `已选择 ${selected.length} 项` : (album?.name ?? '本机相册')}
-    subtitle={loading ? '加载中...' : `${album?.assetCount ?? items.length} 项 - 同步到 "${album?.albumName ?? ''}"`}
+    title={selected.length ? t.selected(selected.length) : (album?.name ?? t.fallback)}
+    subtitle={loading ? c.loading : t.subtitle(album?.assetCount ?? items.length, album?.albumName ?? '')}
     back={selected.length === 0}
 >
     {#snippet actions()}
@@ -130,7 +136,7 @@
                     selected = [];
                 }}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label="取消选择"
+                aria-label={t.cancelSelection}
             >
                 <X size={21} />
             </button>
@@ -138,14 +144,14 @@
             <button
                 onclick={() => (unlinkOpen = true)}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label="解除同步"
+                aria-label={t.unlink}
             >
                 <Trash size={19} />
             </button>
             <button
                 onclick={openUpload}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label="上传"
+                aria-label={c.upload}
             >
                 <Upload size={21} />
             </button>
@@ -162,9 +168,9 @@
 {:else if items.length === 0}
     <div class="flex flex-col items-center gap-3 px-8 py-20 text-center">
         <Folder size={34} class="text-muted" />
-        <p class="text-sm font-medium">这个目录里没有照片</p>
+        <p class="text-sm font-medium">{t.noPhotos}</p>
         <button onclick={openUpload} class="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-on-primary"
-            >选择要上传的照片</button
+            >{t.choosePhotos}</button
         >
     </div>
 {:else}
@@ -195,12 +201,13 @@
         class="fixed inset-x-0 bottom-[calc(3.6rem+var(--safe-bottom))] z-20 border-t border-line bg-light/95 px-4 py-2 backdrop-blur sidebar:bottom-0 sidebar:ps-60"
     >
         <div class="mx-auto flex max-w-3xl items-center justify-between">
-            <span class="text-xs text-muted">已选 {selected.length} 项</span>
+            <span class="text-xs text-muted">{t.selectedCount(selected.length)}</span>
             <button
                 onclick={openUpload}
                 class="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary"
             >
-                <Upload size={17} /> 上传到相册
+                <Upload size={17} />
+                {t.uploadToAlbum}
             </button>
         </div>
     </div>
@@ -210,9 +217,9 @@
 
 <ConfirmDialog
     open={unlinkOpen}
-    title={`解除 "${album?.name ?? ''}" 的同步?`}
-    message="只会删掉本机的登记, 云端文件与相册不受影响."
-    confirmLabel="解除同步"
+    title={t.unlinkTitle(album?.name ?? '')}
+    message={t.unlinkMessage}
+    confirmLabel={t.unlink}
     danger
     onClose={() => (unlinkOpen = false)}
     onConfirm={() => void unlink()}

@@ -1,15 +1,18 @@
 <script lang="ts">
     import {api} from '#lib/api/client';
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
     import {X} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
+    import {picker} from './AlbumPickerSheet.i18n';
 
     let {
         open = $bindable(false),
         excludeId = '',
-        title = '移动到相册',
-        hint = 'Cloudreve 的相册就是文件夹, 移动后文件会离开原目录.',
+        title,
+        hint,
         onPick,
     }: {
         open?: boolean;
@@ -20,6 +23,12 @@
         hint?: string;
         onPick: (album: AlbumSummary) => void;
     } = $props();
+
+    const t = $derived(i18n.pick(picker));
+    const c = $derived(i18n.pick(common));
+
+    const heading = $derived(title ?? c.moveToAlbum);
+    const note = $derived(hint ?? t.moveHint);
 
     let albums = $state<AlbumSummary[]>([]);
     let loading = $state(false);
@@ -63,20 +72,20 @@
     >
         <div class="flex max-h-[80vh] w-full max-w-md flex-col rounded-t-3xl bg-light p-4 shadow-2xl sm:rounded-3xl">
             <div class="mb-2 flex items-center justify-between">
-                <h2 class="text-base font-semibold">{title}</h2>
-                <button onclick={() => (open = false)} class="rounded-full p-2 hover:bg-gray" aria-label="关闭">
+                <h2 class="text-base font-semibold">{heading}</h2>
+                <button onclick={() => (open = false)} class="rounded-full p-2 hover:bg-gray" aria-label={t.close}>
                     <X size={20} />
                 </button>
             </div>
-            <p class="mb-3 text-xs text-muted">{hint}</p>
-            <input bind:value={filter} type="search" placeholder="筛选相册" class="field mb-2 h-9" />
+            <p class="mb-3 text-xs text-muted">{note}</p>
+            <input bind:value={filter} type="search" placeholder={t.filter} class="field mb-2 h-9" />
             <div class="min-h-0 flex-1 overflow-y-auto">
                 {#if loading}
                     <div class="flex justify-center py-8">
                         <div class="size-5 animate-spin rounded-full border-2 border-line border-t-primary"></div>
                     </div>
                 {:else if visible.length === 0}
-                    <p class="py-8 text-center text-sm text-muted">没有可用的相册</p>
+                    <p class="py-8 text-center text-sm text-muted">{t.empty}</p>
                 {:else}
                     <ul class="flex flex-col">
                         {#each visible as album (album.id)}
@@ -100,7 +109,9 @@
                                     </span>
                                     <span class="min-w-0 flex-1">
                                         <span class="block truncate text-sm font-medium">{album.name}</span>
-                                        <span class="block truncate text-[11px] text-muted">{album.assetCount} 项</span>
+                                        <span class="block truncate text-[11px] text-muted"
+                                            >{t.items(album.assetCount)}</span
+                                        >
                                     </span>
                                 </button>
                             </li>

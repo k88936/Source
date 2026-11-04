@@ -2,8 +2,12 @@
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import {Images} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {card} from './AlbumCard.i18n';
 
     let {album}: {album: AlbumSummary} = $props();
+
+    const t = $derived(i18n.pick(card));
 
     let covers = $derived(album.coverAssetIds.slice(0, 4));
 
@@ -43,6 +47,6 @@
         <p class="line-clamp-2 text-base font-semibold transition-colors group-hover:text-primary">
             {album.name}
         </p>
-        <p class="mt-1 truncate text-xs text-muted">{album.assetCount} 项 - {album.path}</p>
+        <p class="mt-1 truncate text-xs text-muted">{t.items(album.assetCount, album.path)}</p>
     </div>
 </a>

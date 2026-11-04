@@ -5,6 +5,10 @@
     import {Settings} from '@lucide/svelte';
     import {formatBytes} from '#lib/format';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {capacity as text} from './CapacityCard.i18n';
+
+    const t = $derived(i18n.pick(text));
 
     // The quota is the one account fact that changes on its own, so this card
     // asks the server for it instead of reading a cached copy of the account.
@@ -42,12 +46,12 @@
 
     <div class="mt-4">
         <div class="mb-1 flex justify-between text-[11px] text-muted">
-            <span>存储空间</span>
+            <span>{t.storage}</span>
             <span>
                 {#if capacity}
                     {formatBytes(capacity.used)} / {formatBytes(capacity.total)}
                 {:else}
-                    未知
+                    {t.unknown}
                 {/if}
             </span>
         </div>

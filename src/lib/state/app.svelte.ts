@@ -2,7 +2,9 @@ import {api, listen} from '#lib/api/client';
 import type {CatalogChangedEvent} from '#lib/api/bindings/CatalogChangedEvent';
 import type {AccountState} from '#lib/api/bindings/AccountState';
 import type {UploadTask} from '#lib/api/bindings/UploadTask';
+import {appMessages} from './app.i18n';
 import {changes} from './changes';
+import {i18n} from './i18n.svelte';
 
 export type ToastKind = 'success' | 'error' | 'info';
 
@@ -47,8 +49,8 @@ export class AppState {
             }
         });
         if (typeof window !== 'undefined') {
-            window.addEventListener('online', () => this.showToast('已恢复网络连接', 'success'));
-            window.addEventListener('offline', () => this.showToast('已进入离线模式', 'info'));
+            window.addEventListener('online', () => this.showToast(i18n.pick(appMessages).online, 'success'));
+            window.addEventListener('offline', () => this.showToast(i18n.pick(appMessages).offline, 'info'));
         }
     }
 

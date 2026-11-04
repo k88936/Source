@@ -12,10 +12,13 @@
     import SelectionBar from '#lib/components/SelectionBar.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import Viewer from '#lib/components/Viewer.svelte';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
     import {changes} from '#lib/state/changes';
+    import {i18n} from '#lib/state/i18n.svelte';
     import {Selection} from '#lib/state/selection.svelte';
     import {Timeline} from '#lib/state/timeline.svelte';
+    import {search} from './page.i18n';
 
     const RECENT_KEY = 'recent-searches';
     const RECENT_LIMIT = 8;
@@ -31,6 +34,9 @@
     let viewerIndex = $state(0);
     let pickerOpen = $state(false);
     let moving = $state(false);
+
+    const t = $derived(i18n.pick(search));
+    const c = $derived(i18n.pick(common));
 
     // Replaced by `run()` before the first request; the empty query never loads.
     const timeline = new Timeline((cursor, limit) =>
@@ -149,7 +155,7 @@
         if (!selection.count) return;
         try {
             const result = await api.exportAssets({assetIds: selection.ids});
-            app.showToast(`已导出 ${result.exported} 项`, 'success');
+            app.showToast(t.exported(result.exported), 'success');
             selection.exit();
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
@@ -164,7 +170,7 @@
                 albumId: album.id,
             });
             for (const asset of moved) timeline.upsert(asset);
-            app.showToast(`已移动 ${moved.length} 项到 "${album.name}"`, 'success');
+            app.showToast(t.moved(moved.length, album.name), 'success');
             selection.exit();
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
@@ -176,16 +182,16 @@
     onMount(loadRecent);
 </script>
 
-<svelte:head><title>搜索 - Source</title></svelte:head>
+<svelte:head><title>{t.title} - Source</title></svelte:head>
 
-<TopBar title={selection.active ? `已选择 ${selection.count} 项` : '搜索'}>
+<TopBar title={selection.active ? t.selected(selection.count) : t.title}>
     {#snippet actions()}
         {#if selection.active}
             <SelectAllButton {selection} ids={timeline.items.map((item) => item.id)} />
             <button
                 onclick={() => selection.exit()}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label="取消"
+                aria-label={c.cancel}
             >
                 <X size={21} />
             </button>
@@ -193,7 +199,7 @@
             <button
                 onclick={() => selection.start()}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label="选择"
+                aria-label={c.select}
             >
                 <SquareDashed size={20} />
             </button>
@@ -206,12 +212,12 @@
         <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
             <Search size={19} />
         </span>
-        <input bind:value={query} type="search" placeholder="按文件名搜索" class="field h-11 pl-10 pr-10" />
+        <input bind:value={query} type="search" placeholder={t.placeholder} class="field h-11 pl-10 pr-10" />
         {#if query}
             <button
                 onclick={() => (query = '')}
                 class="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full bg-light text-muted hover:text-dark"
-                aria-label="清空"
+                aria-label={t.clear}
             >
                 <X size={14} />
             </button>
@@ -225,7 +231,7 @@
                 ? 'bg-primary text-on-primary'
                 : 'bg-gray text-muted hover:text-dark'}"
         >
-            全部
+            {c.all}
         </button>
         <button
             onclick={() => (mediaType = 'image')}
@@ -233,7 +239,7 @@
                 ? 'bg-primary text-on-primary'
                 : 'bg-gray text-muted hover:text-dark'}"
         >
-            <Image size={13} class="mr-1 inline" />图片
+            <Image size={13} class="mr-1 inline" />{t.image}
         </button>
         <button
             onclick={() => (mediaType = 'video')}
@@ -241,7 +247,7 @@
                 ? 'bg-primary text-on-primary'
                 : 'bg-gray text-muted hover:text-dark'}"
         >
-            <Video size={13} class="mr-1 inline" />视频
+            <Video size={13} class="mr-1 inline" />{t.video}
         </button>
         <button
             onclick={() => (favorite = !favorite)}
@@ -249,21 +255,23 @@
                 ? 'bg-primary text-on-primary'
                 : 'bg-gray text-muted hover:text-dark'}"
         >
-            <Heart size={13} class="mr-1 inline" />收藏
+            <Heart size={13} class="mr-1 inline" />{t.favorites}
         </button>
     </div>
 
     <div class="mt-2 flex items-center gap-2">
         <label class="flex flex-1 items-center gap-1.5 rounded-lg bg-gray px-3 py-2 text-xs text-muted">
-            <span>从</span>
+            <span>{t.from}</span>
             <input bind:value={from} type="date" class="w-full bg-transparent text-xs text-dark outline-none" />
         </label>
         <label class="flex flex-1 items-center gap-1.5 rounded-lg bg-gray px-3 py-2 text-xs text-muted">
-            <span>到</span>
+            <span>{t.to}</span>
             <input bind:value={to} type="date" class="w-full bg-transparent text-xs text-dark outline-none" />
         </label>
         {#if hasFilters()}
-            <button onclick={clearFilters} class="shrink-0 px-2 text-xs font-medium text-primary"> 清除 </button>
+            <button onclick={clearFilters} class="shrink-0 px-2 text-xs font-medium text-primary">
+                {t.clear}
+            </button>
         {/if}
     </div>
 </div>
@@ -271,9 +279,9 @@
 {#if timeline.error}
     <EmptyState
         icon={WifiOff}
-        title="搜索失败"
+        title={t.failed}
         description={timeline.error}
-        actionLabel="重试"
+        actionLabel={c.retry}
         onAction={() => void run({query, mediaType, favorite, from, to})}
     />
 {:else if timeline.loading && !searched}
@@ -283,16 +291,16 @@
 {:else if searched && timeline.items.length === 0}
     <EmptyState
         icon={Search}
-        title="没有找到匹配项"
-        description="试试文件名片段, 日期范围或收藏筛选."
-        actionLabel="清除筛选"
+        title={t.noMatch}
+        description={t.noMatchHint}
+        actionLabel={t.clearFilters}
         onAction={clearFilters}
     />
 {:else if !searched}
-    <EmptyState icon={Search} title="搜索你的照片" description="按文件名, 拍摄日期或收藏状态查找." />
+    <EmptyState icon={Search} title={t.idleTitle} description={t.idleHint} />
     {#if recent.length > 0}
         <div class="mx-auto max-w-3xl px-4">
-            <p class="mb-2 px-1 text-xs font-medium text-muted">最近搜索</p>
+            <p class="mb-2 px-1 text-xs font-medium text-muted">{t.recent}</p>
             <div class="flex flex-wrap gap-2">
                 {#each recent as term (term)}
                     <button
@@ -307,8 +315,8 @@
     {/if}
 {:else}
     <div class="mt-3 flex items-center justify-between px-4 text-xs text-muted">
-        <span>{timeline.items.length}{timeline.next ? '+' : ''} 个结果</span>
-        {#if timeline.loading}<span>搜索中...</span>{/if}
+        <span>{t.results(timeline.items.length, Boolean(timeline.next))}</span>
+        {#if timeline.loading}<span>{t.searching}</span>{/if}
     </div>
     <AssetGrid
         items={timeline.items}
@@ -325,7 +333,7 @@
             disabled={timeline.loading}
             class="mx-auto mb-28 block rounded-xl border border-line px-4 py-2 text-xs text-muted transition-colors hover:bg-gray"
         >
-            加载更多
+            {t.loadMore}
         </button>
     {/if}
 {/if}

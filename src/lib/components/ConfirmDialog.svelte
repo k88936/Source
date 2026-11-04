@@ -1,11 +1,13 @@
 <script lang="ts">
     import {CircleAlert, Info} from '@lucide/svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {common} from '#lib/i18n/common.i18n';
 
     let {
         open,
         title,
         message,
-        confirmLabel = '确定',
+        confirmLabel,
         danger = false,
         onClose,
         onConfirm,
@@ -13,12 +15,14 @@
         open: boolean;
         title: string;
         message: string;
-        confirmLabel?: string;
+        confirmLabel: string;
         /** Destructive actions tint the icon and confirm button with the danger token. */
         danger?: boolean;
         onClose: () => void;
         onConfirm: () => void;
     } = $props();
+
+    const t = $derived(i18n.pick(common));
 </script>
 
 <svelte:window
@@ -31,7 +35,7 @@
      route through this dialog instead. -->
 {#if open}
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-        <button type="button" class="absolute inset-0 cursor-default" aria-label="关闭" onclick={onClose}></button>
+        <button type="button" class="absolute inset-0 cursor-default" aria-label={t.close} onclick={onClose}></button>
         <div class="relative w-full max-w-sm rounded-3xl bg-gray p-5 shadow-2xl ring-1 ring-line">
             <span
                 class="grid size-10 place-items-center rounded-full {danger
@@ -51,7 +55,7 @@
                     onclick={onClose}
                     class="rounded-xl px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-line/40"
                 >
-                    取消
+                    {t.cancel}
                 </button>
                 <button
                     onclick={onConfirm}

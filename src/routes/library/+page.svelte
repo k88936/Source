@@ -21,26 +21,32 @@
     import TopBar from '#lib/components/TopBar.svelte';
     import UploadQueueCard from '#lib/components/UploadQueueCard.svelte';
     import UploadSheet from '#lib/components/UploadSheet.svelte';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {library as text} from './page.i18n';
 
     let localAlbums = $state<LocalAlbumSummary[]>([]);
     let uploadOpen = $state(false);
 
+    const t = $derived(i18n.pick(text));
+    const c = $derived(i18n.pick(common));
+
     // Entries Immich's library page has and this app does not implement yet.
     // They are listed so the shape of the page is already the final one, and
     // greyed so nothing promises a feature that would do nothing when tapped.
-    const upcoming = [
-        {icon: Heart, label: '收藏'},
-        {icon: LibraryBig, label: '归档'},
-        {icon: Cloud, label: '共享链接'},
-        {icon: Trash, label: '回收站'},
-        {icon: Image, label: '人物'},
-        {icon: Calendar, label: '地点'},
-        {icon: Play, label: '回忆'},
-        {icon: Folder, label: '云端文件夹'},
-        {icon: Eye, label: '锁定文件夹'},
-        {icon: LayoutGrid, label: '伙伴'},
-    ];
+    const upcoming = $derived([
+        {icon: Heart, label: t.upcoming.favorites},
+        {icon: LibraryBig, label: t.upcoming.archive},
+        {icon: Cloud, label: t.upcoming.sharedLinks},
+        {icon: Trash, label: t.upcoming.trash},
+        {icon: Image, label: t.upcoming.people},
+        {icon: Calendar, label: t.upcoming.places},
+        {icon: Play, label: t.upcoming.memories},
+        {icon: Folder, label: t.upcoming.cloudFolders},
+        {icon: Eye, label: t.upcoming.lockedFolders},
+        {icon: LayoutGrid, label: t.upcoming.partners},
+    ]);
 
     onMount(() => {
         if (page.url.searchParams.get('upload') === '1') uploadOpen = true;
@@ -56,14 +62,14 @@
     }
 </script>
 
-<svelte:head><title>资料库 - Source</title></svelte:head>
+<svelte:head><title>{t.title} - Source</title></svelte:head>
 
-<TopBar title="资料库" subtitle={app.account?.user.email ?? ''}>
+<TopBar title={t.title} subtitle={app.account?.user.email ?? ''}>
     {#snippet actions()}
         <button
             onclick={() => (uploadOpen = true)}
             class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-            aria-label="上传"
+            aria-label={c.upload}
         >
             <Upload size={20} />
         </button>
@@ -78,11 +84,14 @@
             <Folder size={22} />
         </div>
         <div class="min-w-0 flex-1">
-            <p class="text-sm font-semibold">本机相册</p>
+            <p class="text-sm font-semibold">{t.localAlbums}</p>
             <p class="truncate text-xs text-muted">
                 {localAlbums.length === 0
-                    ? '把一个本机目录同步到云端相册'
-                    : `${localAlbums.length} 个已同步 - ${localAlbums.reduce((sum, album) => sum + album.assetCount, 0)} 张照片`}
+                    ? t.syncPrompt
+                    : t.synced(
+                          localAlbums.length,
+                          localAlbums.reduce((sum, album) => sum + album.assetCount, 0),
+                      )}
             </p>
         </div>
         <ChevronRight size={18} class="text-muted" />
@@ -91,14 +100,14 @@
     <UploadQueueCard />
 
     <div>
-        <p class="mb-1.5 px-1 text-xs font-medium text-muted">更多</p>
+        <p class="mb-1.5 px-1 text-xs font-medium text-muted">{t.more}</p>
         <div class="grid grid-cols-2 gap-2">
             {#each upcoming as entry (entry.label)}
                 {@const Icon = entry.icon}
                 <div
                     class="flex items-center gap-2.5 rounded-2xl border border-line px-3 py-3 text-sm text-muted/60"
                     aria-disabled="true"
-                    title="尚未开放"
+                    title={t.notOpen}
                 >
                     <Icon size={18} />
                     <span class="truncate">{entry.label}</span>

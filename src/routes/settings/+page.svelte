@@ -9,6 +9,9 @@
     import TopBar from '#lib/components/TopBar.svelte';
     import {formatBytes} from '#lib/format';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import type {Locale} from '#lib/i18n/bundle';
+    import {settings} from './page.i18n';
 
     type ConfirmAction = 'clearCache' | 'logout';
 
@@ -18,20 +21,14 @@
     let clearing = $state(false);
     let confirmAction = $state<ConfirmAction | null>(null);
 
-    const CONFIRM_COPY: Record<ConfirmAction, {title: string; message: string; confirmLabel: string}> = {
-        clearCache: {
-            title: '清除缓存',
-            message: '清除所有缩略图缓存? 下次浏览会重新下载.',
-            confirmLabel: '清除',
-        },
-        logout: {
-            title: '退出登录',
-            message: '本地索引会保留, 下次登录后可以继续使用.',
-            confirmLabel: '退出登录',
-        },
-    };
+    const t = $derived(i18n.pick(settings));
 
-    const confirmCopy = $derived(confirmAction === null ? null : CONFIRM_COPY[confirmAction]);
+    const LOCALES: {value: Locale; label: string}[] = [
+        {value: 'zh', label: '中文'},
+        {value: 'en', label: 'English'},
+    ];
+
+    const confirmCopy = $derived(confirmAction === null ? null : t.confirm[confirmAction]);
 
     onMount(() => {
         void load();
@@ -51,7 +48,7 @@
         try {
             await api.clearCache();
             await load();
-            app.showToast('缩略图缓存已清除', 'success');
+            app.showToast(t.cacheCleared, 'success');
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         } finally {
@@ -79,9 +76,9 @@
     }
 </script>
 
-<svelte:head><title>设置 - Source</title></svelte:head>
+<svelte:head><title>{t.title} - Source</title></svelte:head>
 
-<TopBar title="设置" back />
+<TopBar title={t.title} back />
 
 <div class="mx-auto max-w-3xl px-4 pb-28 pt-3">
     <section class="rounded-2xl bg-gray p-4">
@@ -100,14 +97,14 @@
                 onclick={() => void app.refreshAccount()}
                 class="flex-1 rounded-xl border border-line py-2 text-xs font-medium transition-colors hover:bg-line/40"
             >
-                刷新状态
+                {t.refresh}
             </button>
             <button
                 onclick={() => (confirmAction = 'logout')}
                 class="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-danger transition-colors hover:bg-danger/10"
             >
                 <LogOut size={15} />
-                退出登录
+                {t.logout}
             </button>
         </div>
     </section>
@@ -115,8 +112,8 @@
     <section class="mt-3 overflow-hidden rounded-2xl bg-gray">
         <div class="flex items-center justify-between px-4 py-3">
             <div>
-                <p class="text-sm font-medium">外观</p>
-                <p class="text-[11px] text-muted">跟随手动选择, 默认深色</p>
+                <p class="text-sm font-medium">{t.appearance}</p>
+                <p class="text-[11px] text-muted">{t.appearanceHint}</p>
             </div>
             <div class="flex rounded-lg bg-light p-0.5">
                 <button
@@ -125,7 +122,7 @@
                         ? 'bg-primary text-on-primary'
                         : 'text-muted'}"
                 >
-                    深色
+                    {t.dark}
                 </button>
                 <button
                     onclick={() => setTheme('light')}
@@ -133,8 +130,29 @@
                         ? 'bg-primary text-on-primary'
                         : 'text-muted'}"
                 >
-                    浅色
+                    {t.light}
                 </button>
+            </div>
+        </div>
+    </section>
+
+    <section class="mt-3 overflow-hidden rounded-2xl bg-gray">
+        <div class="flex items-center justify-between px-4 py-3">
+            <div>
+                <p class="text-sm font-medium">{t.language}</p>
+                <p class="text-[11px] text-muted">{t.languageHint}</p>
+            </div>
+            <div class="flex rounded-lg bg-light p-0.5">
+                {#each LOCALES as locale (locale.value)}
+                    <button
+                        onclick={() => i18n.set(locale.value)}
+                        class="rounded-md px-3 py-1 text-xs transition-colors {i18n.locale === locale.value
+                            ? 'bg-primary text-on-primary'
+                            : 'text-muted'}"
+                    >
+                        {locale.label}
+                    </button>
+                {/each}
             </div>
         </div>
     </section>
@@ -142,8 +160,8 @@
     <section class="mt-3 rounded-2xl bg-gray p-4">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-sm font-medium">缩略图缓存</p>
-                <p class="text-[11px] text-muted">仅缓存缩略图, 原图从不写入本机</p>
+                <p class="text-sm font-medium">{t.cache}</p>
+                <p class="text-[11px] text-muted">{t.cacheHint}</p>
             </div>
             <span class="text-xs font-medium text-muted">{formatBytes(cache?.thumbBytes ?? 0)}</span>
         </div>
@@ -156,31 +174,31 @@
             ></div>
         </div>
         <div class="mt-1 flex justify-between text-[11px] text-muted">
-            <span>{cache?.thumbFiles ?? 0} 个文件</span>
-            <span>上限 {formatBytes(cache?.budgetBytes ?? 512 * 1024 * 1024)}</span>
+            <span>{t.files(cache?.thumbFiles ?? 0)}</span>
+            <span>{t.limit(formatBytes(cache?.budgetBytes ?? 512 * 1024 * 1024))}</span>
         </div>
         <button
             onclick={() => (confirmAction = 'clearCache')}
             disabled={clearing}
             class="mt-3 w-full rounded-xl border border-line py-2 text-xs font-medium text-danger transition-colors hover:bg-light disabled:opacity-50"
         >
-            {clearing ? '清除中...' : '清除缓存'}
+            {clearing ? t.clearing : t.clearCache}
         </button>
     </section>
 
     <section class="mt-3 rounded-2xl bg-gray px-4 py-3 text-xs text-muted">
         <div class="flex justify-between py-1.5">
-            <span>应用</span><span>{info?.name ?? 'Source'}</span>
+            <span>{t.app}</span><span>{info?.name ?? 'Source'}</span>
         </div>
         <div class="flex justify-between py-1.5">
-            <span>版本</span><span>{info?.version ?? '0.1.0'}</span>
+            <span>{t.version}</span><span>{info?.version ?? '0.1.0'}</span>
         </div>
         <div class="flex justify-between py-1.5">
-            <span>平台</span><span>{info?.platform ?? 'web'}</span>
+            <span>{t.platform}</span><span>{info?.platform ?? 'web'}</span>
         </div>
     </section>
 
-    <p class="mt-4 text-center text-[11px] leading-relaxed text-muted">原图始终留在 Cloudreve - 相册就是云端文件夹</p>
+    <p class="mt-4 text-center text-[11px] leading-relaxed text-muted">{t.footer}</p>
 </div>
 
 {#if confirmCopy}

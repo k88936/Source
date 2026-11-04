@@ -8,8 +8,11 @@
     import {Images, Plus, RefreshCw, WifiOff} from '@lucide/svelte';
     import RemoteFolderPicker from '#lib/components/RemoteFolderPicker.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
     import {changes} from '#lib/state/changes';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {albums as text} from './page.i18n';
 
     let albums = $state<AlbumSummary[]>([]);
     let loading = $state(true);
@@ -17,6 +20,9 @@
     let pickerOpen = $state(false);
     let adding = $state(false);
     let refreshing = $state(false);
+
+    const t = $derived(i18n.pick(text));
+    const c = $derived(i18n.pick(common));
 
     $effect(() => {
         // Counts and mosaics come from assets too, so any catalog write refreshes
@@ -44,7 +50,7 @@
         try {
             const album = await api.addAlbum({uri: folder.uri});
             albums = [album, ...albums.filter((entry) => entry.id !== album.id)];
-            app.showToast(`已添加相册 "${album.name}"`, 'success');
+            app.showToast(t.added(album.name), 'success');
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         } finally {
@@ -57,7 +63,7 @@
         refreshing = true;
         try {
             albums = await api.refreshAllAlbums();
-            app.showToast('相册已刷新', 'success');
+            app.showToast(t.refreshed, 'success');
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         } finally {
@@ -66,14 +72,14 @@
     }
 </script>
 
-<svelte:head><title>相册 - Source</title></svelte:head>
+<svelte:head><title>{t.title} - Source</title></svelte:head>
 
-<TopBar title="相册" subtitle={loading ? '正在加载...' : `${albums.length} 个相册`}>
+<TopBar title={t.title} subtitle={loading ? c.loading : t.count(albums.length)}>
     {#snippet actions()}
         <button
             onclick={() => void refreshAll()}
             class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-            aria-label="刷新全部相册"
+            aria-label={t.refreshAll}
         >
             {#if refreshing}
                 <div class="size-4 animate-spin rounded-full border-2 border-line border-t-primary"></div>
@@ -84,7 +90,7 @@
         <button
             onclick={() => (pickerOpen = true)}
             class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-            aria-label="添加相册"
+            aria-label={t.addAlbum}
         >
             <Plus size={22} />
         </button>
@@ -100,16 +106,16 @@
 {:else if error}
     <EmptyState
         icon={WifiOff}
-        title="无法加载相册"
+        title={t.failed}
         description={error}
-        actionLabel="重试"
+        actionLabel={c.retry}
         onAction={() => void load()}
     />
 {:else if albums.length === 0}
-    <EmptyState icon={Images} title="还没有相册" actionLabel="添加相册" onAction={() => (pickerOpen = true)} />
+    <EmptyState icon={Images} title={t.empty} actionLabel={t.addAlbum} onAction={() => (pickerOpen = true)} />
 {:else}
     <div class="px-4 pb-24 pt-2">
-        <p class="mb-2 px-1 text-xs text-muted">相册就是云端的一个文件夹 - 只收录它直接包含的照片与视频</p>
+        <p class="mb-2 px-1 text-xs text-muted">{t.hint}</p>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 sidebar:grid-cols-4">
             {#each albums as album (album.id)}
                 <AlbumCard {album} />
@@ -122,6 +128,6 @@
 
 {#if adding}
     <div class="fixed inset-x-0 top-14 z-30 flex justify-center">
-        <div class="rounded-full bg-dark/85 px-4 py-2 text-xs text-light">正在添加相册...</div>
+        <div class="rounded-full bg-dark/85 px-4 py-2 text-xs text-light">{t.adding}</div>
     </div>
 {/if}

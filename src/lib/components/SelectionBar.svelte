@@ -1,4 +1,6 @@
 <script lang="ts">
+    import {common} from '#lib/i18n/common.i18n';
+    import {i18n} from '#lib/state/i18n.svelte';
     import {Download, Images} from '@lucide/svelte';
 
     let {
@@ -14,6 +16,8 @@
         onDownload?: () => void;
         onCancel?: () => void;
     } = $props();
+
+    const c = $derived(i18n.pick(common));
 </script>
 
 <div
@@ -21,7 +25,9 @@
 >
     <div class="mx-auto flex max-w-3xl items-center justify-between gap-2 min-h-8">
         {#if onCancel}
-            <button onclick={onCancel} class="rounded-xl px-3 py-2 text-sm text-muted hover:bg-gray"> 取消 </button>
+            <button onclick={onCancel} class="rounded-xl px-3 py-2 text-sm text-muted hover:bg-gray">
+                {c.cancel}
+            </button>
         {/if}
         <div class="flex items-center gap-2">
             {#if onMove}
@@ -31,7 +37,7 @@
                     class="flex items-center gap-1.5 rounded-xl border border-line px-4 py-2 text-sm font-medium text-dark transition-colors hover:bg-gray disabled:opacity-40"
                 >
                     <Images size={16} />
-                    移动到相册
+                    {c.moveToAlbum}
                 </button>
             {/if}
             {#if onDownload}
@@ -41,7 +47,7 @@
                     class="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
                     <Download size={17} />
-                    下载
+                    {c.download}
                 </button>
             {/if}
         </div>

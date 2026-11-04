@@ -2,12 +2,18 @@
     import {api} from '#lib/api/client';
     import type {FolderRef} from '#lib/api/bindings/FolderRef';
     import type {RemoteFolderPage} from '#lib/api/bindings/RemoteFolderPage';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
     import {ChevronLeft, ChevronRight, Folder, X} from '@lucide/svelte';
+    import {remotePicker} from './RemoteFolderPicker.i18n';
 
     /// Browses the remote folder tree and hands back the folder the user settled
     /// on. A folder is an album, so the button reads "add this folder".
     let {open = $bindable(false), onPick}: {open?: boolean; onPick?: (folder: FolderRef) => void} = $props();
+
+    const t = $derived(i18n.pick(remotePicker));
+    const c = $derived(i18n.pick(common));
 
     let browse = $state<RemoteFolderPage | null>(null);
     let loading = $state(false);
@@ -17,7 +23,7 @@
     let busy = $state(false);
     /// The drive root, where browsing starts.
     const ROOT_URI = 'cloudreve://my';
-    /// The folders walked through to get here, so `上一级` climbs back out.
+    /// The folders walked through to get here, so the up button climbs back out.
     let trail = $state<string[]>([]);
 
     $effect(() => {
@@ -95,21 +101,21 @@
         <div class="flex h-[80dvh] w-full max-w-lg flex-col rounded-t-3xl bg-light sm:h-[70dvh] sm:rounded-3xl">
             <div class="flex items-center justify-between px-4 pb-2 pt-3">
                 <div class="min-w-0">
-                    <h2 class="text-base font-semibold">添加相册</h2>
-                    <p class="truncate text-xs text-muted">当前: {browse?.current.path ?? '/'}</p>
+                    <h2 class="text-base font-semibold">{t.title}</h2>
+                    <p class="truncate text-xs text-muted">{t.current(browse?.current.path ?? '/')}</p>
                 </div>
                 <div class="flex items-center gap-1">
                     <button
                         onclick={() => (creating = !creating)}
                         class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
-                        aria-label="新建文件夹"
+                        aria-label={t.newFolder}
                     >
                         <Folder size={18} />
                     </button>
                     <button
                         onclick={() => (open = false)}
                         class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
-                        aria-label="关闭"
+                        aria-label={c.close}
                     >
                         <X size={18} />
                     </button>
@@ -126,7 +132,7 @@
                 >
                     <input
                         bind:value={newName}
-                        placeholder="新文件夹名"
+                        placeholder={t.folderName}
                         class="min-w-0 flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/60"
                     />
                     <button
@@ -134,7 +140,7 @@
                         disabled={!newName.trim() || busy}
                         class="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-on-primary disabled:opacity-40"
                     >
-                        创建
+                        {t.create}
                     </button>
                 </form>
             {/if}
@@ -145,7 +151,8 @@
                         onclick={up}
                         class="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
                     >
-                        <ChevronLeft size={18} class="text-muted" /> 上一级
+                        <ChevronLeft size={18} class="text-muted" />
+                        {c.up}
                     </button>
                 {/if}
                 {#if loading}
@@ -155,7 +162,7 @@
                 {:else if error}
                     <p class="px-3 py-6 text-center text-xs text-red-500">{error}</p>
                 {:else if browse && browse.folders.length === 0}
-                    <p class="px-3 py-8 text-center text-xs text-muted">这个目录下没有子文件夹</p>
+                    <p class="px-3 py-8 text-center text-xs text-muted">{t.empty}</p>
                 {:else}
                     {#each browse?.folders ?? [] as folder (folder.id)}
                         <button
@@ -176,7 +183,7 @@
                     disabled={!browse || busy}
                     class="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
-                    {browse ? `添加 "${browse.current.name}" 为相册` : '加载中'}
+                    {browse ? t.add(browse.current.name) : c.loading}
                 </button>
             </div>
         </div>

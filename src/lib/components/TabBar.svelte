@@ -1,13 +1,17 @@
 <script lang="ts">
     import {Image, Images, LibraryBig, Search} from '@lucide/svelte';
     import {page} from '$app/state';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {nav} from '#lib/i18n/nav.i18n';
 
-    const tabs = [
-        {href: '/photos', label: '照片', icon: Image},
-        {href: '/search', label: '搜索', icon: Search},
-        {href: '/albums', label: '相册', icon: Images},
-        {href: '/library', label: '资料库', icon: LibraryBig},
-    ];
+    const t = $derived(i18n.pick(nav));
+
+    const tabs = $derived([
+        {href: '/photos', label: t.photos, icon: Image},
+        {href: '/search', label: t.search, icon: Search},
+        {href: '/albums', label: t.albums, icon: Images},
+        {href: '/library', label: t.library, icon: LibraryBig},
+    ]);
 
     function active(href: string): boolean {
         return page.url.pathname === href || page.url.pathname.startsWith(href + '/');
@@ -17,7 +21,7 @@
 <!-- Phone shell only: from `sidebar` up, navigation moves into the side rail. -->
 <nav
     class="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-light/95 pb-[var(--safe-bottom)] backdrop-blur-xl sidebar:hidden"
-    aria-label="主导航"
+    aria-label={t.ariaLabel}
 >
     <div class="mx-auto flex max-w-3xl items-stretch">
         {#each tabs as tab (tab.href)}

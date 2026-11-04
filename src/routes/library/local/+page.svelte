@@ -9,7 +9,10 @@
     import {ChevronRight, Folder, Plus, Upload} from '@lucide/svelte';
     import LocalDirPicker from '#lib/components/LocalDirPicker.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {local as text} from './page.i18n';
 
     let albums = $state<LocalAlbumSummary[]>([]);
     let loading = $state(true);
@@ -18,6 +21,9 @@
     // The directory chosen in step one; step two asks for the album it syncs to.
     let pending = $state<LocalEntry | null>(null);
     let saving = $state(false);
+
+    const t = $derived(i18n.pick(text));
+    const c = $derived(i18n.pick(common));
 
     onMount(() => {
         void load();
@@ -51,7 +57,7 @@
                 albumId: album.id,
             });
             albums = [...albums.filter((row) => row.id !== created.id), created];
-            app.showToast(`"${created.name}" 已同步到 "${created.albumName}"`, 'success');
+            app.showToast(t.synced(created.name, created.albumName), 'success');
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         } finally {
@@ -61,14 +67,14 @@
     }
 </script>
 
-<svelte:head><title>本机相册 - Source</title></svelte:head>
+<svelte:head><title>{t.title} - Source</title></svelte:head>
 
-<TopBar title="本机相册" subtitle="同步本机目录到云端相册" back>
+<TopBar title={t.title} subtitle={t.subtitle} back>
     {#snippet actions()}
         <button
             onclick={() => (pickerOpen = true)}
             class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-            aria-label="同步本机相册"
+            aria-label={c.syncLocalAlbum}
         >
             <Plus size={20} />
         </button>
@@ -84,9 +90,9 @@
 {:else if albums.length === 0}
     <EmptyState
         icon={Folder}
-        title="还没有同步的本机相册"
-        description="选择本地相册单向同步到Cloudreve"
-        actionLabel="同步本机相册"
+        title={t.empty}
+        description={t.emptyHint}
+        actionLabel={c.syncLocalAlbum}
         onAction={() => (pickerOpen = true)}
     />
 {:else}
@@ -103,7 +109,7 @@
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-sm font-semibold">{album.name}</p>
                         <p class="truncate text-xs text-muted">
-                            {album.assetCount} 项 - 同步到 "{album.albumName}"
+                            {t.items(album.assetCount, album.albumName)}
                         </p>
                     </div>
                     <ChevronRight size={18} class="text-muted" />
@@ -114,4 +120,4 @@
 {/if}
 
 <LocalDirPicker bind:open={pickerOpen} onPick={chose} />
-<AlbumPickerSheet bind:open={targetOpen} title="同步到" onPick={(album) => void register(album)} />
+<AlbumPickerSheet bind:open={targetOpen} title={t.syncTo} onPick={(album) => void register(album)} />

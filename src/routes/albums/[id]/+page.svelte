@@ -15,14 +15,20 @@
     import SelectionBar from '#lib/components/SelectionBar.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import Viewer from '#lib/components/Viewer.svelte';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
     import {changes} from '#lib/state/changes';
+    import {i18n} from '#lib/state/i18n.svelte';
     import {Selection} from '#lib/state/selection.svelte';
     import {Timeline} from '#lib/state/timeline.svelte';
+    import {album as text} from './page.i18n';
 
     let currentId = $state('');
     const timeline = new Timeline((cursor, limit) => api.albumPage({albumId: currentId, cursor, limit}));
     const selection = new Selection();
+
+    const t = $derived(i18n.pick(text));
+    const c = $derived(i18n.pick(common));
 
     let album = $state<AlbumSummary | null>(null);
     let metaError = $state('');
@@ -39,16 +45,16 @@
     let refreshing = $state(false);
 
     const title = $derived.by(() => {
-        if (coverMode) return '选择封面';
-        if (selection.active) return `已选择 ${selection.count} 项`;
-        return album?.name ?? '相册';
+        if (coverMode) return t.coverSelect;
+        if (selection.active) return t.selected(selection.count);
+        return album?.name ?? t.fallback;
     });
 
     const subtitle = $derived.by(() => {
-        if (coverMode) return '点击任意照片设为相册封面';
+        if (coverMode) return t.coverHint;
         if (selection.active) return '';
         if (!album) return '';
-        return `${album.assetCount} 项 - ${album.path}`;
+        return t.items(album.assetCount, album.path);
     });
 
     $effect(() => {
@@ -79,7 +85,7 @@
         try {
             album = await api.albumGet({albumId: id});
             if (!album) {
-                metaError = '相册不存在或已被移除';
+                metaError = t.notFound;
                 return;
             }
             descriptionDraft = album.description ?? '';
@@ -98,7 +104,7 @@
         try {
             album = await api.refreshAlbum({albumId: currentId});
             await timeline.reload();
-            app.showToast('相册已刷新', 'success');
+            app.showToast(t.refreshed, 'success');
         } catch (err) {
             await load(currentId, true);
             app.showToast(app.describeError(err), 'error');
@@ -112,7 +118,7 @@
         removeOpen = false;
         try {
             await api.removeAlbum({albumId: album.id});
-            app.showToast('相册已移除', 'success');
+            app.showToast(t.removed, 'success');
             await goto('/albums');
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
@@ -137,7 +143,7 @@
         try {
             album = await api.setAlbumCover({albumId: album.id, assetId: asset.id});
             coverMode = false;
-            app.showToast('封面已保存到 Cloudreve metadata', 'success');
+            app.showToast(t.coverSaved, 'success');
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         }
@@ -152,7 +158,7 @@
                 description: descriptionDraft.trim(),
             });
             descriptionOpen = false;
-            app.showToast('描述已保存', 'success');
+            app.showToast(t.descriptionSaved, 'success');
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         } finally {
@@ -164,7 +170,7 @@
         if (!selection.count) return;
         try {
             const result = await api.exportAssets({assetIds: selection.ids});
-            app.showToast(`已导出 ${result.exported} 项`, 'success');
+            app.showToast(t.exported(result.exported), 'success');
             selection.exit();
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
@@ -181,7 +187,7 @@
             });
             // The assets left this album's folder, so drop them from the grid.
             timeline.remove(ids);
-            app.showToast(`已移动 ${moved.length} 项到 "${target.name}"`, 'success');
+            app.showToast(t.moved(moved.length, target.name), 'success');
             selection.exit();
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
@@ -191,21 +197,21 @@
     }
 </script>
 
-<svelte:head><title>{album ? `${album.name} - 相册` : '相册'} - Source</title></svelte:head>
+<svelte:head><title>{album ? `${album.name} - ${t.fallback}` : t.fallback} - Source</title></svelte:head>
 
 <TopBar {title} {subtitle} back={!coverMode && !selection.active}>
     {#snippet actions()}
         {#if coverMode}
             <button
                 onclick={() => (coverMode = false)}
-                class="rounded-lg px-3 py-2 text-xs font-medium text-muted hover:bg-gray">取消</button
+                class="rounded-lg px-3 py-2 text-xs font-medium text-muted hover:bg-gray">{c.cancel}</button
             >
         {:else if selection.active}
             <SelectAllButton {selection} ids={timeline.items.map((item) => item.id)} />
             <button
                 onclick={() => selection.exit()}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label="取消"
+                aria-label={c.cancel}
             >
                 <X size={21} />
             </button>
@@ -213,7 +219,7 @@
             <button
                 onclick={() => void refresh()}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label="刷新相册"
+                aria-label={t.refresh}
             >
                 {#if refreshing}
                     <div class="size-4 animate-spin rounded-full border-2 border-line border-t-primary"></div>
@@ -224,14 +230,14 @@
             <button
                 onclick={() => selection.start()}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label="选择"
+                aria-label={c.select}
             >
                 <SquareDashed size={20} />
             </button>
             <button
                 onclick={() => (menuOpen = true)}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label="相册操作"
+                aria-label={t.actions}
             >
                 <Ellipsis size={22} />
             </button>
@@ -241,19 +247,20 @@
 
 {#if album?.sync?.failed && !coverMode}
     <div class="mx-4 mt-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
-        <p class="text-xs font-medium text-amber-600">这个文件夹在服务器上已不可访问</p>
+        <p class="text-xs font-medium text-amber-600">{t.syncFailed}</p>
         <p class="mt-0.5 text-[11px] text-muted">
-            {album.sync?.error ?? '目录可能已被删除或改名'} - 已保留上次索引的照片
+            {t.syncNote(album.sync?.error ?? '')}
         </p>
         <div class="mt-2 flex gap-2">
             <button
                 onclick={() => void refresh()}
                 class="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-on-primary disabled:opacity-40"
-                disabled={refreshing}>重试</button
+                disabled={refreshing}>{c.retry}</button
             >
             <button
                 onclick={() => (removeOpen = true)}
-                class="rounded-lg border border-line px-3 py-1.5 text-xs text-muted hover:bg-gray">移除相册</button
+                class="rounded-lg border border-line px-3 py-1.5 text-xs text-muted hover:bg-gray"
+                >{c.removeAlbum}</button
             >
         </div>
     </div>
@@ -274,17 +281,17 @@
 {:else if metaError || timeline.error}
     <EmptyState
         icon={WifiOff}
-        title="无法加载相册"
+        title={t.failed}
         description={metaError || timeline.error}
-        actionLabel="重试"
+        actionLabel={c.retry}
         onAction={() => void load(currentId)}
     />
 {:else if timeline.items.length === 0}
     <EmptyState
         icon={Image}
-        title="这个相册还是空的"
-        description="从本机上传照片, 或把时间线里的照片移动进来."
-        actionLabel="上传照片"
+        title={t.empty}
+        description={t.emptyHint}
+        actionLabel={t.uploadPhotos}
         onAction={() => void goto('/library?upload=1')}
     />
 {:else}
@@ -302,7 +309,7 @@
             onclick={() => void timeline.loadMore()}
             class="mx-auto mb-28 mt-2 block rounded-xl border border-line px-4 py-2 text-xs text-muted transition-colors hover:bg-gray"
         >
-            加载更多
+            {t.loadMore}
         </button>
     {/if}
 {/if}
@@ -328,9 +335,9 @@
 
 <ConfirmDialog
     open={removeOpen}
-    title={`移除 "${album?.name ?? ''}"?`}
-    message="只会删掉本机的登记与索引, 云端文件夹与文件不受影响. 同步到这个相册的本机相册也会一起移除."
-    confirmLabel="移除"
+    title={t.removeTitle(album?.name ?? '')}
+    message={t.removeMessage}
+    confirmLabel={t.remove}
     danger
     onClose={() => (removeOpen = false)}
     onConfirm={() => void remove()}

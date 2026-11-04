@@ -1,0 +1,41 @@
+import {bundle} from './bundle';
+
+/** Words shared by two or more modules; anything used once stays next to its owner. */
+export const common = bundle(
+    {
+        all: 'All',
+        back: 'Back',
+        cancel: 'Cancel',
+        close: 'Close',
+        confirm: 'OK',
+        download: 'Download',
+        loading: 'Loading',
+        more: 'More',
+        moveToAlbum: 'Move to album',
+        removeAlbum: 'Remove album',
+        retry: 'Retry',
+        save: 'Save',
+        select: 'Select',
+        syncLocalAlbum: 'Sync local album',
+        up: 'Up',
+        upload: 'Upload',
+    },
+    {
+        all: '全部',
+        back: '返回',
+        cancel: '取消',
+        close: '关闭',
+        confirm: '确定',
+        download: '下载',
+        loading: '加载中',
+        more: '更多',
+        moveToAlbum: '移动到相册',
+        removeAlbum: '移除相册',
+        retry: '重试',
+        save: '保存',
+        select: '选择',
+        syncLocalAlbum: '同步本机相册',
+        up: '上一级',
+        upload: '上传',
+    },
+);

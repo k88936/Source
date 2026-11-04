@@ -1,7 +1,9 @@
 <script lang="ts">
     import type {AssetDetail} from '#lib/api/bindings/AssetDetail';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
+    import {i18n} from '#lib/state/i18n.svelte';
     import {X} from '@lucide/svelte';
+    import {info} from './AssetInfoSheet.i18n';
 
     let {
         open = $bindable(false),
@@ -13,14 +15,20 @@
         detail: AssetDetail | null;
     } = $props();
 
-    function formatDate(ts: number): string {
-        return new Intl.DateTimeFormat('zh-CN', {
+    const t = $derived(i18n.pick(info));
+
+    const dateFormatter = $derived(
+        new Intl.DateTimeFormat(i18n.tag, {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
-        }).format(new Date(ts));
+        }),
+    );
+
+    function formatDate(ts: number): string {
+        return dateFormatter.format(new Date(ts));
     }
 </script>
 
@@ -30,26 +38,26 @@
     >
         <div class="mb-3 flex items-center justify-between">
             <div>
-                <p class="text-sm font-semibold">详细信息</p>
+                <p class="text-sm font-semibold">{t.details}</p>
                 <p class="text-xs text-muted">{detail?.albumPath ?? ''}</p>
             </div>
             <button
                 class="grid size-9 place-items-center rounded-full hover:bg-line/40"
                 onclick={() => (open = false)}
-                aria-label="关闭信息"
+                aria-label={t.close}
             >
                 <X size={18} />
             </button>
         </div>
         {#if asset}
             <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
-                <dt class="text-muted">文件名</dt>
+                <dt class="text-muted">{t.name}</dt>
                 <dd class="truncate text-right">{asset.name}</dd>
-                <dt class="text-muted">拍摄时间</dt>
+                <dt class="text-muted">{t.taken}</dt>
                 <dd class="text-right">{formatDate(asset.takenAt)}</dd>
-                <dt class="text-muted">大小</dt>
+                <dt class="text-muted">{t.size}</dt>
                 <dd class="text-right">{(asset.size / 1024 / 1024).toFixed(1)} MB</dd>
-                <dt class="text-muted">尺寸</dt>
+                <dt class="text-muted">{t.dimensions}</dt>
                 <dd class="text-right">{asset.width ?? '?'} x {asset.height ?? '?'}</dd>
                 {#each detail?.exif ?? [] as field (field.key)}
                     <dt class="truncate text-muted" title={field.key}>

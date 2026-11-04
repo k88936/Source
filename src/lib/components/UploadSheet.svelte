@@ -3,9 +3,12 @@
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
     import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
     import AssetThumb from './AssetThumb.svelte';
     import {Image, Upload, X} from '@lucide/svelte';
+    import {upload as text} from './UploadSheet.i18n';
 
     let {
         open = $bindable(false),
@@ -21,6 +24,9 @@
         onUploaded?: () => void;
     } = $props();
 
+    const t = $derived(i18n.pick(text));
+    const c = $derived(i18n.pick(common));
+
     let assets = $state<LocalAsset[]>([]);
     let albums = $state<AlbumSummary[]>([]);
     let localAlbums = $state<LocalAlbumSummary[]>([]);
@@ -32,9 +38,9 @@
     let source = $state<string | null>(null);
 
     const uploadLabel = $derived.by(() => {
-        if (uploading) return '正在加入队列...';
-        if (!dest) return '先选择一个相册';
-        return `上传 ${selected.length} 项到 ${destName()}`;
+        if (uploading) return t.enqueuing;
+        if (!dest) return t.needAlbum;
+        return t.uploadLabel(selected.length, destName());
     });
 
     $effect(() => {
@@ -78,7 +84,7 @@
     }
 
     function destName(): string {
-        return albums.find((album) => album.id === dest)?.name ?? '选择相册';
+        return albums.find((album) => album.id === dest)?.name ?? t.pickAlbum;
     }
 
     async function upload() {
@@ -89,7 +95,7 @@
                 localIds: selected,
                 albumId: dest,
             });
-            app.showToast(`已加入上传队列 - ${tasks.length} 项 -> ${destName()}`, 'success');
+            app.showToast(t.queued(tasks.length, destName()), 'success');
             open = false;
             onUploaded?.();
             onClose?.();
@@ -111,13 +117,13 @@
         <div class="flex h-[88dvh] w-full max-w-2xl flex-col rounded-t-3xl bg-light">
             <div class="flex items-center justify-between px-4 pb-2 pt-3">
                 <div>
-                    <h2 class="text-base font-semibold">上传到相册</h2>
-                    <p class="text-xs text-muted">选择本机照片 - 原图上传</p>
+                    <h2 class="text-base font-semibold">{t.title}</h2>
+                    <p class="text-xs text-muted">{t.subtitle}</p>
                 </div>
                 <button
                     onclick={close}
                     class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
-                    aria-label="关闭"
+                    aria-label={c.close}
                 >
                     <X size={18} />
                 </button>
@@ -131,7 +137,7 @@
                             ? 'bg-primary text-on-primary'
                             : 'bg-gray text-muted hover:text-dark'}"
                     >
-                        全部
+                        {c.all}
                     </button>
                     {#each localAlbums as album (album.id)}
                         <button
@@ -158,8 +164,8 @@
                 {:else if assets.length === 0}
                     <div class="flex flex-col items-center gap-2 py-16 text-sm text-muted">
                         <Image size={30} />
-                        <p>没有可上传的本机照片</p>
-                        <p class="text-[11px] text-muted">先在资料库里同步一个本机相册</p>
+                        <p>{t.empty}</p>
+                        <p class="text-[11px] text-muted">{t.emptyHint}</p>
                     </div>
                 {:else}
                     <div class="grid grid-cols-4 gap-[2px] sm:grid-cols-5">
@@ -180,12 +186,12 @@
 
             <div class="border-t border-line px-4 pb-[calc(0.75rem+var(--safe-bottom))] pt-3">
                 <label class="mb-2 flex items-center gap-2 text-xs text-muted">
-                    <span class="shrink-0">上传到</span>
+                    <span class="shrink-0">{t.destination}</span>
                     <select
                         bind:value={dest}
                         class="min-w-0 flex-1 rounded-lg border border-line bg-transparent px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/60"
                     >
-                        <option value="">选择相册</option>
+                        <option value="">{t.pickAlbum}</option>
                         {#each albums as album (album.id)}
                             <option value={album.id}>{album.name}</option>
                         {/each}

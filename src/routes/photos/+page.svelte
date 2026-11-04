@@ -12,13 +12,19 @@
     import SelectionBar from '#lib/components/SelectionBar.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import Viewer from '#lib/components/Viewer.svelte';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
     import {changes} from '#lib/state/changes';
     import {Selection} from '#lib/state/selection.svelte';
     import {Timeline} from '#lib/state/timeline.svelte';
+    import {photos} from './page.i18n';
 
     const timeline = new Timeline((cursor, limit) => api.timelinePage({cursor, limit}));
     const selection = new Selection();
+
+    const t = $derived(i18n.pick(photos));
+    const c = $derived(i18n.pick(common));
 
     let viewerOpen = $state(false);
     let viewerIndex = $state(0);
@@ -65,7 +71,7 @@
         if (selection.count === 0) return;
         try {
             const result = await api.exportAssets({assetIds: selection.ids});
-            app.showToast(`已导出 ${result.exported} 项`, 'success');
+            app.showToast(t.exported(result.exported), 'success');
             selection.exit();
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
@@ -80,7 +86,7 @@
                 albumId: album.id,
             });
             for (const asset of moved) timeline.upsert(asset);
-            app.showToast(`已移动 ${moved.length} 项到 "${album.name}"`, 'success');
+            app.showToast(t.moved(moved.length, album.name), 'success');
             selection.exit();
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
@@ -90,10 +96,10 @@
     }
 </script>
 
-<svelte:head><title>照片 - Source</title></svelte:head>
+<svelte:head><title>{t.title} - Source</title></svelte:head>
 
 <TopBar
-    title={selection.active ? `已选择 ${selection.count} 项` : '照片'}
+    title={selection.active ? t.selected(selection.count) : t.title}
     subtitle={selection.active ? '' : (app.account?.siteName ?? '')}
 >
     {#snippet actions()}
@@ -102,7 +108,7 @@
             <button
                 onclick={() => selection.exit()}
                 class="grid size-10 place-items-center rounded-full text-dark"
-                aria-label="退出选择"
+                aria-label={t.exitSelection}
             >
                 <X size={21} />
             </button>
@@ -110,7 +116,7 @@
             <button
                 onclick={() => selection.start()}
                 class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-                aria-label="选择"
+                aria-label={c.select}
             >
                 <SquareDashed size={20} />
             </button>
@@ -127,9 +133,9 @@
 {:else if timeline.items.length === 0 && !timeline.loading}
     <EmptyState
         icon={Image}
-        title={timeline.error ? '加载失败' : '时间线还是空的'}
+        title={timeline.error ? t.failed : t.empty}
         description={timeline.error}
-        actionLabel={timeline.error ? '重试' : '添加相册'}
+        actionLabel={timeline.error ? c.retry : t.addAlbum}
         onAction={() => (timeline.error ? void timeline.reload() : void goto('/albums'))}
     />
 {:else}

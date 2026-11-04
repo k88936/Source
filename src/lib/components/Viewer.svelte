@@ -3,10 +3,13 @@
     import type {AssetDetail} from '#lib/api/bindings/AssetDetail';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
     import {mediaSource} from '#lib/api/media';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
     import AssetInfoSheet from './AssetInfoSheet.svelte';
     import {ChevronLeft, ChevronRight, Download, Heart, Info, Play, X} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
+    import {viewer} from './Viewer.i18n';
 
     let {
         items,
@@ -17,6 +20,9 @@
         index?: number;
         onClose: () => void;
     } = $props();
+
+    const t = $derived(i18n.pick(viewer));
+    const c = $derived(i18n.pick(common));
 
     let scale = $state(1);
     let translateX = $state(0);
@@ -180,7 +186,7 @@
         if (!asset) return;
         try {
             const result = await api.exportAssets({assetIds: [asset.id]});
-            app.showToast(`已导出 ${result.exported} 项到 ${result.directory}`, 'success');
+            app.showToast(t.exported(result.exported, result.directory), 'success');
         } catch (error) {
             app.showToast(app.describeError(error), 'error');
         }
@@ -192,7 +198,7 @@
         <button
             onclick={onClose}
             class="grid size-11 place-items-center justify-self-start rounded-full hover:bg-white/10"
-            aria-label="关闭"
+            aria-label={c.close}
         >
             <X size={24} />
         </button>
@@ -204,7 +210,7 @@
             <button
                 onclick={toggleFavorite}
                 class="grid size-11 place-items-center rounded-full hover:bg-white/10"
-                aria-label="收藏"
+                aria-label={t.favorite}
             >
                 <Heart
                     size={23}
@@ -215,14 +221,14 @@
             <button
                 onclick={download}
                 class="grid size-11 place-items-center rounded-full hover:bg-white/10"
-                aria-label="下载"
+                aria-label={c.download}
             >
                 <Download size={22} />
             </button>
             <button
                 onclick={() => (showInfo = !showInfo)}
                 class="grid size-11 place-items-center rounded-full hover:bg-white/10"
-                aria-label="信息"
+                aria-label={t.info}
             >
                 <Info size={22} />
             </button>
@@ -232,7 +238,7 @@
     <div
         class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
         role="group"
-        aria-label="媒体查看器"
+        aria-label={t.mediaViewer}
         ontouchstart={onTouchStart}
         ontouchmove={onTouchMove}
         ontouchend={onTouchEnd}
@@ -259,7 +265,7 @@
             onclick={previous}
             disabled={index === 0}
             class="absolute left-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/30 text-white disabled:opacity-0"
-            aria-label="上一张"
+            aria-label={t.previous}
         >
             <ChevronLeft size={24} />
         </button>
@@ -267,7 +273,7 @@
             onclick={next}
             disabled={index === items.length - 1}
             class="absolute right-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/30 text-white disabled:opacity-0"
-            aria-label="下一张"
+            aria-label={t.next}
         >
             <ChevronRight size={24} />
         </button>

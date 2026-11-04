@@ -4,6 +4,9 @@
     import type {AccountState} from '#lib/api/bindings/AccountState';
     import {Cloud} from '@lucide/svelte';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {common} from '#lib/i18n/common.i18n';
+    import {welcome} from './page.i18n';
 
     let server = $state((typeof localStorage !== 'undefined' && localStorage.getItem('album-server')) || '');
     let email = $state('');
@@ -14,14 +17,17 @@
     let loading = $state(false);
     let error = $state('');
 
+    const t = $derived(i18n.pick(welcome));
+    const c = $derived(i18n.pick(common));
+
     async function connect() {
         error = '';
         if (!server.trim()) {
-            error = '请输入 Cloudreve 服务器地址';
+            error = t.errors.server;
             return;
         }
         if (!email.trim() || !password) {
-            error = '请输入邮箱和密码';
+            error = t.errors.credentials;
             return;
         }
         loading = true;
@@ -47,7 +53,7 @@
     async function verify() {
         error = '';
         if (otp.trim().length !== 6) {
-            error = '请输入 6 位验证码';
+            error = t.errors.otp;
             return;
         }
         loading = true;
@@ -68,7 +74,7 @@
     }
 </script>
 
-<svelte:head><title>登录 - Source</title></svelte:head>
+<svelte:head><title>{t.title} - Source</title></svelte:head>
 
 <div class="flex min-h-dvh flex-col justify-center bg-light px-6 py-12 text-dark">
     <div class="mx-auto w-full max-w-sm">
@@ -77,7 +83,7 @@
                 <Cloud size={28} />
             </span>
             <h1 class="mt-4 text-xl font-semibold">Source</h1>
-            <p class="mt-1 text-sm text-muted">用 Cloudreve 账号登录, 浏览你的相册</p>
+            <p class="mt-1 text-sm text-muted">{t.subtitle}</p>
         </div>
 
         {#if step === 'credentials'}
@@ -89,7 +95,7 @@
                 }}
             >
                 <label class="block">
-                    <span class="mb-1.5 block text-xs font-medium text-muted">服务器地址</span>
+                    <span class="mb-1.5 block text-xs font-medium text-muted">{t.server}</span>
                     <input
                         bind:value={server}
                         type="url"
@@ -99,7 +105,7 @@
                     />
                 </label>
                 <label class="block">
-                    <span class="mb-1.5 block text-xs font-medium text-muted">邮箱</span>
+                    <span class="mb-1.5 block text-xs font-medium text-muted">{t.email}</span>
                     <input
                         bind:value={email}
                         type="email"
@@ -109,7 +115,7 @@
                     />
                 </label>
                 <label class="block">
-                    <span class="mb-1.5 block text-xs font-medium text-muted">密码</span>
+                    <span class="mb-1.5 block text-xs font-medium text-muted">{t.password}</span>
                     <input
                         bind:value={password}
                         type="password"
@@ -128,7 +134,7 @@
                     disabled={loading}
                     class="mt-1 flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                    {loading ? '正在连接...' : '登录'}
+                    {loading ? t.connecting : t.signIn}
                 </button>
             </form>
         {:else}
@@ -140,8 +146,8 @@
                 }}
             >
                 <div class="text-center">
-                    <p class="text-sm font-medium">两步验证</p>
-                    <p class="mt-1 text-xs text-muted">输入身份验证器中的 6 位验证码</p>
+                    <p class="text-sm font-medium">{t.twoFactor}</p>
+                    <p class="mt-1 text-xs text-muted">{t.twoFactorHint}</p>
                 </div>
                 <input
                     bind:value={otp}
@@ -159,7 +165,7 @@
                     disabled={loading}
                     class="flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                    {loading ? '验证中...' : '验证并登录'}
+                    {loading ? t.verifying : t.verify}
                 </button>
                 <button
                     type="button"
@@ -169,13 +175,13 @@
                     }}
                     class="text-xs text-muted hover:text-dark"
                 >
-                    返回
+                    {c.back}
                 </button>
             </form>
         {/if}
 
         <p class="mt-10 text-center text-[11px] leading-relaxed text-muted">
-            连接你的 Cloudreve 私有云 - 原图不会缓存在本机
+            {t.footer}
         </p>
     </div>
 </div>

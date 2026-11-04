@@ -2,13 +2,19 @@
     import {api} from '#lib/api/client';
     import type {LocalBrowsePage} from '#lib/api/bindings/LocalBrowsePage';
     import type {LocalEntry} from '#lib/api/bindings/LocalEntry';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
     import {ChevronLeft, ChevronRight, Folder, X} from '@lucide/svelte';
+    import {dirPicker} from './LocalDirPicker.i18n';
 
     /// Walks the device directories one level at a time. Desktop starts at the
     /// home directory and can go back; on platforms that only expose a list of
     /// media directories there is no parent and no descent.
     let {open = $bindable(false), onPick}: {open?: boolean; onPick?: (entry: LocalEntry) => void} = $props();
+
+    const t = $derived(i18n.pick(dirPicker));
+    const c = $derived(i18n.pick(common));
 
     let page = $state<LocalBrowsePage | null>(null);
     let loading = $state(false);
@@ -51,13 +57,13 @@
         <div class="flex h-[80dvh] w-full max-w-lg flex-col rounded-t-3xl bg-light sm:h-[70dvh] sm:rounded-3xl">
             <div class="flex items-center justify-between px-4 pb-2 pt-3">
                 <div class="min-w-0">
-                    <h2 class="text-base font-semibold">同步本机相册</h2>
-                    <p class="truncate text-xs text-muted">{current()?.path ?? '选择一个目录'}</p>
+                    <h2 class="text-base font-semibold">{t.title}</h2>
+                    <p class="truncate text-xs text-muted">{current()?.path ?? t.choose}</p>
                 </div>
                 <button
                     onclick={() => (open = false)}
                     class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
-                    aria-label="关闭"
+                    aria-label={c.close}
                 >
                     <X size={18} />
                 </button>
@@ -69,7 +75,8 @@
                         onclick={() => void browseTo(page?.parent?.uri ?? null)}
                         class="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
                     >
-                        <ChevronLeft size={18} class="text-muted" /> 上一级
+                        <ChevronLeft size={18} class="text-muted" />
+                        {c.up}
                     </button>
                 {/if}
                 {#if loading}
@@ -79,7 +86,7 @@
                 {:else if error}
                     <p class="px-3 py-6 text-center text-xs text-red-500">{error}</p>
                 {:else if page && page.entries.length === 0}
-                    <p class="px-3 py-8 text-center text-xs text-muted">这个目录下没有子目录</p>
+                    <p class="px-3 py-8 text-center text-xs text-muted">{t.empty}</p>
                 {:else}
                     {#each page?.entries ?? [] as entry (entry.uri)}
                         <button
@@ -101,7 +108,7 @@
                     disabled={!current()}
                     class="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
-                    {current() ? `同步 "${current()?.name}"` : '请先进入一个目录'}
+                    {current() ? t.sync(current()?.name ?? '') : t.syncPrompt}
                 </button>
             </div>
         </div>

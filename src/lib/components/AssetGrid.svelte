@@ -2,7 +2,9 @@
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
     import {justify} from '#lib/justify';
     import {mosaicBackground} from '#lib/mosaic';
+    import {i18n} from '#lib/state/i18n.svelte';
     import AssetThumb from './AssetThumb.svelte';
+    import {grid} from './AssetGrid.i18n';
     import {Calendar, ChevronUp} from '@lucide/svelte';
 
     let {
@@ -25,14 +27,17 @@
 
     type Group = {key: string; label: string; items: AssetSummary[]};
 
-    const dayFormatter = new Intl.DateTimeFormat('zh-CN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'short',
-    });
+    const t = $derived(i18n.pick(grid));
 
-    const monthFormatter = new Intl.DateTimeFormat('zh-CN', {year: 'numeric', month: 'long'});
+    const formatters = $derived({
+        day: new Intl.DateTimeFormat(i18n.tag, {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'short',
+        }),
+        month: new Intl.DateTimeFormat(i18n.tag, {year: 'numeric', month: 'long'}),
+    });
 
     function dayKey(ts: number): string {
         const d = new Date(ts);
@@ -49,9 +54,9 @@
             yesterday.getFullYear() === d.getFullYear() &&
             yesterday.getMonth() === d.getMonth() &&
             yesterday.getDate() === d.getDate();
-        if (sameDay) return '今天';
-        if (isYesterday) return '昨天';
-        return dayFormatter.format(d);
+        if (sameDay) return t.today;
+        if (isYesterday) return t.yesterday;
+        return formatters.day.format(d);
     }
 
     let groups = $derived.by(() => {
@@ -106,7 +111,7 @@
             else
                 map.set(key, {
                     key,
-                    label: monthFormatter.format(new Date(first.takenAt)),
+                    label: formatters.month.format(new Date(first.takenAt)),
                     count: group.items.length,
                     day: group.key,
                 });
@@ -212,7 +217,7 @@
         type="button"
         onclick={() => (monthSheet = true)}
         class="fixed bottom-[calc(7.4rem+var(--safe-bottom))] right-3 z-20 grid size-10 place-items-center rounded-full bg-light/90 text-dark shadow-lg backdrop-blur sidebar:bottom-6"
-        aria-label="跳转月份"
+        aria-label={t.jumpMonth}
     >
         <Calendar size={19} />
     </button>
@@ -223,7 +228,7 @@
         type="button"
         onclick={toTop}
         class="fixed bottom-[calc(4.2rem+var(--safe-bottom))] right-3 z-20 grid size-10 place-items-center rounded-full bg-light/90 text-dark shadow-lg backdrop-blur sidebar:bottom-6 sidebar:right-[calc(1.5rem)]"
-        aria-label="回到顶部"
+        aria-label={t.backToTop}
     >
         <ChevronUp size={20} />
     </button>
@@ -243,7 +248,7 @@
         }}
     >
         <div class="flex max-h-[60vh] w-full max-w-md flex-col rounded-t-3xl bg-light p-3 shadow-2xl">
-            <p class="px-2 pb-2 text-xs font-medium text-muted">跳到月份</p>
+            <p class="px-2 pb-2 text-xs font-medium text-muted">{t.jumpToMonth}</p>
             <div class="min-h-0 flex-1 overflow-y-auto">
                 {#each months as month (month.key)}
                     <button

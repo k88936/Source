@@ -1,7 +1,13 @@
 <script lang="ts">
     import {api} from '#lib/api/client';
     import type {UploadTask} from '#lib/api/bindings/UploadTask';
+    import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {queue} from './UploadQueueCard.i18n';
+
+    const t = $derived(i18n.pick(queue));
+    const c = $derived(i18n.pick(common));
 
     const active = $derived(app.uploads.filter((task) => !['done', 'cancelled'].includes(task.state)));
     const failed = $derived(active.filter((task) => task.state === 'failed'));
@@ -14,13 +20,13 @@
     function label(task: UploadTask): string {
         switch (task.state) {
             case 'queued':
-                return task.attempts > 0 ? `等待第 ${task.attempts + 1} 次尝试` : '等待中';
+                return task.attempts > 0 ? t.waitingAttempt(task.attempts + 1) : t.waiting;
             case 'creatingSession':
-                return '创建会话';
+                return t.creatingSession;
             case 'completing':
-                return '收尾中';
+                return t.completing;
             case 'failed':
-                return '失败';
+                return t.failed;
             default:
                 return `${percent(task)}%`;
         }
@@ -43,17 +49,17 @@
 {#if active.length > 0}
     <section class="mt-3 rounded-2xl bg-gray p-4">
         <div class="mb-2 flex items-center justify-between">
-            <p class="text-sm font-semibold">上传队列</p>
+            <p class="text-sm font-semibold">{t.title}</p>
             <div class="flex items-center gap-2">
                 {#if failed.length > 1}
                     <button
                         onclick={() => void retryAll()}
                         class="rounded-lg px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
                     >
-                        重试全部
+                        {t.retryAll}
                     </button>
                 {/if}
-                <span class="text-[11px] text-muted">{active.length} 项</span>
+                <span class="text-[11px] text-muted">{t.items(active.length)}</span>
             </div>
         </div>
         <div class="flex flex-col gap-2">
@@ -81,14 +87,14 @@
                             onclick={() => void app.retryUpload(task.id)}
                             class="shrink-0 rounded-lg bg-primary px-2.5 py-1 text-[11px] font-medium text-on-primary"
                         >
-                            重试
+                            {c.retry}
                         </button>
                     {:else}
                         <button
                             onclick={() => void cancel(task.id)}
                             class="shrink-0 text-[11px] text-muted hover:text-dark"
                         >
-                            取消
+                            {c.cancel}
                         </button>
                     {/if}
                 </div>

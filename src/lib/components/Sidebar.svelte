@@ -1,14 +1,18 @@
 <script lang="ts">
     import {page} from '$app/state';
+    import {i18n} from '#lib/state/i18n.svelte';
+    import {nav} from '#lib/i18n/nav.i18n';
     import {Cloud, Image, Images, LibraryBig, Search, Settings} from '@lucide/svelte';
 
-    const items = [
-        {href: '/photos', label: '照片', icon: Image},
-        {href: '/search', label: '搜索', icon: Search},
-        {href: '/albums', label: '相册', icon: Images},
-        {href: '/library', label: '资料库', icon: LibraryBig},
-        {href: '/settings', label: '设置', icon: Settings},
-    ];
+    const t = $derived(i18n.pick(nav));
+
+    const items = $derived([
+        {href: '/photos', label: t.photos, icon: Image},
+        {href: '/search', label: t.search, icon: Search},
+        {href: '/albums', label: t.albums, icon: Images},
+        {href: '/library', label: t.library, icon: LibraryBig},
+        {href: '/settings', label: t.settings, icon: Settings},
+    ]);
 
     function active(href: string): boolean {
         return page.url.pathname === href || page.url.pathname.startsWith(href + '/');
@@ -24,7 +28,7 @@
         <span class="text-base font-semibold">Source</span>
     </a>
 
-    <nav class="-mx-3 flex flex-col gap-0.5" aria-label="主导航">
+    <nav class="-mx-3 flex flex-col gap-0.5" aria-label={t.ariaLabel}>
         {#each items as item (item.href)}
             {@const Icon = item.icon}
             <a
