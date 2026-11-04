@@ -31,6 +31,12 @@
     // `null` means the whole device, otherwise a registered local album's uri.
     let source = $state<string | null>(null);
 
+    const uploadLabel = $derived.by(() => {
+        if (uploading) return '正在加入队列...';
+        if (!dest) return '先选择一个相册';
+        return `上传 ${selected.length} 项到 ${destName()}`;
+    });
+
     $effect(() => {
         if (!open) return;
         dest = initialDest;
@@ -191,11 +197,7 @@
                     class="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
                     <Icon name="upload" size={18} />
-                    {uploading
-                        ? '正在加入队列...'
-                        : dest
-                          ? `上传 ${selected.length} 项到 ${destName()}`
-                          : '先选择一个相册'}
+                    {uploadLabel}
                 </button>
             </div>
         </div>

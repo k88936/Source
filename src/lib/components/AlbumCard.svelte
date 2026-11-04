@@ -6,6 +6,12 @@
     let {album}: {album: AlbumSummary} = $props();
 
     let covers = $derived(album.coverAssetIds.slice(0, 4));
+
+    function coverClass(index: number): string {
+        if (covers.length === 1) return 'col-span-2 row-span-2';
+        if (covers.length === 2 || (covers.length === 3 && index === 0)) return 'row-span-2';
+        return '';
+    }
 </script>
 
 <a
@@ -23,13 +29,7 @@
                         alt=""
                         loading="lazy"
                         decoding="async"
-                        class="size-full object-cover {covers.length === 1
-                            ? 'col-span-2 row-span-2'
-                            : covers.length === 3 && index === 0
-                              ? 'row-span-2'
-                              : covers.length === 2
-                                ? 'row-span-2'
-                                : ''}"
+                        class="size-full object-cover {coverClass(index)}"
                     />
                 {/each}
             </div>

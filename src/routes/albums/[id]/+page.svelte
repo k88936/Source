@@ -37,6 +37,19 @@
     let moving = $state(false);
     let refreshing = $state(false);
 
+    const title = $derived.by(() => {
+        if (coverMode) return '选择封面';
+        if (selection.active) return `已选择 ${selection.count} 项`;
+        return album?.name ?? '相册';
+    });
+
+    const subtitle = $derived.by(() => {
+        if (coverMode) return '点击任意照片设为相册封面';
+        if (selection.active) return '';
+        if (!album) return '';
+        return `${album.assetCount} 项 - ${album.path}`;
+    });
+
     $effect(() => {
         const id = page.params.id;
         if (id && id !== currentId) {
@@ -179,17 +192,7 @@
 
 <svelte:head><title>{album ? `${album.name} - 相册` : '相册'} - Source</title></svelte:head>
 
-<TopBar
-    title={coverMode ? '选择封面' : selection.active ? `已选择 ${selection.count} 项` : (album?.name ?? '相册')}
-    subtitle={coverMode
-        ? '点击任意照片设为相册封面'
-        : selection.active
-          ? ''
-          : album
-            ? `${album.assetCount} 项 - ${album.path}`
-            : ''}
-    back={!coverMode && !selection.active}
->
+<TopBar {title} {subtitle} back={!coverMode && !selection.active}>
     {#snippet actions()}
         {#if coverMode}
             <button
