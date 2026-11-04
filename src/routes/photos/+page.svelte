@@ -79,7 +79,7 @@
 				albumId: album.id,
 			});
 			for (const asset of moved) timeline.upsert(asset);
-			app.showToast(`已移动 ${moved.length} 项到「${album.name}」`, 'success');
+			app.showToast(`已移动 ${moved.length} 项到 "${album.name}"`, 'success');
 			selection.exit();
 		} catch (err) {
 			app.showToast(app.describeError(err), 'error');
@@ -89,7 +89,7 @@
 	}
 </script>
 
-<svelte:head><title>照片 · Source</title></svelte:head>
+<svelte:head><title>照片 - Source</title></svelte:head>
 
 <TopBar
 	title={selection.active ? `已选择 ${selection.count} 项` : '照片'}
@@ -135,7 +135,7 @@
 	<EmptyState
 		icon="image"
 		title={timeline.error ? '加载失败' : '时间线还是空的'}
-		description={timeline.error || '把 Cloudreve 里的文件夹添加为相册，它的照片与视频就会出现在这里。'}
+		description={timeline.error || '把 Cloudreve 里的文件夹添加为相册, 它的照片与视频就会出现在这里.'}
 		actionLabel={timeline.error ? '重试' : '添加相册'}
 		onaction={() => (timeline.error ? void timeline.reload() : void goto('/albums'))}
 	/>

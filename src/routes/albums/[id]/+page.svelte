@@ -169,7 +169,7 @@
 			});
 			// The assets left this album's folder, so drop them from the grid.
 			timeline.remove(ids);
-			app.showToast(`已移动 ${moved.length} 项到「${target.name}」`, 'success');
+			app.showToast(`已移动 ${moved.length} 项到 "${target.name}"`, 'success');
 			selection.exit();
 		} catch (err) {
 			app.showToast(app.describeError(err), 'error');
@@ -179,7 +179,7 @@
 	}
 </script>
 
-<svelte:head><title>{album ? `${album.name} · 相册` : '相册'} · Source</title></svelte:head>
+<svelte:head><title>{album ? `${album.name} - 相册` : '相册'} - Source</title></svelte:head>
 
 <TopBar
 	title={coverMode
@@ -192,7 +192,7 @@
 		: selection.active
 			? ''
 			: album
-				? `${album.assetCount} 项 · ${album.path}`
+				? `${album.assetCount} 项 - ${album.path}`
 				: ''}
 	back={!coverMode && !selection.active}
 >
@@ -253,7 +253,7 @@
 	<div class="mx-4 mt-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
 		<p class="text-xs font-medium text-amber-600">这个文件夹在服务器上已不可访问</p>
 		<p class="mt-0.5 text-[11px] text-muted">
-			{album.sync?.error ?? '目录可能已被删除或改名'} · 已保留上次索引的照片
+			{album.sync?.error ?? '目录可能已被删除或改名'} - 已保留上次索引的照片
 		</p>
 		<div class="mt-2 flex gap-2">
 			<button
@@ -294,7 +294,7 @@
 	<EmptyState
 		icon="image"
 		title="这个相册还是空的"
-		description="从本机上传照片，或把时间线里的照片移动进来。"
+		description="从本机上传照片, 或把时间线里的照片移动进来."
 		actionLabel="上传照片"
 		onaction={() => void goto('/library?upload=1')}
 	/>
@@ -344,8 +344,8 @@
 
 <ConfirmDialog
 	open={removeOpen}
-	title={`移除「${album?.name ?? ''}」？`}
-	message="只会删掉本机的登记与索引，云端文件夹与文件不受影响。同步到这个相册的本机相册也会一起移除。"
+	title={`移除 "${album?.name ?? ''}"?`}
+	message="只会删掉本机的登记与索引, 云端文件夹与文件不受影响. 同步到这个相册的本机相册也会一起移除."
 	confirmLabel="移除"
 	danger
 	onclose={() => (removeOpen = false)}

@@ -21,7 +21,7 @@ pub(crate) fn build_upload_source(source_uri: &str, _size: i64) -> Result<Upload
         #[cfg(not(target_os = "android"))]
         {
             return Err(AppError::internal(
-                "当前平台不支持 content:// 上传；请在 Android 上运行",
+                "当前平台不支持 content:// 上传; 请在 Android 上运行",
             ));
         }
     }
@@ -156,7 +156,7 @@ pub(crate) fn map_upload_failure(error: &UploadError) -> AppError {
     if matches!(error, UploadError::SessionExpired) {
         return AppError::new(
             ErrorCode::Server,
-            "上传会话已在服务器端失效，请重试".to_string(),
+            "上传会话已在服务器端失效, 请重试".to_string(),
             true,
         );
     }

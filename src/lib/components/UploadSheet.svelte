@@ -85,7 +85,7 @@
 				localIds: selected,
 				albumId: dest,
 			});
-			app.showToast(`已加入上传队列 · ${tasks.length} 项 → ${destName()}`, 'success');
+			app.showToast(`已加入上传队列 - ${tasks.length} 项 -> ${destName()}`, 'success');
 			open = false;
 			onuploaded?.();
 			onclose?.();
@@ -112,7 +112,7 @@
 			<div class="flex items-center justify-between px-4 pb-2 pt-3">
 				<div>
 					<h2 class="text-base font-semibold">上传到相册</h2>
-					<p class="text-xs text-muted">选择本机照片 · 原图上传</p>
+					<p class="text-xs text-muted">选择本机照片 - 原图上传</p>
 				</div>
 				<button
 					onclick={close}
@@ -198,7 +198,7 @@
 				>
 					<Icon name="upload" size={18} />
 					{uploading
-						? '正在加入队列…'
+						? '正在加入队列...'
 						: dest
 							? `上传 ${selected.length} 项到 ${destName()}`
 							: '先选择一个相册'}

@@ -92,7 +92,7 @@ pub fn duration_ms(metadata: &HashMap<String, String>) -> Option<i64> {
 }
 
 /// Capture-time fallback chain:
-/// `exif:taken_at` → client EXIF → `updated_at` → filename date.
+/// `exif:taken_at` -> client EXIF -> `updated_at` -> filename date.
 pub fn infer_taken_at(
     metadata: &HashMap<String, String>,
     client_exif: Option<i64>,

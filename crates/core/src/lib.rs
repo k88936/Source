@@ -1,7 +1,7 @@
 //! The whole engine: domain types, use cases, and the adapters that connect
 //! them to SQLite, Cloudreve and the platform media library.
 //!
-//! Each module holds one dependency direction end to end — its contract, the
+//! Each module holds one dependency direction end to end - its contract, the
 //! payload types of that contract, and the code that implements it. Everything
 //! here is independent of Tauri: the Tauri crate only wires these pieces
 //! together and maps commands. TypeScript bindings are generated from those

@@ -100,7 +100,7 @@
 
 	function uploaded() {
 		selected = [];
-		app.showToast('上传任务已创建，可在资料库查看进度', 'success');
+		app.showToast('上传任务已创建, 可在资料库查看进度', 'success');
 	}
 
 	/// Unlink only. Files already on the server stay, and the album they went to
@@ -118,13 +118,13 @@
 	}
 </script>
 
-<svelte:head><title>{album?.name ?? '本机相册'} · Source</title></svelte:head>
+<svelte:head><title>{album?.name ?? '本机相册'} - Source</title></svelte:head>
 
 <TopBar
 	title={selected.length ? `已选择 ${selected.length} 项` : (album?.name ?? '本机相册')}
 	subtitle={loading
-		? '加载中…'
-		: `${album?.assetCount ?? items.length} 项 · 同步到「${album?.albumName ?? ''}」`}
+		? '加载中...'
+		: `${album?.assetCount ?? items.length} 项 - 同步到 "${album?.albumName ?? ''}"`}
 	back={selected.length === 0}
 >
 	{#snippet actions()}
@@ -221,8 +221,8 @@
 
 <ConfirmDialog
 	open={unlinkOpen}
-	title={`解除「${album?.name ?? ''}」的同步？`}
-	message="只会删掉本机的登记，云端文件与相册不受影响。"
+	title={`解除 "${album?.name ?? ''}" 的同步?`}
+	message="只会删掉本机的登记, 云端文件与相册不受影响."
 	confirmLabel="解除同步"
 	danger
 	onclose={() => (unlinkOpen = false)}

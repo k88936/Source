@@ -9,7 +9,7 @@
 		open = $bindable(false),
 		excludeId = '',
 		title = '移动到相册',
-		hint = 'Cloudreve 的相册就是文件夹，移动后文件会离开原目录。',
+		hint = 'Cloudreve 的相册就是文件夹, 移动后文件会离开原目录.',
 		onpick,
 	}: {
 		open?: boolean;

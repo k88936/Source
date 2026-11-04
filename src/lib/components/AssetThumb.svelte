@@ -88,7 +88,7 @@
 >
 	{#if visible && src && !loaded}
 		{#if placeholder}
-			<!-- 4×4 mosaic from the thumbnail, blurred: no grey flash on first paint. -->
+			<!-- 4x4 mosaic from the thumbnail, blurred: no grey flash on first paint. -->
 			<span
 				class="pointer-events-none absolute -inset-2 scale-110 blur-lg"
 				style:background-image={placeholder}

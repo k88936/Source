@@ -70,7 +70,7 @@
 	}
 </script>
 
-<svelte:head><title>登录 · Source</title></svelte:head>
+<svelte:head><title>登录 - Source</title></svelte:head>
 
 <div class="flex min-h-dvh flex-col justify-center bg-light px-6 py-12 text-dark">
 	<div class="mx-auto w-full max-w-sm">
@@ -79,7 +79,7 @@
 				<Icon name="cloud" size={28} />
 			</span>
 			<h1 class="mt-4 text-xl font-semibold">Source</h1>
-			<p class="mt-1 text-sm text-muted">用 Cloudreve 账号登录，浏览你的相册</p>
+			<p class="mt-1 text-sm text-muted">用 Cloudreve 账号登录, 浏览你的相册</p>
 		</div>
 
 		{#if step === 'credentials'}
@@ -116,7 +116,7 @@
 						bind:value={password}
 						type="password"
 						autocomplete="current-password"
-						placeholder="••••••••"
+						placeholder="********"
 						class="field"
 					/>
 				</label>
@@ -130,7 +130,7 @@
 					disabled={loading}
 					class="mt-1 flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
 				>
-					{loading ? '正在连接…' : '登录'}
+					{loading ? '正在连接...' : '登录'}
 				</button>
 			</form>
 		{:else}
@@ -161,7 +161,7 @@
 					disabled={loading}
 					class="flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
 				>
-					{loading ? '验证中…' : '验证并登录'}
+					{loading ? '验证中...' : '验证并登录'}
 				</button>
 				<button
 					type="button"
@@ -177,7 +177,7 @@
 		{/if}
 
 		<p class="mt-10 text-center text-[11px] leading-relaxed text-muted">
-			连接你的 Cloudreve 私有云 · 原图不会缓存在本机
+			连接你的 Cloudreve 私有云 - 原图不会缓存在本机
 		</p>
 	</div>
 </div>

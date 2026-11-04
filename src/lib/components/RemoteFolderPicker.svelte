@@ -101,7 +101,7 @@
 			<div class="flex items-center justify-between px-4 pb-2 pt-3">
 				<div class="min-w-0">
 					<h2 class="text-base font-semibold">添加相册</h2>
-					<p class="truncate text-xs text-muted">当前：{browse?.current.path ?? '/'}</p>
+					<p class="truncate text-xs text-muted">当前: {browse?.current.path ?? '/'}</p>
 				</div>
 				<div class="flex items-center gap-1">
 					<button
@@ -183,7 +183,7 @@
 					disabled={!browse || busy}
 					class="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
 				>
-					{browse ? `添加「${browse.current.name}」为相册` : '加载中'}
+					{browse ? `添加 "${browse.current.name}" 为相册` : '加载中'}
 				</button>
 			</div>
 		</div>

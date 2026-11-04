@@ -21,7 +21,7 @@ pub struct ExifData {
     pub height: Option<i32>,
 }
 
-/// `2024:03:01 12:34:56` — EXIF timestamps carry no timezone.
+/// `2024:03:01 12:34:56` - EXIF timestamps carry no timezone.
 const EXIF_DATETIME: &[BorrowedFormatItem<'static>] =
     format_description!("[year]:[month]:[day] [hour]:[minute]:[second]");
 

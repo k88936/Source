@@ -104,7 +104,7 @@ async fn run_one_upload(
                     },
                 );
                 if let Some(asset) = outcome.asset {
-                    // One tile, one album count bump — the UI patches instead
+                    // One tile, one album count bump - the UI patches instead
                     // of reloading the timeline.
                     let _ = app.emit(
                         "catalog://changed",

@@ -50,7 +50,7 @@
 				<dt class="text-muted">大小</dt>
 				<dd class="text-right">{(asset.size / 1024 / 1024).toFixed(1)} MB</dd>
 				<dt class="text-muted">尺寸</dt>
-				<dd class="text-right">{asset.width ?? '?'} × {asset.height ?? '?'}</dd>
+				<dd class="text-right">{asset.width ?? '?'} x {asset.height ?? '?'}</dd>
 				{#each detail?.exif ?? [] as field (field.key)}
 					<dt class="truncate text-muted" title={field.key}>
 						{field.label}

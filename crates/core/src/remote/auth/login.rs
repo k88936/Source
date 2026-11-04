@@ -47,7 +47,7 @@ impl CloudreveAuth {
         if data.requires_2fa.unwrap_or(false) || data.two_fa.unwrap_or(false) {
             let session_id = data
                 .session_id
-                .ok_or_else(|| AppError::internal("服务器要求 2FA，但没有返回会话 ID"))?;
+                .ok_or_else(|| AppError::internal("服务器要求 2FA, 但没有返回会话 ID"))?;
             return Ok(SignInOutcome::TwoFactorRequired { session_id });
         }
         Ok(SignInOutcome::SignedIn(

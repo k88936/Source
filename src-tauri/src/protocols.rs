@@ -106,7 +106,7 @@ fn thumb(app: AppHandle, id: String, responder: UriSchemeResponder) {
     });
 }
 
-/// `media://<route>/<value>` — the one transport for every file the UI shows.
+/// `media://<route>/<value>` - the one transport for every file the UI shows.
 /// Routes are `thumb` (catalog thumbnail), `original` (catalog file) and
 /// `local` (thumbnail of a file outside the catalog).
 pub(crate) fn media(
@@ -139,7 +139,7 @@ fn not_found() -> Response<Vec<u8>> {
     http_response(404, "text/plain", Vec::new(), None, "no-store")
 }
 
-/// `original` — the catalog file itself, with the webview's `Range` forwarded
+/// `original` - the catalog file itself, with the webview's `Range` forwarded
 /// to Cloudreve. `UriSchemeResponder` has no streaming form, so core caps one
 /// response at 8 MiB instead of buffering a whole video.
 fn original(app: AppHandle, id: String, range: Option<String>, responder: UriSchemeResponder) {
@@ -184,7 +184,7 @@ fn local_thumb_response(bytes: Vec<u8>) -> Response<Vec<u8>> {
     http_response(200, "image/jpeg", bytes, None, "public, max-age=86400")
 }
 
-/// `local` — thumbnails for files outside the Cloudreve catalog.
+/// `local` - thumbnails for files outside the Cloudreve catalog.
 ///
 /// Streaming the original bytes here read multi-megabyte photos (and whole
 /// videos) on the UI thread, which froze the window while a folder painted.

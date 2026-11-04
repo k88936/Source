@@ -48,7 +48,7 @@ pub(crate) fn isolate_home() {
 }
 
 /// Session tokens of a dev build live in `tmp/home`, next to the catalog, instead
-/// of the shared OS keychain — logging in here never disturbs a real session.
+/// of the shared OS keychain - logging in here never disturbs a real session.
 pub(crate) fn credential_store(app_data: &Path) -> Arc<dyn CredentialStore> {
     Arc::new(FileCredentialStore::new(app_data.join("credentials")))
 }

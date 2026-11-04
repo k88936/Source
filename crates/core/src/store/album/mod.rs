@@ -138,7 +138,7 @@ pub(crate) async fn album_list(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>,
         .await
         .map_err(db_err)?;
 
-    // The album tile shows a 2×2 mosaic, so each album needs up to four
+    // The album tile shows a 2x2 mosaic, so each album needs up to four
     // covers: the explicit one first, then the newest media. One indexed
     // `LIMIT 4` query per album stays cheap and keeps the statement plain DSL
     // (a correlated `ROW_NUMBER()` window would be the only alternative).

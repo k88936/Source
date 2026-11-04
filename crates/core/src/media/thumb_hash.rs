@@ -1,7 +1,7 @@
 //! Blur-up placeholder for grid tiles.
 //!
 //! Cloudreve only serves one thumbnail size, so the placeholder is derived from
-//! the JPEG the app already downloads: pixels are box-averaged into a 4×4 RGB
+//! the JPEG the app already downloads: pixels are box-averaged into a 4x4 RGB
 //! mosaic (48 bytes) and base64-encoded. The UI stretches that mosaic behind the
 //! real image and blurs it, which looks close to a thumbhash without a second
 //! request or an encoder on the server.
@@ -12,7 +12,7 @@ use base64::engine::general_purpose::STANDARD;
 /// Mosaic width and height in samples.
 const GRID: usize = 4;
 
-/// Build a base64 4×4 RGB mosaic from JPEG bytes.
+/// Build a base64 4x4 RGB mosaic from JPEG bytes.
 ///
 /// Returns `None` for anything that is not a decodable RGB/grayscale JPEG: a
 /// missing placeholder only costs the blur-up effect, never the tile itself.

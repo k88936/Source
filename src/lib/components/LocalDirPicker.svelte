@@ -104,7 +104,7 @@
 					disabled={!current()}
 					class="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
 				>
-					{current() ? `同步「${current()?.name}」` : '请先进入一个目录'}
+					{current() ? `同步 "${current()?.name}"` : '请先进入一个目录'}
 				</button>
 			</div>
 		</div>

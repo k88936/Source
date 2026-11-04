@@ -1,8 +1,8 @@
 //! The SQLite adapter: the store contracts and the diesel statements behind
 //! them, one module per family of rows.
 //!
-//! Each module owns one family — its payload types, its contract and the
-//! statements — so a use-case module names exactly the parts of the index it is
+//! Each module owns one family - its payload types, its contract and the
+//! statements - so a use-case module names exactly the parts of the index it is
 //! allowed to touch as bounds on its `impl` block. The shared glue (pool,
 //! pragmas, migrations, error mapping) lives in [`super::sqlite`].
 

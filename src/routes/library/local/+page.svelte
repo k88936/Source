@@ -51,7 +51,7 @@
 				albumId: album.id,
 			});
 			albums = [...albums.filter((row) => row.id !== created.id), created];
-			app.showToast(`「${created.name}」已同步到「${created.albumName}」`, 'success');
+			app.showToast(`"${created.name}" 已同步到 "${created.albumName}"`, 'success');
 		} catch (err) {
 			app.showToast(app.describeError(err), 'error');
 		} finally {
@@ -61,7 +61,7 @@
 	}
 </script>
 
-<svelte:head><title>本机相册 · Source</title></svelte:head>
+<svelte:head><title>本机相册 - Source</title></svelte:head>
 
 <TopBar title="本机相册" subtitle="同步本机目录到云端相册" back>
 	{#snippet actions()}
@@ -85,7 +85,7 @@
 	<EmptyState
 		icon="folder"
 		title="还没有同步的本机相册"
-		description="选一个本机目录，指向一个云端相册，它就出现在这里。"
+		description="选一个本机目录, 指向一个云端相册, 它就出现在这里."
 		actionLabel="同步本机相册"
 		onaction={() => (pickerOpen = true)}
 	/>
@@ -103,7 +103,7 @@
 					<div class="min-w-0 flex-1">
 						<p class="truncate text-sm font-semibold">{album.name}</p>
 						<p class="truncate text-xs text-muted">
-							{album.assetCount} 项 · 同步到「{album.albumName}」
+							{album.assetCount} 项 - 同步到 "{album.albumName}"
 						</p>
 					</div>
 					<Icon name="forward" size={18} class="text-muted" />
@@ -112,7 +112,7 @@
 		{/each}
 	</ul>
 	<p class="px-5 pb-24 text-[11px] text-muted">
-		自动同步尚未开启：登记只记录“这个目录归这个相册”，上传仍从相册里手动发起。
+		自动同步尚未开启: 登记只记录 "这个目录归这个相册", 上传仍从相册里手动发起.
 	</p>
 {/if}
 
@@ -120,6 +120,6 @@
 <AlbumPickerSheet
 	bind:open={targetOpen}
 	title="同步到哪个相册"
-	hint="只记录“这个本机目录归哪个相册”，不会移动或上传任何文件。"
+	hint="只记录这个本机目录归哪个相册, 不会移动或上传任何文件."
 	onpick={(album) => void register(album)}
 />

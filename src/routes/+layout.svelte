@@ -18,7 +18,7 @@
 		void app.init();
 		const onUnauthorized = () => {
 			app.account = null;
-			app.showToast('登录已过期，请重新登录', 'error');
+			app.showToast('登录已过期, 请重新登录', 'error');
 			void goto('/welcome');
 		};
 		window.addEventListener('album:unauthorized', onUnauthorized);
@@ -44,7 +44,7 @@
 					<path d="M7 18a4 4 0 0 1-.4-8A6 6 0 0 1 18 9.5 4.5 4.5 0 0 1 17.5 18Z" />
 				</svg>
 			</div>
-			<p class="text-sm text-muted">正在载入 Source…</p>
+			<p class="text-sm text-muted">正在载入 Source...</p>
 		</div>
 	</div>
 {:else}

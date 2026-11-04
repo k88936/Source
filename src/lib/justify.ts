@@ -1,7 +1,7 @@
 /**
  * Flickr-style justified rows: every row shares one height, tile widths follow
  * the real aspect ratios, so nothing is cropped. Tiles come back absolutely
- * positioned — the caller only needs the block height plus one box per item.
+ * positioned - the caller only needs the block height plus one box per item.
  *
  * The last, incomplete row keeps the target height instead of being stretched
  * across the full width, which is what makes a one-image day look sane.

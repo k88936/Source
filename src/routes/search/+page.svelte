@@ -167,7 +167,7 @@
 				albumId: album.id,
 			});
 			for (const asset of moved) timeline.upsert(asset);
-			app.showToast(`已移动 ${moved.length} 项到「${album.name}」`, 'success');
+			app.showToast(`已移动 ${moved.length} 项到 "${album.name}"`, 'success');
 			selection.exit();
 		} catch (err) {
 			app.showToast(app.describeError(err), 'error');
@@ -179,7 +179,7 @@
 	onMount(loadRecent);
 </script>
 
-<svelte:head><title>搜索 · Source</title></svelte:head>
+<svelte:head><title>搜索 - Source</title></svelte:head>
 
 <TopBar title={selection.active ? `已选择 ${selection.count} 项` : '搜索'}>
 	{#snippet actions()}
@@ -316,7 +316,7 @@
 	<EmptyState
 		icon="search"
 		title="没有找到匹配项"
-		description="试试文件名片段、日期范围或收藏筛选。"
+		description="试试文件名片段, 日期范围或收藏筛选."
 		actionLabel="清除筛选"
 		onaction={clearFilters}
 	/>
@@ -324,7 +324,7 @@
 	<EmptyState
 		icon="search"
 		title="搜索你的照片"
-		description="按文件名、拍摄日期或收藏状态查找。"
+		description="按文件名, 拍摄日期或收藏状态查找."
 	/>
 	{#if recent.length > 0}
 		<div class="mx-auto max-w-3xl px-4">
@@ -344,7 +344,7 @@
 {:else}
 	<div class="mt-3 flex items-center justify-between px-4 text-xs text-muted">
 		<span>{timeline.items.length}{timeline.next ? '+' : ''} 个结果</span>
-		{#if timeline.loading}<span>搜索中…</span>{/if}
+		{#if timeline.loading}<span>搜索中...</span>{/if}
 	</div>
 	<AssetGrid
 		items={timeline.items}

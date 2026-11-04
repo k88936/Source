@@ -43,7 +43,7 @@
 	}
 </script>
 
-<svelte:head><title>资料库 · Source</title></svelte:head>
+<svelte:head><title>资料库 - Source</title></svelte:head>
 
 <TopBar title="资料库" subtitle={app.account?.user.email ?? ''}>
 	{#snippet actions()}
@@ -72,7 +72,7 @@
 			<p class="truncate text-xs text-muted">
 				{localAlbums.length === 0
 					? '把一个本机目录同步到云端相册'
-					: `${localAlbums.length} 个已同步 · ${localAlbums.reduce((sum, album) => sum + album.assetCount, 0)} 张照片`}
+					: `${localAlbums.length} 个已同步 - ${localAlbums.reduce((sum, album) => sum + album.assetCount, 0)} 张照片`}
 			</p>
 		</div>
 		<Icon name="forward" size={18} class="text-muted" />

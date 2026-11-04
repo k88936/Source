@@ -20,12 +20,12 @@
 		confirmAction === 'logout'
 			? {
 					title: '退出登录',
-					message: '本地索引会保留，下次登录后可以继续使用。',
+					message: '本地索引会保留, 下次登录后可以继续使用.',
 					confirmLabel: '退出登录',
 				}
 			: {
 					title: '清除缓存',
-					message: '清除所有缩略图缓存？下次浏览会重新下载。',
+					message: '清除所有缩略图缓存? 下次浏览会重新下载.',
 					confirmLabel: '清除',
 				},
 	);
@@ -76,7 +76,7 @@
 	}
 </script>
 
-<svelte:head><title>设置 · Source</title></svelte:head>
+<svelte:head><title>设置 - Source</title></svelte:head>
 
 <TopBar title="设置" back />
 
@@ -112,7 +112,7 @@
 		<div class="flex items-center justify-between px-4 py-3">
 			<div>
 				<p class="text-sm font-medium">外观</p>
-				<p class="text-[11px] text-muted">跟随手动选择，默认深色</p>
+				<p class="text-[11px] text-muted">跟随手动选择, 默认深色</p>
 			</div>
 			<div class="flex rounded-lg bg-light p-0.5">
 				<button
@@ -135,7 +135,7 @@
 		<div class="flex items-center justify-between">
 			<div>
 				<p class="text-sm font-medium">缩略图缓存</p>
-				<p class="text-[11px] text-muted">仅缓存缩略图，原图从不写入本机</p>
+				<p class="text-[11px] text-muted">仅缓存缩略图, 原图从不写入本机</p>
 			</div>
 			<span class="text-xs font-medium text-muted">{formatBytes(cache?.thumbBytes ?? 0)}</span>
 		</div>
@@ -156,7 +156,7 @@
 			disabled={clearing}
 			class="mt-3 w-full rounded-xl border border-line py-2 text-xs font-medium text-danger transition-colors hover:bg-light disabled:opacity-50"
 		>
-			{clearing ? '清除中…' : '清除缓存'}
+			{clearing ? '清除中...' : '清除缓存'}
 		</button>
 	</section>
 
@@ -173,7 +173,7 @@
 	</section>
 
 	<p class="mt-4 text-center text-[11px] leading-relaxed text-muted">
-		原图始终留在 Cloudreve · 相册就是云端文件夹
+		原图始终留在 Cloudreve - 相册就是云端文件夹
 	</p>
 </div>
 

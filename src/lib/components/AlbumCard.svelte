@@ -14,7 +14,7 @@
 >
 	<div class="relative aspect-square overflow-hidden rounded-xl bg-gray">
 		{#if covers.length > 0}
-			<!-- 2×2 mosaic, like the reference app: one image reads as a single
+			<!-- 2x2 mosaic, like the reference app: one image reads as a single
 			     photo, four read as a collection. -->
 			<div class="grid size-full grid-cols-2 grid-rows-2 gap-[2px]">
 				{#each covers as cover, index (cover)}
@@ -43,6 +43,6 @@
 		<p class="line-clamp-2 text-base font-semibold transition-colors group-hover:text-primary">
 			{album.name}
 		</p>
-		<p class="mt-1 truncate text-xs text-muted">{album.assetCount} 项 · {album.path}</p>
+		<p class="mt-1 truncate text-xs text-muted">{album.assetCount} 项 - {album.path}</p>
 	</div>
 </a>

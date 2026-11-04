@@ -1,7 +1,7 @@
 //! Account: server selection, sign-in, 2FA and the account snapshot.
 //!
 //! The account row is the authority. It holds the server and the identity, so
-//! this service keeps no state of its own and every read is a query — that is
+//! this service keeps no state of its own and every read is a query - that is
 //! also why a restart, a logout or a second window all see the same account
 //! without anything being patched in between.
 
@@ -149,7 +149,7 @@ where
 
     pub async fn login_2fa(&self, session_id: &str, otp: &str) -> Result<AccountState, AppError> {
         let account = self
-            .current_account("登录会话已过期，请重新输入密码")
+            .current_account("登录会话已过期, 请重新输入密码")
             .await?;
         let signed_in = self
             .auth

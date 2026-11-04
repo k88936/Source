@@ -1,9 +1,9 @@
 /**
- * Blur-up placeholder for a tile, built from the 4×4 RGB mosaic the backend
+ * Blur-up placeholder for a tile, built from the 4x4 RGB mosaic the backend
  * stores in `AssetSummary.thumbHash` (base64, 48 bytes).
  *
  * The mosaic is expanded into a tiny inline SVG and stretched behind the real
- * image with a blur, which reads as a smooth gradient — close enough to a
+ * image with a blur, which reads as a smooth gradient - close enough to a
  * thumbhash without shipping a decoder to the webview.
  */
 
