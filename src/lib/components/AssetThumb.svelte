@@ -1,8 +1,11 @@
 <script lang="ts">
+	import type { MediaSourceParams } from '#lib/api/bindings/MediaSourceParams';
+	import { mediaSource } from '#lib/api/media';
+
 	import Icon from './Icon.svelte';
 
 	let {
-		src,
+		source,
 		name,
 		video = false,
 		durationMs = null,
@@ -16,7 +19,9 @@
 		onopen,
 		ontoggle,
 	}: {
-		src?: string;
+		/** Resolved only once the tile scrolls into view, so a long grid asks the
+		 * backend for addresses it is about to paint and nothing more. */
+		source?: MediaSourceParams;
 		name: string;
 		video?: boolean;
 		durationMs?: number | null;
@@ -35,6 +40,7 @@
 	let host: HTMLButtonElement | undefined = $state();
 	let loaded = $state(false);
 	let visible = $state(false);
+	let src = $state('');
 
 	$effect(() => {
 		if (!host || visible) return;
@@ -46,6 +52,17 @@
 		);
 		observer.observe(host);
 		return () => observer.disconnect();
+	});
+
+	$effect(() => {
+		if (!visible || !source) return;
+		let live = true;
+		void mediaSource(source).then((url) => {
+			if (live) src = url;
+		});
+		return () => {
+			live = false;
+		};
 	});
 
 	function formatDuration(ms: number | null): string {

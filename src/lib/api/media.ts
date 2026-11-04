@@ -1,13 +1,11 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import type { MediaSourceParams } from "./bindings/MediaSourceParams";
 
-export function thumbUrl(assetId: string): string {
-  return convertFileSrc(assetId, "thumb");
-}
+import { api } from "./client";
 
-export function mediaUrl(assetId: string): string {
-  return convertFileSrc(assetId, "media");
-}
-
-export function localThumb(asset: { id: string; uri: string }): string {
-  return convertFileSrc(asset.uri, "local");
+/** The single way to address a media file. The backend picks the transport —
+ * the `media` scheme on desktop, the alias Android intercepts, a signed server
+ * URL where the platform cannot play a custom scheme — so no component ever
+ * builds one of these addresses itself. */
+export function mediaSource(params: MediaSourceParams): Promise<string> {
+  return api.mediaSource(params);
 }

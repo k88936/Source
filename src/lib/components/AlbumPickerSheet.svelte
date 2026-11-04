@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { api } from '#lib/api/client';
 	import type { AlbumSummary } from '#lib/api/bindings/AlbumSummary';
-	import { thumbUrl } from '#lib/api/media';
 	import { app } from '#lib/state/app.svelte';
 	import Icon from './Icon.svelte';
+	import MediaImage from './MediaImage.svelte';
 
 	let {
 		open = $bindable(false),
@@ -102,8 +102,8 @@
 										class="size-10 shrink-0 overflow-hidden rounded-lg bg-gray"
 									>
 										{#if album.coverAssetIds[0]}
-											<img
-												src={thumbUrl(album.coverAssetIds[0])}
+											<MediaImage
+												source={{ kind: 'thumb', assetId: album.coverAssetIds[0] }}
 												alt=""
 												loading="lazy"
 												class="size-full object-cover"

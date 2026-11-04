@@ -9,7 +9,6 @@
 	import TopBar from '#lib/components/TopBar.svelte';
 	import UploadSheet from '#lib/components/UploadSheet.svelte';
 	import { formatBytes } from '#lib/format';
-	import { localThumb } from '#lib/api/media';
 	import { app } from '#lib/state/app.svelte';
 
 	const PAGE = 200;
@@ -180,7 +179,7 @@
 		{#each items as asset (asset.id)}
 			{@const video = asset.mime?.startsWith('video') ?? false}
 			<AssetThumb
-				src={localThumb(asset)}
+				source={{ kind: 'localThumb', uri: asset.uri }}
 				name={asset.name}
 				{video}
 				badge={formatBytes(asset.size)}

@@ -14,8 +14,8 @@ pub(crate) use source_core::app::albums::{
     SetAlbumDescriptionParams,
 };
 pub(crate) use source_core::app::browse::{
-    AssetDetail, AssetDetailParams, ExportAssetsParams, ExportResult, SearchParams,
-    SetFavoriteParams, TimelinePageParams,
+    AssetDetail, AssetDetailParams, ExportAssetsParams, ExportResult, MediaSourceParams,
+    SearchParams, SetFavoriteParams, TimelinePageParams,
 };
 pub(crate) use source_core::app::folders::{
     CreateFolderParams, ListRemoteFoldersParams, RemoteFolderPage,

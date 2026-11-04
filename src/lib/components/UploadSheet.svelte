@@ -3,7 +3,6 @@
 	import type { AlbumSummary } from '#lib/api/bindings/AlbumSummary';
 	import type { LocalAlbumSummary } from '#lib/api/bindings/LocalAlbumSummary';
 	import type { LocalAsset } from '#lib/api/bindings/LocalAsset';
-	import { localThumb } from '#lib/api/media';
 	import { app } from '#lib/state/app.svelte';
 	import AssetThumb from './AssetThumb.svelte';
 	import Icon from './Icon.svelte';
@@ -167,7 +166,7 @@
 						{#each assets as asset (asset.id)}
 							{@const video = asset.mime?.startsWith('video') ?? false}
 							<AssetThumb
-								src={localThumb(asset)}
+								source={{ kind: 'localThumb', uri: asset.uri }}
 								name={asset.name}
 								{video}
 								selectionMode

@@ -196,6 +196,10 @@ impl RemoteStorage for CloudreveStorage {
         self.get_range(&url, range).await
     }
 
+    async fn media_url(&self, uri: &str) -> Result<String, AppError> {
+        self.signed_media_url(uri).await
+    }
+
     async fn client_taken_at(&self, uri: &str) -> Result<Option<i64>, AppError> {
         let head = self.media_range(uri, Some("bytes=0-262143")).await?;
         if !head.is_success() {

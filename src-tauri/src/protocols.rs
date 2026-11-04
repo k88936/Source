@@ -1,4 +1,4 @@
-//! `thumb://`, `media://` and `local://` response handlers.
+//! The `media://` response handler and the addresses the webview loads by.
 
 use std::sync::Arc;
 
@@ -8,6 +8,21 @@ use tauri::http::{Response, StatusCode, header};
 use tauri::{AppHandle, Manager, UriSchemeResponder};
 
 use crate::state::AppState;
+
+/// How this platform spells the `media` scheme. Desktop webviews hand the
+/// custom scheme to us directly; Android reroutes the `http://media.localhost`
+/// alias through `shouldInterceptRequest`, so that is the only spelling a media
+/// element may use there.
+#[cfg(desktop)]
+const MEDIA_ORIGIN: &str = "media://localhost";
+#[cfg(mobile)]
+const MEDIA_ORIGIN: &str = "http://media.localhost";
+
+/// Address of one media route. `commands::catalog::media_source` is the only
+/// caller: no component builds a transport URL itself.
+pub(crate) fn media_address(route: &str, value: &str) -> String {
+    format!("{MEDIA_ORIGIN}/{route}/{}", urlencoding::encode(value))
+}
 
 pub(crate) fn http_response(
     status: u16,
@@ -49,14 +64,7 @@ pub(crate) fn error_response(error: &AppError) -> Response<Vec<u8>> {
     )
 }
 
-pub(crate) fn thumb(
-    app: AppHandle,
-    request: tauri::http::Request<Vec<u8>>,
-    responder: UriSchemeResponder,
-) {
-    let id = urlencoding::decode(request.uri().path().trim_start_matches('/'))
-        .map(|v| v.to_string())
-        .unwrap_or_default();
+fn thumb(app: AppHandle, id: String, responder: UriSchemeResponder) {
     tauri::async_runtime::spawn(async move {
         let (core, cache) = {
             let state = app.state::<AppState>();
@@ -98,12 +106,15 @@ pub(crate) fn thumb(
     });
 }
 
+/// `media://<route>/<value>` — the one transport for every file the UI shows.
+/// Routes are `thumb` (catalog thumbnail), `original` (catalog file) and
+/// `local` (thumbnail of a file outside the catalog).
 pub(crate) fn media(
     app: AppHandle,
     request: tauri::http::Request<Vec<u8>>,
     responder: UriSchemeResponder,
 ) {
-    let id = urlencoding::decode(request.uri().path().trim_start_matches('/'))
+    let path = urlencoding::decode(request.uri().path().trim_start_matches('/'))
         .map(|v| v.to_string())
         .unwrap_or_default();
     let range = request
@@ -111,6 +122,27 @@ pub(crate) fn media(
         .get(header::RANGE)
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
+    let Some((route, value)) = path.split_once('/') else {
+        responder.respond(not_found());
+        return;
+    };
+    let (route, value) = (route.to_owned(), value.to_owned());
+    match route.as_str() {
+        "thumb" => thumb(app, value, responder),
+        "original" => original(app, value, range, responder),
+        "local" => local_thumb(app, value, responder),
+        _ => responder.respond(not_found()),
+    }
+}
+
+fn not_found() -> Response<Vec<u8>> {
+    http_response(404, "text/plain", Vec::new(), None, "no-store")
+}
+
+/// `original` — the catalog file itself, with the webview's `Range` forwarded
+/// to Cloudreve. `UriSchemeResponder` has no streaming form, so core caps one
+/// response at 8 MiB instead of buffering a whole video.
+fn original(app: AppHandle, id: String, range: Option<String>, responder: UriSchemeResponder) {
     tauri::async_runtime::spawn(async move {
         let core = {
             let state = app.state::<AppState>();
@@ -152,41 +184,28 @@ fn local_thumb_response(bytes: Vec<u8>) -> Response<Vec<u8>> {
     http_response(200, "image/jpeg", bytes, None, "public, max-age=86400")
 }
 
-/// `local://` — thumbnails for files outside the Cloudreve catalog.
+/// `local` — thumbnails for files outside the Cloudreve catalog.
 ///
 /// Streaming the original bytes here read multi-megabyte photos (and whole
 /// videos) on the UI thread, which froze the window while a folder painted.
 /// This answers with a cached 512px JPEG built by the local media port, so the
 /// file itself is only ever read by the platform adapter.
-pub(crate) fn local_thumb(
-    app: AppHandle,
-    request: tauri::http::Request<Vec<u8>>,
-    responder: UriSchemeResponder,
-) {
-    let raw = urlencoding::decode(request.uri().path().trim_start_matches('/'))
-        .map(|v| v.to_string())
-        .unwrap_or_default();
-    let path = raw.strip_prefix("file://").unwrap_or(&raw).to_string();
+fn local_thumb(app: AppHandle, raw: String, responder: UriSchemeResponder) {
     tauri::async_runtime::spawn(async move {
+        let path = raw.strip_prefix("file://").unwrap_or(&raw);
         let (core, cache) = {
             let state = app.state::<AppState>();
             (Arc::clone(&state.core), Arc::clone(&state.cache))
         };
-        let Some(key) = local_thumb_key(&path) else {
-            responder.respond(http_response(
-                404,
-                "text/plain",
-                Vec::new(),
-                None,
-                "no-store",
-            ));
+        let Some(key) = local_thumb_key(path) else {
+            responder.respond(not_found());
             return;
         };
         if let Some(bytes) = cache.get(&key) {
             responder.respond(local_thumb_response(bytes));
             return;
         }
-        let source = path.clone();
+        let source = path.to_owned();
         let thumb = tauri::async_runtime::spawn_blocking(move || {
             core.browse.local_thumb(&source, LOCAL_THUMB_EDGE).ok()
         })

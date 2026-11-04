@@ -2,10 +2,11 @@
 	import { api } from '#lib/api/client';
 	import type { AssetDetail } from '#lib/api/bindings/AssetDetail';
 	import type { AssetSummary } from '#lib/api/bindings/AssetSummary';
-	import { mediaUrl, thumbUrl } from '#lib/api/media';
+	import { mediaSource } from '#lib/api/media';
 	import { app } from '#lib/state/app.svelte';
 	import AssetInfoSheet from './AssetInfoSheet.svelte';
 	import Icon from './Icon.svelte';
+	import MediaImage from './MediaImage.svelte';
 
 	let {
 		items,
@@ -21,6 +22,7 @@
 	let translateX = $state(0);
 	let translateY = $state(0);
 	let src = $state('');
+	let videoSrc = $state('');
 	let detail = $state<AssetDetail | null>(null);
 	let showInfo = $state(false);
 	let swipeX = $state(0);
@@ -37,20 +39,38 @@
 		translateY = 0;
 		detail = null;
 		showInfo = false;
-		src = thumbUrl(asset.id);
-		if (asset.mediaType === 'image') {
-			const full = new Image();
-			full.onload = () => {
-				if (items[index]?.id === asset.id) src = mediaUrl(asset.id);
-			};
-			full.src = mediaUrl(asset.id);
-		}
+		src = '';
+		videoSrc = '';
+		// Every address comes from the backend: it alone knows whether this
+		// platform plays a custom scheme or needs a signed server URL.
+		const full = asset.mediaType === 'video' ? 'video' : 'original';
+		let live = true;
+		void Promise.all([
+			mediaSource({ kind: 'thumb', assetId: asset.id }),
+			mediaSource({ kind: full, assetId: asset.id }),
+		]).then(([thumb, resolved]) => {
+			if (!live || items[index]?.id !== asset.id) return;
+			src = thumb;
+			videoSrc = resolved;
+			if (asset.mediaType === 'image') {
+				// The still replaces the thumbnail only once it decodes, so a slow
+				// download never blanks a frame that is already on screen.
+				const image = new Image();
+				image.onload = () => {
+					if (live && items[index]?.id === asset.id) src = resolved;
+				};
+				image.src = resolved;
+			}
+		});
 		void api
 			.assetDetail({ assetId: asset.id })
 			.then((value) => {
 				if (items[index]?.id === asset.id) detail = value;
 			})
 			.catch(() => {});
+		return () => {
+			live = false;
+		};
 	});
 
 	$effect(() => {
@@ -220,15 +240,17 @@
 	>
 		{#if current}
 			{#if isVideo}
-				<!-- svelte-ignore a11y_media_has_caption -->
-				<video
-					src={mediaUrl(current.id)}
-					controls
-					autoplay
-					playsinline
-					class="max-h-full max-w-full"
-				></video>
-			{:else}
+				{#if videoSrc}
+					<!-- svelte-ignore a11y_media_has_caption -->
+					<video
+						src={videoSrc}
+						controls
+						autoplay
+						playsinline
+						class="max-h-full max-w-full"
+					></video>
+				{/if}
+			{:else if src}
 				<img
 					{src}
 					alt={current.name}
@@ -267,7 +289,11 @@
 						: 'opacity-60'}"
 					aria-label={item.name}
 				>
-					<img src={thumbUrl(item.id)} alt="" class="size-full object-cover" />
+					<MediaImage
+						source={{ kind: 'thumb', assetId: item.id }}
+						alt=""
+						class="size-full object-cover"
+					/>
 					{#if item.mediaType === 'video'}
 						<span class="absolute inset-0 grid place-items-center bg-black/20">
 							<Icon name="play" size={14} />

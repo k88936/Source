@@ -1,6 +1,7 @@
 //! Timeline, album and asset commands.
 
 use crate::prelude::*;
+use crate::protocols::media_address;
 
 #[tauri::command]
 pub(crate) async fn timeline_page(
@@ -178,4 +179,34 @@ fn emit_albums(app: &AppHandle, albums: Vec<AlbumSummary>) {
             albums,
         },
     );
+}
+
+/// Every address a media element loads: thumbnails, full-size stills, video and
+/// files outside the catalog. The adapter owns the scheme, the route namespace
+/// and the platform differences, so no component builds a URL itself.
+#[tauri::command]
+pub(crate) async fn media_source(
+    state: State<'_, AppState>,
+    params: MediaSourceParams,
+) -> Result<String, AppError> {
+    match params {
+        MediaSourceParams::Thumb { asset_id } => Ok(media_address("thumb", &asset_id.0)),
+        MediaSourceParams::Original { asset_id } => Ok(media_address("original", &asset_id.0)),
+        MediaSourceParams::LocalThumb { uri } => Ok(media_address("local", &uri)),
+        MediaSourceParams::Video { asset_id } => video_address(&state, &asset_id.0).await,
+    }
+}
+
+/// WebKitGTK's media player only accepts `http(s)://`, so desktop plays the
+/// file from a signed server URL.
+#[cfg(desktop)]
+async fn video_address(state: &AppState, asset_id: &str) -> Result<String, AppError> {
+    state.core.browse.media_url(asset_id).await
+}
+
+/// Android's player is fine with the custom scheme, which the webview
+/// intercepts before it reaches the network stack.
+#[cfg(mobile)]
+async fn video_address(_state: &AppState, asset_id: &str) -> Result<String, AppError> {
+    Ok(media_address("original", asset_id))
 }

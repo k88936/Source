@@ -29,6 +29,32 @@ pub struct AssetDetailParams {
     pub asset_id: AssetId,
 }
 
+/// Which file a media element should load. The adapter turns it into an
+/// address; nothing else in the app spells a scheme or a URL suffix.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum MediaSourceParams {
+    /// Catalog thumbnail, a few hundred pixels wide.
+    Thumb { asset_id: AssetId },
+    /// Catalog original: the viewer's full-size still.
+    Original { asset_id: AssetId },
+    /// Catalog original played as media. Only the desktop adapter answers this
+    /// one differently, because its media stack rejects custom schemes.
+    Video { asset_id: AssetId },
+    /// Thumbnail of a file that is not in the catalog.
+    LocalThumb { uri: String },
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -147,7 +173,16 @@ where
         range: Option<&str>,
     ) -> Result<MediaRange, AppError> {
         let uri = self.asset_uri(asset_id).await?;
-        self.cloud.media_range(&uri, range).await
+        self.cloud
+            .media_range(&uri, bounded_range(range).as_deref())
+            .await
+    }
+
+    /// Signed server URL of the original file, for the viewports that cannot
+    /// play the `media` protocol themselves.
+    pub async fn media_url(&self, asset_id: &str) -> Result<String, AppError> {
+        let uri = self.asset_uri(asset_id).await?;
+        self.cloud.media_url(&uri).await
     }
 
     pub fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
@@ -222,5 +257,25 @@ where
 
     pub fn local_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
         self.local.thumb(id, edge)
+    }
+}
+
+/// Bytes served by one range response. The webview answers are buffered whole,
+/// so an open-ended `bytes=0-` would otherwise pull an entire video into memory.
+const MEDIA_RANGE_CHUNK: u64 = 8 * 1024 * 1024;
+
+/// Rewrites the open-ended `bytes=<start>-` the media players send into a
+/// bounded window. Explicit ranges, suffix ranges and requests without a range
+/// are forwarded untouched.
+fn bounded_range(range: Option<&str>) -> Option<String> {
+    let range = range?;
+    let open_start = range
+        .strip_prefix("bytes=")
+        .and_then(|spec| spec.split_once('-'))
+        .filter(|(start, end)| !start.is_empty() && end.is_empty())
+        .and_then(|(start, _)| start.parse::<u64>().ok());
+    match open_start {
+        Some(start) => Some(format!("bytes={start}-{}", start + MEDIA_RANGE_CHUNK - 1)),
+        None => Some(range.to_owned()),
     }
 }

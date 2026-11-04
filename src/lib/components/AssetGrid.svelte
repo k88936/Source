@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { AssetSummary } from '#lib/api/bindings/AssetSummary';
-	import { thumbUrl } from '#lib/api/media';
 	import { justify } from '#lib/justify';
 	import { mosaicBackground } from '#lib/mosaic';
 	import AssetThumb from './AssetThumb.svelte';
@@ -198,7 +197,7 @@
 						style:height="{box.height}px"
 					>
 						<AssetThumb
-							src={thumbUrl(asset.id)}
+							source={{ kind: 'thumb', assetId: asset.id }}
 							name={asset.name}
 							video={asset.mediaType === 'video'}
 							durationMs={asset.durationMs}

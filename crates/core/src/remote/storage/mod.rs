@@ -49,6 +49,11 @@ pub trait RemoteStorage: Send + Sync {
     /// sent it. `range=None` fetches the whole file.
     async fn media_range(&self, uri: &str, range: Option<&str>) -> Result<MediaRange, AppError>;
 
+    /// Signed URL of the original file, for playing it straight from the
+    /// server: WebKitGTK's media player rejects custom schemes, so desktop
+    /// cannot stream `<video>` through the `media` protocol.
+    async fn media_url(&self, uri: &str) -> Result<String, AppError>;
+
     /// Download just the head of a remote file and parse its EXIF timestamp.
     /// Used only when Cloudreve did not extract `exif:taken_at` server-side.
     async fn client_taken_at(&self, uri: &str) -> Result<Option<i64>, AppError>;

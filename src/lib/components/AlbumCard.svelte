@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AlbumSummary } from '#lib/api/bindings/AlbumSummary';
-	import { thumbUrl } from '#lib/api/media';
 	import Icon from './Icon.svelte';
+	import MediaImage from './MediaImage.svelte';
 
 	let { album }: { album: AlbumSummary } = $props();
 
@@ -18,8 +18,8 @@
 			     photo, four read as a collection. -->
 			<div class="grid size-full grid-cols-2 grid-rows-2 gap-[2px]">
 				{#each covers as cover, index (cover)}
-					<img
-						src={thumbUrl(cover)}
+					<MediaImage
+						source={{ kind: 'thumb', assetId: cover }}
 						alt=""
 						loading="lazy"
 						decoding="async"

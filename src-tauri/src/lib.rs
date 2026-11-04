@@ -1,5 +1,5 @@
-//! Thin Tauri adapter: argument/error mapping, events, and the `thumb://` /
-//! `media://` protocols. Business rules live in `source-core`.
+//! Thin Tauri adapter: argument/error mapping, events, and the `media://`
+//! protocol. Business rules live in `source-core`.
 
 mod bootstrap;
 mod commands;
@@ -31,14 +31,8 @@ pub fn run() {
     };
 
     builder
-        .register_asynchronous_uri_scheme_protocol("thumb", |ctx, request, responder| {
-            protocols::thumb(ctx.app_handle().clone(), request, responder);
-        })
         .register_asynchronous_uri_scheme_protocol("media", |ctx, request, responder| {
             protocols::media(ctx.app_handle().clone(), request, responder);
-        })
-        .register_asynchronous_uri_scheme_protocol("local", |ctx, request, responder| {
-            protocols::local_thumb(ctx.app_handle().clone(), request, responder);
         })
         .setup(|app| {
             bootstrap::setup(app)?;
@@ -65,6 +59,7 @@ pub fn run() {
             commands::catalog::album_refresh,
             commands::catalog::album_refresh_all,
             commands::catalog::asset_detail,
+            commands::catalog::media_source,
             commands::catalog::search_assets,
             commands::catalog::set_favorite,
             commands::catalog::set_album_cover,

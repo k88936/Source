@@ -25,6 +25,7 @@ import type { Login2faParams } from "./bindings/Login2faParams";
 import type { LoginOutcome } from "./bindings/LoginOutcome";
 import type { LoginParams } from "./bindings/LoginParams";
 import type { MediaPermissionState } from "./bindings/MediaPermissionState";
+import type { MediaSourceParams } from "./bindings/MediaSourceParams";
 import type { MoveAssetsParams } from "./bindings/MoveAssetsParams";
 import type { RemoteFolderPage } from "./bindings/RemoteFolderPage";
 import type { SearchParams } from "./bindings/SearchParams";
@@ -94,6 +95,8 @@ export const api = {
   refreshAllAlbums: () => call<AlbumSummary[]>("album_refresh_all"),
   assetDetail: (params: AssetDetailParams) =>
     call<AssetDetail>("asset_detail", params),
+  mediaSource: (params: MediaSourceParams) =>
+    call<string>("media_source", params),
   searchAssets: (params: SearchParams) =>
     call<TimelinePage>("search_assets", params),
   setFavorite: (params: SetFavoriteParams) =>
