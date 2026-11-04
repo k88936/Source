@@ -5,6 +5,7 @@
 	import type { LocalAlbumSummary } from '#lib/api/bindings/LocalAlbumSummary';
 	import type { LocalAsset } from '#lib/api/bindings/LocalAsset';
 	import AssetThumb from '#lib/components/AssetThumb.svelte';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import TopBar from '#lib/components/TopBar.svelte';
 	import UploadSheet from '#lib/components/UploadSheet.svelte';
@@ -21,6 +22,7 @@
 	let sentinel: HTMLDivElement | undefined = $state();
 	let selected = $state<string[]>([]);
 	let uploadOpen = $state(false);
+	let unlinkOpen = $state(false);
 	// Uploads pick their target every time: the mapping records intent, it does
 	// not drive the queue yet.
 	let initialDest = $state('');
@@ -105,10 +107,7 @@
 	/// is untouched.
 	async function unlink() {
 		if (!album) return;
-		const ok = window.confirm(
-			`解除「${album.name}」的同步？\n\n只会删掉本机的登记，云端文件与相册不受影响。`,
-		);
-		if (!ok) return;
+		unlinkOpen = false;
 		try {
 			await api.removeLocalAlbum({ id: album.id });
 			app.showToast('已解除同步', 'success');
@@ -141,7 +140,7 @@
 			</button>
 		{:else}
 			<button
-				onclick={() => void unlink()}
+				onclick={() => (unlinkOpen = true)}
 				class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
 				aria-label="解除同步"
 			>
@@ -218,4 +217,14 @@
 	bind:initialDest
 	initialSelection={selected}
 	onuploaded={uploaded}
+/>
+
+<ConfirmDialog
+	open={unlinkOpen}
+	title={`解除「${album?.name ?? ''}」的同步？`}
+	message="只会删掉本机的登记，云端文件与相册不受影响。"
+	confirmLabel="解除同步"
+	danger
+	onclose={() => (unlinkOpen = false)}
+	onconfirm={() => void unlink()}
 />

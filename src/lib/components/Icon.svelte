@@ -23,6 +23,7 @@
 		| 'video'
 		| 'logout'
 		| 'trash'
+		| 'alert'
 		| 'info'
 		| 'grid'
 		| 'select'
@@ -63,6 +64,7 @@
 		video: 'M3 6h13v12H3z M16 10l5-3v10l-5-3',
 		logout: 'M9 4H4v16h5 M14 8l4 4-4 4 M8 12h10',
 		trash: 'M4 7h16 M9 7V4h6v3 M6 7l1 14h10l1-14',
+		alert: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M12 7v6 M12 17h.01',
 		info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M12 10v6 M12 7h.01',
 		grid: 'M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z',
 		select: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z',

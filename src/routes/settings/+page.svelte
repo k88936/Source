@@ -4,6 +4,7 @@
 	import { api } from '#lib/api/client';
 	import type { AppInfo } from '#lib/api/bindings/AppInfo';
 	import type { CacheStats } from '#lib/api/bindings/CacheStats';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import TopBar from '#lib/components/TopBar.svelte';
 	import { formatBytes } from '#lib/format';
@@ -13,6 +14,21 @@
 	let info = $state<AppInfo | null>(null);
 	let theme = $state<'dark' | 'light'>('dark');
 	let clearing = $state(false);
+	let confirmAction = $state<'clearCache' | 'logout' | null>(null);
+
+	const confirmCopy = $derived(
+		confirmAction === 'logout'
+			? {
+					title: '退出登录',
+					message: '本地索引会保留，下次登录后可以继续使用。',
+					confirmLabel: '退出登录',
+				}
+			: {
+					title: '清除缓存',
+					message: '清除所有缩略图缓存？下次浏览会重新下载。',
+					confirmLabel: '清除',
+				},
+	);
 
 	onMount(() => {
 		void load();
@@ -28,7 +44,6 @@
 	}
 
 	async function clearCache() {
-		if (!confirm('清除所有缩略图缓存？下次浏览会重新下载。')) return;
 		clearing = true;
 		try {
 			await api.clearCache();
@@ -49,9 +64,15 @@
 	}
 
 	async function logout() {
-		if (!confirm('退出当前 Cloudreve 账号？本地索引会保留。')) return;
 		await app.logout();
 		await goto('/welcome');
+	}
+
+	async function runConfirm() {
+		const action = confirmAction;
+		confirmAction = null;
+		if (action === 'clearCache') await clearCache();
+		if (action === 'logout') await logout();
 	}
 </script>
 
@@ -79,7 +100,7 @@
 				刷新状态
 			</button>
 			<button
-				onclick={() => void logout()}
+				onclick={() => (confirmAction = 'logout')}
 				class="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-danger transition-colors hover:bg-danger/10"
 			>
 				<Icon name="logout" size={15} /> 退出登录
@@ -131,7 +152,7 @@
 			<span>上限 {formatBytes(cache?.budgetBytes ?? 512 * 1024 * 1024)}</span>
 		</div>
 		<button
-			onclick={() => void clearCache()}
+			onclick={() => (confirmAction = 'clearCache')}
 			disabled={clearing}
 			class="mt-3 w-full rounded-xl border border-line py-2 text-xs font-medium text-danger transition-colors hover:bg-light disabled:opacity-50"
 		>
@@ -155,3 +176,13 @@
 		原图始终留在 Cloudreve · 相册就是云端文件夹
 	</p>
 </div>
+
+<ConfirmDialog
+	open={confirmAction !== null}
+	title={confirmCopy.title}
+	message={confirmCopy.message}
+	confirmLabel={confirmCopy.confirmLabel}
+	danger
+	onclose={() => (confirmAction = null)}
+	onconfirm={() => void runConfirm()}
+/>

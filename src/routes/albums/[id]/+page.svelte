@@ -7,6 +7,7 @@
 	import AlbumMenu from '#lib/components/AlbumMenu.svelte';
 	import AlbumPickerSheet from '#lib/components/AlbumPickerSheet.svelte';
 	import AssetGrid from '#lib/components/AssetGrid.svelte';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import DescriptionDialog from '#lib/components/DescriptionDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Icon from '#lib/components/Icon.svelte';
@@ -27,6 +28,7 @@
 	let album = $state<AlbumSummary | null>(null);
 	let metaError = $state('');
 	let menuOpen = $state(false);
+	let removeOpen = $state(false);
 	let coverMode = $state(false);
 	let viewerOpen = $state(false);
 	let viewerIndex = $state(0);
@@ -95,10 +97,7 @@
 
 	async function remove() {
 		if (!album) return;
-		const ok = window.confirm(
-			`移除相册「${album.name}」？\n\n只会删掉本机的登记与索引，云端文件夹与文件不受影响。同步到这个相册的本机相册也会一起移除。`,
-		);
-		if (!ok) return;
+		removeOpen = false;
 		try {
 			await api.removeAlbum({ albumId: album.id });
 			app.showToast('相册已移除', 'success');
@@ -263,7 +262,7 @@
 				disabled={refreshing}>重试</button
 			>
 			<button
-				onclick={() => void remove()}
+				onclick={() => (removeOpen = true)}
 				class="rounded-lg border border-line px-3 py-1.5 text-xs text-muted hover:bg-gray"
 				>移除相册</button
 			>
@@ -340,7 +339,17 @@
 	oncover={() => (coverMode = true)}
 	ondescription={() => (descriptionOpen = true)}
 	onselect={() => selection.start()}
-	onremove={() => void remove()}
+	onremove={() => (removeOpen = true)}
+/>
+
+<ConfirmDialog
+	open={removeOpen}
+	title={`移除「${album?.name ?? ''}」？`}
+	message="只会删掉本机的登记与索引，云端文件夹与文件不受影响。同步到这个相册的本机相册也会一起移除。"
+	confirmLabel="移除"
+	danger
+	onclose={() => (removeOpen = false)}
+	onconfirm={() => void remove()}
 />
 
 <DescriptionDialog
