@@ -4,14 +4,14 @@
  * One directory the user can add as a local album.
  */
 export type LocalEntry = {
-  /**
-   * What the adapter calls this directory; the registered album keeps it.
-   */
-  uri: string;
-  name: string;
-  /**
-   * Where the directory sits, for platforms whose names collide
-   * (`DCIM/Camera` on Android). The desktop name is the last component.
-   */
-  path: string | null;
+    /**
+     * What the adapter calls this directory; the registered album keeps it.
+     */
+    uri: string;
+    name: string;
+    /**
+     * Where the directory sits, for platforms whose names collide
+     * (`DCIM/Camera` on Android). The desktop name is the last component.
+     */
+    path: string | null;
 };

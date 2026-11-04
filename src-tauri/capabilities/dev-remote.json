@@ -1,15 +1,10 @@
 {
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "dev-remote",
-  "description": "Dev builds load the Vite server, whose port moves, so the page counts as a remote origin",
-  "windows": ["main"],
-  "remote": {
-    "urls": ["http://localhost:*/*", "http://127.0.0.1:*/*"]
-  },
-  "permissions": [
-    "core:default",
-    "opener:default",
-    "playwright:default",
-    "app-commands"
-  ]
+    "$schema": "../gen/schemas/desktop-schema.json",
+    "identifier": "dev-remote",
+    "description": "Dev builds load the Vite server, whose port moves, so the page counts as a remote origin",
+    "windows": ["main"],
+    "remote": {
+        "urls": ["http://localhost:*/*", "http://127.0.0.1:*/*"]
+    },
+    "permissions": ["core:default", "opener:default", "playwright:default", "app-commands"]
 }

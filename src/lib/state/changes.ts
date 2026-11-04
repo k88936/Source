@@ -1,4 +1,4 @@
-import type { CatalogChangedEvent } from "#lib/api/bindings/CatalogChangedEvent";
+import type {CatalogChangedEvent} from '#lib/api/bindings/CatalogChangedEvent';
 
 export type ChangeListener = (change: CatalogChangedEvent) => void;
 
@@ -10,18 +10,18 @@ export type ChangeListener = (change: CatalogChangedEvent) => void;
  * finished index pass asks everything to refetch.
  */
 export class ChangeBus {
-  private listeners = new Set<ChangeListener>();
+    private listeners = new Set<ChangeListener>();
 
-  subscribe(listener: ChangeListener): () => void {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  }
+    subscribe(listener: ChangeListener): () => void {
+        this.listeners.add(listener);
+        return () => {
+            this.listeners.delete(listener);
+        };
+    }
 
-  emit(change: CatalogChangedEvent): void {
-    for (const listener of [...this.listeners]) listener(change);
-  }
+    emit(change: CatalogChangedEvent): void {
+        for (const listener of [...this.listeners]) listener(change);
+    }
 }
 
 export const changes = new ChangeBus();

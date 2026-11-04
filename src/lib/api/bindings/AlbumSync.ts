@@ -8,7 +8,7 @@
  * the album stays visible and the user can point it at another folder.
  */
 export type AlbumSync = {
-  failed: boolean;
-  error: string | null;
-  listedAt: number | null;
+    failed: boolean;
+    error: string | null;
+    listedAt: number | null;
 };

@@ -1,0 +1,13 @@
+# build outputs and generated code
+dist
+build
+target
+.svelte-kit
+tmp
+src-tauri/gen
+
+# package manager lock
+pnpm-lock.yaml
+
+# docs are hand-maintained
+*.md

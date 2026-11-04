@@ -1,7 +1,7 @@
 {
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "dev",
-  "description": "Dev builds call the simulated CDP endpoint and may load the frontend from a moved Vite port, which Tauri treats as a remote origin",
-  "windows": ["main"],
-  "permissions": ["app-commands", "playwright:default"]
+    "$schema": "../gen/schemas/desktop-schema.json",
+    "identifier": "dev",
+    "description": "Dev builds call the simulated CDP endpoint and may load the frontend from a moved Vite port, which Tauri treats as a remote origin",
+    "windows": ["main"],
+    "permissions": ["app-commands", "playwright:default"]
 }

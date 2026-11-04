@@ -3,4 +3,4 @@
 /**
  * What `app_info` reports about the running build.
  */
-export type AppInfo = { name: string; version: string; platform: string };
+export type AppInfo = {name: string; version: string; platform: string};
