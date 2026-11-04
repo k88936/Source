@@ -8,6 +8,7 @@
     import AssetGrid from '#lib/components/AssetGrid.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
     import Icon from '#lib/components/Icon.svelte';
+    import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import Viewer from '#lib/components/Viewer.svelte';
@@ -180,12 +181,7 @@
 <TopBar title={selection.active ? `已选择 ${selection.count} 项` : '搜索'}>
     {#snippet actions()}
         {#if selection.active}
-            <button
-                onclick={() => selection.toggleAll(timeline.items.map((item) => item.id))}
-                class="rounded-lg px-3 py-2 text-xs font-medium text-primary"
-            >
-                {selection.count === timeline.items.length ? '取消全选' : '全选'}
-            </button>
+            <SelectAllButton {selection} ids={timeline.items.map((item) => item.id)} />
             <button
                 onclick={() => selection.exit()}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"

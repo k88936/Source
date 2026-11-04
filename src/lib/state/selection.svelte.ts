@@ -25,9 +25,14 @@ export class Selection {
         this.ids = this.ids.includes(id) ? this.ids.filter((item) => item !== id) : [...this.ids, id];
     }
 
+    /** True when `all` is not empty and every id in it is selected. */
+    allSelected(all: string[]): boolean {
+        return all.length > 0 && all.every((id) => this.ids.includes(id));
+    }
+
     /** Toggle every id in `all`: if all are selected, clear; otherwise select all. */
     toggleAll(all: string[]): void {
-        this.ids = all.every((id) => this.ids.includes(id)) ? [] : [...all];
+        this.ids = this.allSelected(all) ? [] : [...all];
     }
 
     clear(): void {
