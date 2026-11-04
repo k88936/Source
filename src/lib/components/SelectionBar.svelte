@@ -1,5 +1,5 @@
 <script lang="ts">
-    import Icon from './Icon.svelte';
+    import {Download, Images} from '@lucide/svelte';
 
     let {
         count,
@@ -30,7 +30,7 @@
                     disabled={isBusy || count === 0}
                     class="flex items-center gap-1.5 rounded-xl border border-line px-4 py-2 text-sm font-medium text-dark transition-colors hover:bg-gray disabled:opacity-40"
                 >
-                    <Icon name="albums" size={16} />
+                    <Images size={16} />
                     移动到相册
                 </button>
             {/if}
@@ -40,7 +40,7 @@
                     disabled={isBusy || count === 0}
                     class="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
-                    <Icon name="download" size={17} />
+                    <Download size={17} />
                     下载
                 </button>
             {/if}

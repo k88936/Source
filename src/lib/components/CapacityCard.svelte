@@ -2,7 +2,7 @@
     import {onMount} from 'svelte';
     import {api} from '#lib/api/client';
     import type {Capacity} from '#lib/api/bindings/Capacity';
-    import Icon from './Icon.svelte';
+    import {Settings} from '@lucide/svelte';
     import {formatBytes} from '#lib/format';
     import {app} from '#lib/state/app.svelte';
 
@@ -37,7 +37,7 @@
                 {app.account?.siteName ?? app.account?.server}
             </p>
         </div>
-        <Icon name="settings" size={19} class="text-muted" />
+        <Settings size={19} class="text-muted" />
     </div>
 
     <div class="mt-4">

@@ -5,7 +5,7 @@
     import type {AppInfo} from '#lib/api/bindings/AppInfo';
     import type {CacheStats} from '#lib/api/bindings/CacheStats';
     import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
-    import Icon from '#lib/components/Icon.svelte';
+    import {LogOut} from '@lucide/svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import {formatBytes} from '#lib/format';
     import {app} from '#lib/state/app.svelte';
@@ -103,7 +103,7 @@
                 onclick={() => (confirmAction = 'logout')}
                 class="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-danger transition-colors hover:bg-danger/10"
             >
-                <Icon name="logout" size={15} /> 退出登录
+                <LogOut size={15} /> 退出登录
             </button>
         </div>
     </section>

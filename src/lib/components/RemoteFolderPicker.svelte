@@ -3,7 +3,7 @@
     import type {FolderRef} from '#lib/api/bindings/FolderRef';
     import type {RemoteFolderPage} from '#lib/api/bindings/RemoteFolderPage';
     import {app} from '#lib/state/app.svelte';
-    import Icon from './Icon.svelte';
+    import {ChevronLeft, ChevronRight, Folder, X} from '@lucide/svelte';
 
     /// Browses the remote folder tree and hands back the folder the user settled
     /// on. A folder is an album, so the button reads "add this folder".
@@ -104,14 +104,14 @@
                         class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
                         aria-label="新建文件夹"
                     >
-                        <Icon name="folder" size={18} />
+                        <Folder size={18} />
                     </button>
                     <button
                         onclick={() => (open = false)}
                         class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
                         aria-label="关闭"
                     >
-                        <Icon name="close" size={18} />
+                        <X size={18} />
                     </button>
                 </div>
             </div>
@@ -145,7 +145,7 @@
                         onclick={up}
                         class="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
                     >
-                        <Icon name="back" size={18} class="text-muted" /> 上一级
+                        <ChevronLeft size={18} class="text-muted" /> 上一级
                     </button>
                 {/if}
                 {#if loading}
@@ -162,9 +162,9 @@
                             onclick={() => enter(folder)}
                             class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
                         >
-                            <Icon name="folder" size={20} class="text-amber-500" />
+                            <Folder size={20} class="text-amber-500" />
                             <span class="min-w-0 flex-1 truncate">{folder.name}</span>
-                            <Icon name="forward" size={15} class="text-muted" />
+                            <ChevronRight size={15} class="text-muted" />
                         </button>
                     {/each}
                 {/if}

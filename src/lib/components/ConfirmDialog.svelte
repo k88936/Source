@@ -1,5 +1,5 @@
 <script lang="ts">
-    import Icon from './Icon.svelte';
+    import {CircleAlert, Info} from '@lucide/svelte';
 
     let {
         open,
@@ -38,7 +38,11 @@
                     ? 'bg-danger/10 text-danger'
                     : 'bg-primary/10 text-primary'}"
             >
-                <Icon name={danger ? 'alert' : 'info'} size={20} />
+                {#if danger}
+                    <CircleAlert size={20} />
+                {:else}
+                    <Info size={20} />
+                {/if}
             </span>
             <h2 class="mt-3 text-base font-semibold">{title}</h2>
             <p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-muted">{message}</p>

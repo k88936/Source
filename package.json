@@ -17,7 +17,7 @@
     },
     "dependencies": {
         "@immich/ui": "0.91.1",
-        "@mdi/js": "7.4.47",
+        "@lucide/svelte": "1.68.0",
         "@tauri-apps/api": "^2.9.0",
         "@tauri-apps/plugin-opener": "^2.5.0",
         "svelte": "5.57.3"

@@ -2,7 +2,7 @@
     import {api} from '#lib/api/client';
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import {app} from '#lib/state/app.svelte';
-    import Icon from './Icon.svelte';
+    import {X} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
 
     let {
@@ -65,7 +65,7 @@
             <div class="mb-2 flex items-center justify-between">
                 <h2 class="text-base font-semibold">{title}</h2>
                 <button onclick={() => (open = false)} class="rounded-full p-2 hover:bg-gray" aria-label="关闭">
-                    <Icon name="close" size={20} />
+                    <X size={20} />
                 </button>
             </div>
             <p class="mb-3 text-xs text-muted">{hint}</p>

@@ -5,7 +5,7 @@
     import type {FolderRef} from '#lib/api/bindings/FolderRef';
     import AlbumCard from '#lib/components/AlbumCard.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
-    import Icon from '#lib/components/Icon.svelte';
+    import {Images, Plus, RefreshCw, WifiOff} from '@lucide/svelte';
     import RemoteFolderPicker from '#lib/components/RemoteFolderPicker.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import {app} from '#lib/state/app.svelte';
@@ -78,7 +78,7 @@
             {#if refreshing}
                 <div class="size-4 animate-spin rounded-full border-2 border-line border-t-primary"></div>
             {:else}
-                <Icon name="sync" size={20} />
+                <RefreshCw size={20} />
             {/if}
         </button>
         <button
@@ -86,7 +86,7 @@
             class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
             aria-label="添加相册"
         >
-            <Icon name="albums" size={22} />
+            <Plus size={22} />
         </button>
     {/snippet}
 </TopBar>
@@ -99,14 +99,14 @@
     </div>
 {:else if error}
     <EmptyState
-        icon="wifi-off"
+        icon={WifiOff}
         title="无法加载相册"
         description={error}
         actionLabel="重试"
         onAction={() => void load()}
     />
 {:else if albums.length === 0}
-    <EmptyState icon="albums" title="还没有相册" actionLabel="添加相册" onAction={() => (pickerOpen = true)} />
+    <EmptyState icon={Images} title="还没有相册" actionLabel="添加相册" onAction={() => (pickerOpen = true)} />
 {:else}
     <div class="px-4 pb-24 pt-2">
         <p class="mb-2 px-1 text-xs text-muted">相册就是云端的一个文件夹 - 只收录它直接包含的照片与视频</p>

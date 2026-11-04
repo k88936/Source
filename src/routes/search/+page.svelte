@@ -7,7 +7,7 @@
     import AlbumPickerSheet from '#lib/components/AlbumPickerSheet.svelte';
     import AssetGrid from '#lib/components/AssetGrid.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
-    import Icon from '#lib/components/Icon.svelte';
+    import {Heart, Image, Search, SquareDashed, Video, WifiOff, X} from '@lucide/svelte';
     import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
@@ -187,7 +187,7 @@
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
                 aria-label="取消"
             >
-                <Icon name="close" size={21} />
+                <X size={21} />
             </button>
         {:else if timeline.items.length > 0}
             <button
@@ -195,7 +195,7 @@
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
                 aria-label="选择"
             >
-                <Icon name="select" size={20} />
+                <SquareDashed size={20} />
             </button>
         {/if}
     {/snippet}
@@ -204,7 +204,7 @@
 <div class="mx-auto max-w-3xl px-4 pt-2">
     <div class="relative">
         <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-            <Icon name="search" size={19} />
+            <Search size={19} />
         </span>
         <input bind:value={query} type="search" placeholder="按文件名搜索" class="field h-11 pl-10 pr-10" />
         {#if query}
@@ -213,7 +213,7 @@
                 class="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full bg-light text-muted hover:text-dark"
                 aria-label="清空"
             >
-                <Icon name="close" size={14} />
+                <X size={14} />
             </button>
         {/if}
     </div>
@@ -233,7 +233,7 @@
                 ? 'bg-primary text-on-primary'
                 : 'bg-gray text-muted hover:text-dark'}"
         >
-            <Icon name="image" size={13} class="mr-1 inline" />图片
+            <Image size={13} class="mr-1 inline" />图片
         </button>
         <button
             onclick={() => (mediaType = 'video')}
@@ -241,7 +241,7 @@
                 ? 'bg-primary text-on-primary'
                 : 'bg-gray text-muted hover:text-dark'}"
         >
-            <Icon name="video" size={13} class="mr-1 inline" />视频
+            <Video size={13} class="mr-1 inline" />视频
         </button>
         <button
             onclick={() => (favorite = !favorite)}
@@ -249,7 +249,7 @@
                 ? 'bg-primary text-on-primary'
                 : 'bg-gray text-muted hover:text-dark'}"
         >
-            <Icon name="heart" size={13} class="mr-1 inline" />收藏
+            <Heart size={13} class="mr-1 inline" />收藏
         </button>
     </div>
 
@@ -270,7 +270,7 @@
 
 {#if timeline.error}
     <EmptyState
-        icon="wifi-off"
+        icon={WifiOff}
         title="搜索失败"
         description={timeline.error}
         actionLabel="重试"
@@ -282,14 +282,14 @@
     </div>
 {:else if searched && timeline.items.length === 0}
     <EmptyState
-        icon="search"
+        icon={Search}
         title="没有找到匹配项"
         description="试试文件名片段, 日期范围或收藏筛选."
         actionLabel="清除筛选"
         onAction={clearFilters}
     />
 {:else if !searched}
-    <EmptyState icon="search" title="搜索你的照片" description="按文件名, 拍摄日期或收藏状态查找." />
+    <EmptyState icon={Search} title="搜索你的照片" description="按文件名, 拍摄日期或收藏状态查找." />
     {#if recent.length > 0}
         <div class="mx-auto max-w-3xl px-4">
             <p class="mb-2 px-1 text-xs font-medium text-muted">最近搜索</p>

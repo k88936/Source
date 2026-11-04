@@ -1,6 +1,6 @@
 <script lang="ts">
     import type {Snippet} from 'svelte';
-    import Icon from './Icon.svelte';
+    import {ChevronLeft} from '@lucide/svelte';
 
     let {
         title,
@@ -34,7 +34,7 @@
                 class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
                 aria-label="返回"
             >
-                <Icon name="back" size={22} />
+                <ChevronLeft size={22} />
             </button>
         {/if}
         <div class="flex min-w-0 flex-1 items-baseline gap-2">

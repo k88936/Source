@@ -1,7 +1,7 @@
 <script lang="ts">
     import type {AssetDetail} from '#lib/api/bindings/AssetDetail';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
-    import Icon from './Icon.svelte';
+    import {X} from '@lucide/svelte';
 
     let {
         open = $bindable(false),
@@ -38,7 +38,7 @@
                 onclick={() => (open = false)}
                 aria-label="关闭信息"
             >
-                <Icon name="close" size={18} />
+                <X size={18} />
             </button>
         </div>
         {#if asset}

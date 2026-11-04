@@ -2,7 +2,7 @@
     import {goto} from '$app/navigation';
     import {api} from '#lib/api/client';
     import type {AccountState} from '#lib/api/bindings/AccountState';
-    import Icon from '#lib/components/Icon.svelte';
+    import {Cloud} from '@lucide/svelte';
     import {app} from '#lib/state/app.svelte';
 
     let server = $state((typeof localStorage !== 'undefined' && localStorage.getItem('album-server')) || '');
@@ -74,7 +74,7 @@
     <div class="mx-auto w-full max-w-sm">
         <div class="flex flex-col items-center text-center">
             <span class="grid size-14 place-items-center rounded-2xl bg-primary text-on-primary">
-                <Icon name="cloud" size={28} />
+                <Cloud size={28} />
             </span>
             <h1 class="mt-4 text-xl font-semibold">Source</h1>
             <p class="mt-1 text-sm text-muted">用 Cloudreve 账号登录, 浏览你的相册</p>

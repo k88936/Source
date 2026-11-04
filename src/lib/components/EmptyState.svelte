@@ -1,14 +1,14 @@
 <script lang="ts">
-    import Icon from './Icon.svelte';
+    import {Image, type LucideIcon} from '@lucide/svelte';
 
     let {
-        icon = 'image',
+        icon: Icon = Image,
         title,
         description = '',
         actionLabel = '',
         onAction,
     }: {
-        icon?: 'image' | 'albums' | 'search' | 'cloud' | 'folder' | 'upload' | 'wifi-off';
+        icon?: LucideIcon;
         title: string;
         description?: string;
         actionLabel?: string;
@@ -19,7 +19,7 @@
 <div class="flex flex-col items-center justify-center px-8 py-20 text-center">
     <div class="flex max-w-sm flex-col items-center gap-4 rounded-3xl bg-gray px-8 py-10">
         <div class="grid size-20 place-items-center rounded-full bg-light text-muted">
-            <Icon name={icon} size={34} />
+            <Icon size={34} />
         </div>
         <div>
             <h2 class="text-xl font-medium">{title}</h2>

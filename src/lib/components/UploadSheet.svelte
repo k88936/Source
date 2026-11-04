@@ -5,7 +5,7 @@
     import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
     import {app} from '#lib/state/app.svelte';
     import AssetThumb from './AssetThumb.svelte';
-    import Icon from './Icon.svelte';
+    import {Image, Upload, X} from '@lucide/svelte';
 
     let {
         open = $bindable(false),
@@ -119,7 +119,7 @@
                     class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
                     aria-label="关闭"
                 >
-                    <Icon name="close" size={18} />
+                    <X size={18} />
                 </button>
             </div>
 
@@ -157,7 +157,7 @@
                     </div>
                 {:else if assets.length === 0}
                     <div class="flex flex-col items-center gap-2 py-16 text-sm text-muted">
-                        <Icon name="image" size={30} />
+                        <Image size={30} />
                         <p>没有可上传的本机照片</p>
                         <p class="text-[11px] text-muted">先在资料库里同步一个本机相册</p>
                     </div>
@@ -196,7 +196,7 @@
                     disabled={selected.length === 0 || !dest || uploading}
                     class="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
-                    <Icon name="upload" size={18} />
+                    <Upload size={18} />
                     {uploadLabel}
                 </button>
             </div>

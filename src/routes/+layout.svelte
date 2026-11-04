@@ -3,6 +3,7 @@
     import {onMount} from 'svelte';
     import {goto} from '$app/navigation';
     import {page} from '$app/state';
+    import {Cloud} from '@lucide/svelte';
     import Sidebar from '#lib/components/Sidebar.svelte';
     import TabBar from '#lib/components/TabBar.svelte';
     import Toast from '#lib/components/Toast.svelte';
@@ -40,9 +41,7 @@
     <div class="grid min-h-dvh place-items-center bg-light text-dark">
         <div class="flex flex-col items-center gap-4">
             <div class="grid size-16 animate-pulse place-items-center rounded-2xl bg-primary text-on-primary">
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                    <path d="M7 18a4 4 0 0 1-.4-8A6 6 0 0 1 18 9.5 4.5 4.5 0 0 1 17.5 18Z" />
-                </svg>
+                <Cloud size={30} />
             </div>
             <p class="text-sm text-muted">正在载入 Source...</p>
         </div>

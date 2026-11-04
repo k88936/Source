@@ -7,7 +7,7 @@
     import AlbumPickerSheet from '#lib/components/AlbumPickerSheet.svelte';
     import AssetGrid from '#lib/components/AssetGrid.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
-    import Icon from '#lib/components/Icon.svelte';
+    import {Image, SquareDashed, X} from '@lucide/svelte';
     import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
@@ -104,7 +104,7 @@
                 class="grid size-10 place-items-center rounded-full text-dark"
                 aria-label="退出选择"
             >
-                <Icon name="close" size={21} />
+                <X size={21} />
             </button>
         {:else}
             <button
@@ -112,7 +112,7 @@
                 class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
                 aria-label="选择"
             >
-                <Icon name="select" size={20} />
+                <SquareDashed size={20} />
             </button>
         {/if}
     {/snippet}
@@ -126,7 +126,7 @@
     </div>
 {:else if timeline.items.length === 0 && !timeline.loading}
     <EmptyState
-        icon="image"
+        icon={Image}
         title={timeline.error ? '加载失败' : '时间线还是空的'}
         description={timeline.error}
         actionLabel={timeline.error ? '重试' : '添加相册'}

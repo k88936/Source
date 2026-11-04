@@ -1,6 +1,6 @@
 <script lang="ts">
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
-    import Icon from './Icon.svelte';
+    import {Images} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
 
     let {album}: {album: AlbumSummary} = $props();
@@ -35,7 +35,7 @@
             </div>
         {:else}
             <div class="grid size-full place-items-center text-muted">
-                <Icon name="albums" size={40} />
+                <Images size={40} />
             </div>
         {/if}
     </div>

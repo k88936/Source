@@ -6,7 +6,7 @@
     import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
     import AssetThumb from '#lib/components/AssetThumb.svelte';
     import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
-    import Icon from '#lib/components/Icon.svelte';
+    import {Folder, Trash, Upload, X} from '@lucide/svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import UploadSheet from '#lib/components/UploadSheet.svelte';
     import {formatBytes} from '#lib/format';
@@ -132,7 +132,7 @@
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
                 aria-label="取消选择"
             >
-                <Icon name="close" size={21} />
+                <X size={21} />
             </button>
         {:else}
             <button
@@ -140,14 +140,14 @@
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
                 aria-label="解除同步"
             >
-                <Icon name="trash" size={19} />
+                <Trash size={19} />
             </button>
             <button
                 onclick={openUpload}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
                 aria-label="上传"
             >
-                <Icon name="upload" size={21} />
+                <Upload size={21} />
             </button>
         {/if}
     {/snippet}
@@ -161,7 +161,7 @@
     </div>
 {:else if items.length === 0}
     <div class="flex flex-col items-center gap-3 px-8 py-20 text-center">
-        <Icon name="folder" size={34} class="text-muted" />
+        <Folder size={34} class="text-muted" />
         <p class="text-sm font-medium">这个目录里没有照片</p>
         <button onclick={openUpload} class="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-on-primary"
             >选择要上传的照片</button
@@ -200,7 +200,7 @@
                 onclick={openUpload}
                 class="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary"
             >
-                <Icon name="upload" size={17} /> 上传到相册
+                <Upload size={17} /> 上传到相册
             </button>
         </div>
     </div>

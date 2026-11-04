@@ -2,7 +2,7 @@
     import type {MediaSourceParams} from '#lib/api/bindings/MediaSourceParams';
     import {mediaSource} from '#lib/api/media';
 
-    import Icon from './Icon.svelte';
+    import {Check, Heart, Play} from '@lucide/svelte';
 
     let {
         source,
@@ -115,12 +115,12 @@
     <div class="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-2">
         <span class="flex min-w-0 items-center gap-1.5">
             {#if favorite}
-                <Icon name="heart-filled" size={22} class="icon-white-drop-shadow text-white" />
+                <Heart size={22} class="icon-white-drop-shadow text-white" fill="currentColor" />
             {/if}
         </span>
         <span class="flex shrink-0 items-center gap-1">
             {#if video}
-                <Icon name="play" size={16} class="icon-white-drop-shadow text-white" />
+                <Play size={16} class="icon-white-drop-shadow text-white" fill="currentColor" />
             {/if}
             {#if durationMs}
                 <span class="text-xs font-medium text-white text-white-shadow">
@@ -137,7 +137,7 @@
                 ? 'border-white bg-primary'
                 : 'border-white/90 bg-black/15'}"
         >
-            {#if selected}<Icon name="check" size={14} />{/if}
+            {#if selected}<Check size={14} />{/if}
         </span>
     {/if}
 </button>

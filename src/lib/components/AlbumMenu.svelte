@@ -1,5 +1,5 @@
 <script lang="ts">
-    import Icon from './Icon.svelte';
+    import {Image, Info, Trash} from '@lucide/svelte';
 
     let {
         open = $bindable(false),
@@ -36,7 +36,7 @@
                 }}
                 class={itemClass}
             >
-                <Icon name="image" size={20} /> 设置相册封面
+                <Image size={20} /> 设置相册封面
             </button>
             <button
                 onclick={() => {
@@ -45,7 +45,7 @@
                 }}
                 class={itemClass}
             >
-                <Icon name="info" size={20} /> 编辑描述
+                <Info size={20} /> 编辑描述
             </button>
             <button
                 onclick={() => {
@@ -54,7 +54,7 @@
                 }}
                 class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-red-500 hover:bg-gray"
             >
-                <Icon name="trash" size={20} /> 移除相册
+                <Trash size={20} /> 移除相册
             </button>
         </div>
     </div>

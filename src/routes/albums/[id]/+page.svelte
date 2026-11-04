@@ -10,7 +10,7 @@
     import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
     import DescriptionDialog from '#lib/components/DescriptionDialog.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
-    import Icon from '#lib/components/Icon.svelte';
+    import {Ellipsis, Image, RefreshCw, SquareDashed, WifiOff, X} from '@lucide/svelte';
     import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
@@ -207,7 +207,7 @@
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
                 aria-label="取消"
             >
-                <Icon name="close" size={21} />
+                <X size={21} />
             </button>
         {:else}
             <button
@@ -218,7 +218,7 @@
                 {#if refreshing}
                     <div class="size-4 animate-spin rounded-full border-2 border-line border-t-primary"></div>
                 {:else}
-                    <Icon name="sync" size={20} />
+                    <RefreshCw size={20} />
                 {/if}
             </button>
             <button
@@ -226,14 +226,14 @@
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
                 aria-label="选择"
             >
-                <Icon name="select" size={20} />
+                <SquareDashed size={20} />
             </button>
             <button
                 onclick={() => (menuOpen = true)}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
                 aria-label="相册操作"
             >
-                <Icon name="more" size={22} />
+                <Ellipsis size={22} />
             </button>
         {/if}
     {/snippet}
@@ -266,14 +266,14 @@
 {/if}
 
 {#if timeline.loading && timeline.items.length === 0 && !timeline.loaded}
-    <div class="grid grid-cols-3 gap-[2px]">
+    <div class="grid grid-cols-3 gap-0.5">
         {#each Array(12) as _}
             <div class="aspect-square animate-pulse bg-gray"></div>
         {/each}
     </div>
 {:else if metaError || timeline.error}
     <EmptyState
-        icon="wifi-off"
+        icon={WifiOff}
         title="无法加载相册"
         description={metaError || timeline.error}
         actionLabel="重试"
@@ -281,7 +281,7 @@
     />
 {:else if timeline.items.length === 0}
     <EmptyState
-        icon="image"
+        icon={Image}
         title="这个相册还是空的"
         description="从本机上传照片, 或把时间线里的照片移动进来."
         actionLabel="上传照片"

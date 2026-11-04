@@ -3,7 +3,7 @@
     import {justify} from '#lib/justify';
     import {mosaicBackground} from '#lib/mosaic';
     import AssetThumb from './AssetThumb.svelte';
-    import Icon from './Icon.svelte';
+    import {Calendar, ChevronUp} from '@lucide/svelte';
 
     let {
         items,
@@ -214,7 +214,7 @@
         class="fixed bottom-[calc(7.4rem+var(--safe-bottom))] right-3 z-20 grid size-10 place-items-center rounded-full bg-light/90 text-dark shadow-lg backdrop-blur sidebar:bottom-6"
         aria-label="跳转月份"
     >
-        <Icon name="calendar" size={19} />
+        <Calendar size={19} />
     </button>
 {/if}
 
@@ -225,7 +225,7 @@
         class="fixed bottom-[calc(4.2rem+var(--safe-bottom))] right-3 z-20 grid size-10 place-items-center rounded-full bg-light/90 text-dark shadow-lg backdrop-blur sidebar:bottom-6 sidebar:right-[calc(1.5rem)]"
         aria-label="回到顶部"
     >
-        <Icon name="chevron-up" size={20} />
+        <ChevronUp size={20} />
     </button>
 {/if}
 

@@ -6,7 +6,7 @@
     import type {LocalEntry} from '#lib/api/bindings/LocalEntry';
     import AlbumPickerSheet from '#lib/components/AlbumPickerSheet.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
-    import Icon from '#lib/components/Icon.svelte';
+    import {ChevronRight, Folder, Plus, Upload} from '@lucide/svelte';
     import LocalDirPicker from '#lib/components/LocalDirPicker.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import {app} from '#lib/state/app.svelte';
@@ -70,7 +70,7 @@
             class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
             aria-label="同步本机相册"
         >
-            <Icon name="upload" size={20} />
+            <Plus size={20} />
         </button>
     {/snippet}
 </TopBar>
@@ -83,9 +83,9 @@
     </div>
 {:else if albums.length === 0}
     <EmptyState
-        icon="folder"
+        icon={Folder}
         title="还没有同步的本机相册"
-        description="选一个本机目录, 指向一个云端相册, 它就出现在这里."
+        description="选择本地相册单向同步到Cloudreve"
         actionLabel="同步本机相册"
         onAction={() => (pickerOpen = true)}
     />
@@ -98,7 +98,7 @@
                     class="flex items-center gap-3 rounded-2xl bg-gray p-3 transition-colors hover:bg-line/40"
                 >
                     <div class="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                        <Icon name="folder" size={22} />
+                        <Folder size={22} />
                     </div>
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-sm font-semibold">{album.name}</p>
@@ -106,20 +106,12 @@
                             {album.assetCount} 项 - 同步到 "{album.albumName}"
                         </p>
                     </div>
-                    <Icon name="forward" size={18} class="text-muted" />
+                    <ChevronRight size={18} class="text-muted" />
                 </a>
             </li>
         {/each}
     </ul>
-    <p class="px-5 pb-24 text-[11px] text-muted">
-        自动同步尚未开启: 登记只记录 "这个目录归这个相册", 上传仍从相册里手动发起.
-    </p>
 {/if}
 
 <LocalDirPicker bind:open={pickerOpen} onPick={chose} />
-<AlbumPickerSheet
-    bind:open={targetOpen}
-    title="同步到哪个相册"
-    hint="只记录这个本机目录归哪个相册, 不会移动或上传任何文件."
-    onPick={(album) => void register(album)}
-/>
+<AlbumPickerSheet bind:open={targetOpen} title="同步到" onPick={(album) => void register(album)} />

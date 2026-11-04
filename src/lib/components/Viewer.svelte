@@ -5,7 +5,7 @@
     import {mediaSource} from '#lib/api/media';
     import {app} from '#lib/state/app.svelte';
     import AssetInfoSheet from './AssetInfoSheet.svelte';
-    import Icon from './Icon.svelte';
+    import {ChevronLeft, ChevronRight, Download, Heart, Info, Play, X} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
 
     let {
@@ -194,7 +194,7 @@
             class="grid size-11 place-items-center justify-self-start rounded-full hover:bg-white/10"
             aria-label="关闭"
         >
-            <Icon name="close" size={24} />
+            <X size={24} />
         </button>
         <div class="min-w-0 max-w-[calc(100%-20.5rem)] text-center">
             <p class="truncate text-sm font-medium">{current?.name ?? ''}</p>
@@ -206,9 +206,9 @@
                 class="grid size-11 place-items-center rounded-full hover:bg-white/10"
                 aria-label="收藏"
             >
-                <Icon
-                    name={current?.favorite ? 'heart-filled' : 'heart'}
+                <Heart
                     size={23}
+                    fill={current?.favorite ? 'currentColor' : 'none'}
                     class={current?.favorite ? 'text-rose-500' : ''}
                 />
             </button>
@@ -217,14 +217,14 @@
                 class="grid size-11 place-items-center rounded-full hover:bg-white/10"
                 aria-label="下载"
             >
-                <Icon name="download" size={22} />
+                <Download size={22} />
             </button>
             <button
                 onclick={() => (showInfo = !showInfo)}
                 class="grid size-11 place-items-center rounded-full hover:bg-white/10"
                 aria-label="信息"
             >
-                <Icon name="info" size={22} />
+                <Info size={22} />
             </button>
         </div>
     </div>
@@ -261,7 +261,7 @@
             class="absolute left-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/30 text-white disabled:opacity-0"
             aria-label="上一张"
         >
-            <Icon name="back" size={24} />
+            <ChevronLeft size={24} />
         </button>
         <button
             onclick={next}
@@ -269,7 +269,7 @@
             class="absolute right-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/30 text-white disabled:opacity-0"
             aria-label="下一张"
         >
-            <Icon name="forward" size={24} />
+            <ChevronRight size={24} />
         </button>
     </div>
 
@@ -286,7 +286,7 @@
                     <MediaImage source={{kind: 'thumb', assetId: item.id}} alt="" class="size-full object-cover" />
                     {#if item.mediaType === 'video'}
                         <span class="absolute inset-0 grid place-items-center bg-black/20">
-                            <Icon name="play" size={14} />
+                            <Play size={14} fill="currentColor" />
                         </span>
                     {/if}
                 </button>
