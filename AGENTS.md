@@ -26,10 +26,11 @@ pnpm dev
 ## Test
 
 * NEVER write any new test case (but it is ok to mod existing or write some case to test and clean them when dev)
+  unless explicitly required
 
 ## Doc
 
-* NEVER write/mod any doc
+* NEVER write/mod any doc unless explicitly required.
 
 ## Others
 
