@@ -16,11 +16,12 @@ pub mod media;
 pub mod remote;
 pub mod sqlite;
 pub mod store;
+pub mod task;
 pub mod time;
 
 pub use app::{
     AccountService, AccountState, AlbumsService, BrowseService, FoldersService, LoginOutcome,
-    UploadOutcome, UploadsService,
+    RunSink, SyncService, UploadOutcome, UploadsService,
 };
 pub use credential::CredentialStore;
 pub use error::{AppError, ErrorCode};
@@ -33,6 +34,6 @@ pub use remote::{
 pub use sqlite::SqliteCatalog;
 pub use store::{
     Account, AccountStore, AlbumStore, AssetRecord, AssetStore, FolderRecord, FolderStore,
-    FolderSyncState, LocalStore, SearchQuery, SettingsStore, TimelineStore, UploadQueueStore,
-    UploadSessionPort, UserInfo,
+    FolderSyncState, LocalStore, Run, RunKind, RunState, RunStore, SearchQuery, SettingsStore,
+    TimelineStore, UploadQueueStore, UploadSessionPort, UserInfo,
 };

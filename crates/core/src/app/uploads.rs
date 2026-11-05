@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 
 use crate::error::{AppError, ErrorCode};
@@ -17,6 +18,7 @@ use crate::store::{
     AlbumId, AssetStore, AssetSummary, FolderId, FolderStore, LocalStore, UploadQueueStore,
     UploadState, UploadTask, UploadTaskId,
 };
+use crate::task::{Retry, Runner, Try};
 use crate::time::now_ms;
 
 use super::PROGRESS_WRITE_INTERVAL;
@@ -67,20 +69,45 @@ pub struct UploadOutcome {
     pub asset: Option<AssetSummary>,
 }
 
+/// How many uploads run at once.
+///
+/// Two keeps a phone uplink saturated without letting one huge video starve a
+/// batch of small photos.
+const UPLOAD_CONCURRENCY: usize = 2;
+
+/// Automatic retries after the first failure; the first wait is 3s, then it
+/// doubles.
+const UPLOAD_RETRY: Retry = Retry {
+    attempts: 3,
+    base: std::time::Duration::from_secs(3),
+};
+
+/// Where an upload attempt reports to: progress, state changes, and the catalog
+/// row it produced. Built by the composition root, so the queue never depends
+/// on a window.
+#[derive(Clone)]
+pub struct UploadSinks {
+    pub progress: Arc<dyn Fn(UploadProgressEvent) + Send + Sync>,
+    pub state: Arc<dyn Fn(&UploadStateEvent) + Send + Sync>,
+    pub uploaded: Arc<dyn Fn(&AssetSummary) + Send + Sync>,
+}
+
 pub struct UploadsService<R, C, M> {
     cloud: R,
     catalog: C,
     local: M,
+    sinks: UploadSinks,
     /// Cancellation flags of the upload attempts currently running.
     cancels: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 
 impl<R, C, M> UploadsService<R, C, M> {
-    pub fn new(cloud: R, catalog: C, local: M) -> Self {
+    pub fn new(cloud: R, catalog: C, local: M, sinks: UploadSinks) -> Self {
         Self {
             cloud,
             catalog,
             local,
+            sinks,
             cancels: Mutex::new(HashMap::new()),
         }
     }
@@ -101,8 +128,14 @@ where
             .folder(&params.album_id.0)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))?;
+        let queued = self.catalog.queued_local_ids(&dest.uri).await?;
         let mut tasks = Vec::new();
         for local_id in params.local_ids {
+            // A file already waiting for the queue must not be queued twice:
+            // sync offers every file it finds, pass after pass.
+            if queued.iter().any(|id| id == &local_id) {
+                continue;
+            }
             let Some(asset) = self.local.asset(&local_id)? else {
                 continue;
             };
@@ -175,7 +208,7 @@ where
     /// Only a failed task can be re-queued: the retry loop calls this after a
     /// backoff, and reviving a task the user cancelled meanwhile would undo the
     /// cancellation.
-    pub async fn requeue(&self, task_id: &str) -> Result<UploadTask, AppError> {
+    async fn requeue(&self, task_id: &str) -> Result<UploadTask, AppError> {
         let Some(mut task) = self.catalog.upload_task(task_id).await? else {
             return Err(AppError::not_found("上传任务不存在"));
         };
@@ -195,8 +228,80 @@ where
         Ok(task)
     }
 
-    /// Execute one queued task. The caller (Tauri runtime) is responsible for
-    /// scheduling and for forwarding `on_progress` to the webview.
+    /// Run the given queued tasks on the runtime and return immediately.
+    ///
+    /// Every state change goes out through [`UploadSinks`], so whoever triggers
+    /// a batch - the queue page, a retry, or a sync pass - only hands over ids.
+    pub fn start(self: &Arc<Self>, ids: Vec<String>)
+    where
+        R: 'static,
+        M: 'static,
+    {
+        if ids.is_empty() {
+            return;
+        }
+        let uploads = Arc::clone(self);
+        tokio::spawn(async move {
+            uploads.run_batch(ids).await;
+        });
+    }
+
+    async fn run_batch(self: Arc<Self>, ids: Vec<String>) {
+        let runner = Runner::new(UPLOAD_CONCURRENCY, UPLOAD_RETRY);
+        // Nothing stops a whole batch: tasks are cancelled one by one, and a
+        // cancelled attempt returns before it writes a terminal state.
+        let cancel = CancellationToken::new();
+        let uploads = Arc::clone(&self);
+        runner
+            .run(ids, &cancel, |id, attempt| {
+                let uploads = Arc::clone(&uploads);
+                async move { uploads.try_upload(&id, attempt).await }
+            })
+            .await;
+    }
+
+    /// One attempt, including the states it announces before and after.
+    async fn try_upload(&self, id: &str, attempt: Try) -> Result<(), AppError> {
+        if let Some(task) = self.catalog.upload_task(id).await? {
+            (self.sinks.state)(&UploadStateEvent {
+                task_id: task.id,
+                state: UploadState::Queued,
+                error: None,
+            });
+        }
+        let progress = Arc::clone(&self.sinks.progress);
+        match self.run(id, progress).await {
+            Ok(outcome) => {
+                (self.sinks.state)(&UploadStateEvent {
+                    task_id: outcome.task.id.clone(),
+                    state: outcome.task.state,
+                    error: None,
+                });
+                if let Some(asset) = outcome.asset {
+                    (self.sinks.uploaded)(&asset);
+                }
+                Ok(())
+            }
+            Err(error) => {
+                // Transient failures resume from the session on the next try;
+                // anything else (auth, permission, conflict) is final.
+                if error.retryable && attempt.number < attempt.retry.attempts {
+                    // Re-queue first: reviving a task the user cancelled while
+                    // the attempt ran fails here and ends the retries.
+                    self.requeue(id).await?;
+                    return Err(error);
+                }
+                (self.sinks.state)(&UploadStateEvent {
+                    task_id: UploadTaskId(id.to_string()),
+                    state: UploadState::Failed,
+                    error: Some(error),
+                });
+                Ok(())
+            }
+        }
+    }
+
+    /// Execute one queued task, forwarding progress to `on_progress`.
     pub async fn run(
         &self,
         task_id: &str,
@@ -352,7 +457,11 @@ where
         self.catalog.update_upload(task).await
     }
 
-    pub async fn pending(&self) -> Result<Vec<UploadTask>, AppError> {
-        self.catalog.pending_uploads().await
+    /// Put back what a previous process left in flight and report the queue.
+    ///
+    /// Called once at startup: in-flight rows go back to queued, so the next
+    /// attempt loads their durable session and resumes instead of starting over.
+    pub async fn recover(&self) -> Result<Vec<UploadTask>, AppError> {
+        self.catalog.recover_uploads().await
     }
 }

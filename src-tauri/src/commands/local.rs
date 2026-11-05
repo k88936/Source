@@ -52,3 +52,30 @@ pub(crate) fn local_asset_page(
 ) -> Result<LocalAssetPage, AppError> {
     state.core.albums.local_asset_page(params)
 }
+
+/// Start a sync pass over every registered local album. Returns at once; the
+/// pass reports through `sync://run`, and its files reach the upload queue.
+#[tauri::command]
+pub(crate) async fn sync_start(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Run, AppError> {
+    state
+        .core
+        .sync
+        .start_sync(super::run_sink(&app, "sync://run"))
+        .await
+}
+
+/// Stop the sync pass after the directories already being walked.
+#[tauri::command]
+pub(crate) async fn sync_stop(state: State<'_, AppState>) -> Result<(), AppError> {
+    state.core.sync.stop_sync();
+    Ok(())
+}
+
+/// The newest sync pass, so a page can restore its progress after a reload.
+#[tauri::command]
+pub(crate) async fn sync_run(state: State<'_, AppState>) -> Result<Option<Run>, AppError> {
+    state.core.sync.sync_run().await
+}

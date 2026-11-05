@@ -90,11 +90,31 @@ pub(crate) async fn album_refresh(
     state.core.albums.refresh_album(&params.album_id.0).await
 }
 
+/// Start a pass over every album. Returns at once; the pass reports through
+/// `index://run`, and every refreshed album is visible on its own row.
 #[tauri::command]
-pub(crate) async fn album_refresh_all(
+pub(crate) async fn index_start(
+    app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<Vec<AlbumSummary>, AppError> {
-    state.core.albums.refresh_all_albums().await
+) -> Result<Run, AppError> {
+    state
+        .core
+        .albums
+        .start_index(super::run_sink(&app, "index://run"))
+        .await
+}
+
+/// Stop the index pass after the albums already being listed.
+#[tauri::command]
+pub(crate) async fn index_stop(state: State<'_, AppState>) -> Result<(), AppError> {
+    state.core.albums.stop_index();
+    Ok(())
+}
+
+/// The newest index pass, so a page can restore its progress after a reload.
+#[tauri::command]
+pub(crate) async fn index_run(state: State<'_, AppState>) -> Result<Option<Run>, AppError> {
+    state.core.albums.index_run().await
 }
 
 #[tauri::command]

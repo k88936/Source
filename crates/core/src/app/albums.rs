@@ -5,10 +5,13 @@
 //! files, so refreshing an album is one listing one level deep: no recursion, no
 //! sub-folders and no non-media entries.
 
+use std::sync::{Arc, Mutex};
+
 use serde::{Deserialize, Serialize};
+use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 
-use crate::error::AppError;
+use crate::error::{AppError, ErrorCode};
 use crate::mapping::{COVER_KEY, DESCRIPTION_KEY, asset_record, entry_media_type};
 use crate::media::{
     LocalAsset, LocalAssetPage, LocalAssetPageParams, LocalBrowsePage, LocalMediaPort,
@@ -16,11 +19,13 @@ use crate::media::{
 use crate::remote::RemoteStorage;
 use crate::store::{
     AlbumId, AlbumStore, AlbumSummary, AssetId, AssetStore, AssetSummary, FolderId, FolderRecord,
-    FolderStore, LocalAlbumRecord, LocalStore, MediaType, SYNC_DONE, SYNC_FAILED, TimelineCursor,
-    TimelinePage, TimelineStore,
+    FolderStore, LocalAlbumRecord, LocalStore, MediaType, Run, RunKind, RunStore, SYNC_DONE,
+    SYNC_FAILED, TimelineCursor, TimelinePage, TimelineStore,
 };
+use crate::task::{Retry, Runner};
 use crate::time::now_ms;
 
+use super::run::{RunSink, RunTracker};
 use super::{clamp_limit, folder_record, folder_ref};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -115,6 +120,8 @@ pub struct AlbumsService<R, C, M> {
     cloud: R,
     catalog: C,
     local: M,
+    /// The token of the index pass running now, so a stop can reach it.
+    indexing: Mutex<Option<CancellationToken>>,
 }
 
 impl<R, C, M> AlbumsService<R, C, M> {
@@ -123,15 +130,29 @@ impl<R, C, M> AlbumsService<R, C, M> {
             cloud,
             catalog,
             local,
+            indexing: Mutex::new(None),
         }
     }
 }
 
+/// How many albums an index pass lists at once.
+///
+/// Three spreads the round trips without hammering a phone uplink that uploads
+/// are sharing at the same time.
+const INDEX_CONCURRENCY: usize = 3;
+
 impl<R, C, M> AlbumsService<R, C, M>
 where
-    R: RemoteStorage,
-    C: AlbumStore + AssetStore + FolderStore + TimelineStore + LocalStore,
-    M: LocalMediaPort,
+    R: RemoteStorage + 'static,
+    C: AlbumStore
+        + AssetStore
+        + FolderStore
+        + TimelineStore
+        + LocalStore
+        + RunStore
+        + Clone
+        + 'static,
+    M: LocalMediaPort + 'static,
 {
     pub async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError> {
         self.catalog.album_list().await
@@ -177,15 +198,83 @@ where
     /// assets: the failure is recorded on the album so the UI can offer to point
     /// it somewhere else, instead of the album silently disappearing.
     pub async fn refresh_album(&self, album_id: &str) -> Result<AlbumSummary, AppError> {
+        self.refresh(album_id, &CancellationToken::new()).await
+    }
+
+    /// The newest index pass, whatever state it is in.
+    pub async fn index_run(&self) -> Result<Option<Run>, AppError> {
+        self.catalog.run(RunKind::Index).await
+    }
+
+    /// Start listing every album, and return the pass instead of waiting for it.
+    ///
+    /// A pass already running is handed back as it is, so a double trigger never
+    /// starts two. Every album ends on its own row, and the pass ends with a
+    /// count - which is what the albums page shows while it works.
+    pub async fn start_index(self: &Arc<Self>, sink: RunSink) -> Result<Run, AppError> {
+        let ids = self
+            .catalog
+            .album_list()
+            .await?
+            .into_iter()
+            .map(|album| album.id.0)
+            .collect::<Vec<_>>();
+        let (run, started) = self
+            .catalog
+            .begin_run(RunKind::Index, ids.len() as u32)
+            .await?;
+        if !started {
+            return Ok(run);
+        }
+        let cancel = CancellationToken::new();
+        *self.indexing.lock().unwrap() = Some(cancel.clone());
+        let tracker = RunTracker::new(self.catalog.clone(), &run, sink, cancel);
+        tracker.announce(&run);
+
+        let albums = Arc::clone(self);
+        tokio::spawn(async move {
+            let runner = Runner::new(INDEX_CONCURRENCY, Retry::default());
+            let batch = Arc::clone(&albums);
+            runner
+                .run(ids, tracker.cancel(), |id, _| {
+                    let albums = Arc::clone(&batch);
+                    let tracker = tracker.clone();
+                    async move { albums.index_album(&id, &tracker).await }
+                })
+                .await;
+            // The pass is over once every attempt has returned, whatever the
+            // stop button did meanwhile.
+            let _ = tracker.close().await;
+            *albums.indexing.lock().unwrap() = None;
+        });
+        Ok(run)
+    }
+
+    /// Stop the index pass after the albums already in flight.
+    pub fn stop_index(&self) {
+        if let Some(cancel) = self.indexing.lock().unwrap().as_ref() {
+            cancel.cancel();
+        }
+    }
+
+    /// Refresh one album, stopping between listing pages when `cancel` fires.
+    async fn refresh(
+        &self,
+        album_id: &str,
+        cancel: &CancellationToken,
+    ) -> Result<AlbumSummary, AppError> {
         let album = self
             .catalog
             .folder(album_id)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))?;
-        if let Err(err) = self.sync_album(&album).await {
-            self.catalog
-                .mark_folder(&album.id, SYNC_FAILED, Some(&err.message), None, now_ms())
-                .await?;
+        if let Err(err) = self.sync_album(&album, cancel).await {
+            // A stop is not a failure of the album: leave its last state alone.
+            if err.code != ErrorCode::Cancelled {
+                self.catalog
+                    .mark_folder(&album.id, SYNC_FAILED, Some(&err.message), None, now_ms())
+                    .await?;
+            }
             return Err(err);
         }
         self.catalog
@@ -194,24 +283,32 @@ where
             .ok_or_else(|| AppError::not_found("相册不存在"))
     }
 
-    /// Refresh every album, one listing each.
-    ///
-    /// One unreachable folder must not block the others, and its failure is
-    /// already visible on its own row, so the pass keeps going.
-    pub async fn refresh_all_albums(&self) -> Result<Vec<AlbumSummary>, AppError> {
-        for album in self.catalog.album_list().await? {
-            let _ = self.refresh_album(&album.id.0).await;
+    /// One entry of an index pass.
+    async fn index_album(&self, album_id: &str, tracker: &RunTracker<C>) -> Result<(), AppError> {
+        match self.refresh(album_id, tracker.cancel()).await {
+            Ok(_) => tracker.step(true).await,
+            Err(err) if err.code == ErrorCode::Cancelled => Ok(()),
+            Err(_) => tracker.step(false).await,
         }
-        self.catalog.album_list().await
     }
 
-    async fn sync_album(&self, album: &FolderRecord) -> Result<(), AppError> {
+    async fn sync_album(
+        &self,
+        album: &FolderRecord,
+        cancel: &CancellationToken,
+    ) -> Result<(), AppError> {
         let folder_id = FolderId::new(album.id.clone());
         let mut records = Vec::new();
         let mut token: Option<String> = None;
         let mut remote_updated_at = 0;
         loop {
-            let page = self.cloud.list_entries(&album.uri, token.as_deref()).await?;
+            if cancel.is_cancelled() {
+                return Err(AppError::cancelled());
+            }
+            let page = self
+                .cloud
+                .list_entries(&album.uri, token.as_deref())
+                .await?;
             for entry in page.entries.iter().filter(|entry| is_media_entry(entry)) {
                 remote_updated_at = remote_updated_at.max(entry.updated_at);
                 records.push(asset_record(entry, &folder_id, None));
@@ -354,8 +451,11 @@ where
         &self,
         params: LocalAssetPageParams,
     ) -> Result<LocalAssetPage, AppError> {
-        self.local
-            .assets(&params.album_uri, params.cursor.as_deref(), clamp_limit(params.limit))
+        self.local.assets(
+            &params.album_uri,
+            params.cursor.as_deref(),
+            clamp_limit(params.limit),
+        )
     }
 
     pub fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
@@ -392,10 +492,7 @@ where
         self.catalog.remove_local_album(id).await
     }
 
-    fn local_album_summary(
-        &self,
-        album: LocalAlbumRecord,
-    ) -> Result<LocalAlbumSummary, AppError> {
+    fn local_album_summary(&self, album: LocalAlbumRecord) -> Result<LocalAlbumSummary, AppError> {
         let asset_count = self.local.count(&album.uri)?;
         Ok(LocalAlbumSummary {
             id: album.id,

@@ -1,20 +1,22 @@
-//! Startup wiring: the composition root and resuming queued uploads.
+//! Startup wiring: the composition root and resuming what a crash left behind.
 
 use std::sync::Arc;
 
+use source_core::app::uploads::{UploadProgressEvent, UploadSinks, UploadStateEvent};
+use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
+use source_core::store::AssetSummary;
 use source_core::{
     AccountService, AlbumsService, AppError, BrowseService, CloudreveAuth, CloudreveStorage,
-    CredentialStore, FoldersService, FsLocalMedia, SqliteCatalog, ThumbCache, UploadSessionPort,
-    UploadsService,
+    CredentialStore, FoldersService, FsLocalMedia, RunStore, SqliteCatalog, SyncService,
+    ThumbCache, UploadSessionPort, UploadsService,
 };
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
-use crate::commands::uploads::run_upload_batch;
 #[cfg(not(debug_assertions))]
 use crate::credentials::KeyringCredentialStore;
 use crate::state::{App, AppState};
 
-/// Open storage, build every service, and resume uploads left queued by a crash.
+/// Open storage, build every service, and pick up what a crash left behind.
 ///
 /// This is the register section and the only place an adapter is constructed.
 /// Auth and storage share one live account, so a login is visible to all of them
@@ -26,9 +28,13 @@ use crate::state::{App, AppState};
 pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let app_data = app.path().app_data_dir()?;
     std::fs::create_dir_all(&app_data)?;
+    let sinks = upload_sinks(app.handle());
 
     let core: Arc<App> = Arc::new(tauri::async_runtime::block_on(async {
         let catalog = SqliteCatalog::open(app_data.join("catalog.sqlite3")).await?;
+        // A process that died cannot still be busy: close its passes before
+        // anything reads them as live.
+        catalog.interrupt_runs().await?;
         let sessions: Arc<dyn UploadSessionPort> = Arc::new(catalog.clone());
         let cred_store: Arc<dyn CredentialStore> = {
             #[cfg(debug_assertions)]
@@ -43,6 +49,12 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         let auth = CloudreveAuth::new(cred_store);
         let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
         let local = FsLocalMedia::new();
+        let uploads = Arc::new(UploadsService::new(
+            cloud.clone(),
+            catalog.clone(),
+            local.clone(),
+            sinks,
+        ));
         Ok::<_, AppError>(App {
             account: Arc::new(AccountService::new(auth, cloud.clone(), catalog.clone())),
             folders: Arc::new(FoldersService::new(cloud.clone(), catalog.clone())),
@@ -56,7 +68,8 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
                 catalog.clone(),
                 local.clone(),
             )),
-            uploads: Arc::new(UploadsService::new(cloud, catalog, local)),
+            sync: Arc::new(SyncService::new(catalog, local, Arc::clone(&uploads))),
+            uploads,
         })
     })?);
     let _ = tauri::async_runtime::block_on(core.account.bootstrap());
@@ -66,15 +79,10 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
 
     let cache = Arc::new(ThumbCache::default_cache(&app_data)?);
 
-    let pending = tauri::async_runtime::block_on(core.uploads.pending()).unwrap_or_default();
-    let pending_ids = pending.into_iter().map(|t| t.id.0).collect::<Vec<_>>();
-    if !pending_ids.is_empty() {
-        let handle = app.handle().clone();
-        let resume_core = Arc::clone(&core);
-        tauri::async_runtime::spawn(async move {
-            run_upload_batch(handle, resume_core, pending_ids).await;
-        });
-    }
+    // Uploads a previous process left behind resume from their sessions.
+    let pending = tauri::async_runtime::block_on(core.uploads.recover()).unwrap_or_default();
+    core.uploads
+        .start(pending.into_iter().map(|task| task.id.0).collect());
 
     app.manage(AppState {
         core,
@@ -82,4 +90,37 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         app_data,
     });
     Ok(())
+}
+
+/// Where the upload queue reports: the webview's events.
+fn upload_sinks(handle: &tauri::AppHandle) -> UploadSinks {
+    UploadSinks {
+        progress: {
+            let handle = handle.clone();
+            Arc::new(move |event: UploadProgressEvent| {
+                let _ = handle.emit("upload://progress", &event);
+            })
+        },
+        state: {
+            let handle = handle.clone();
+            Arc::new(move |event: &UploadStateEvent| {
+                let _ = handle.emit("upload://state", event);
+            })
+        },
+        uploaded: {
+            let handle = handle.clone();
+            Arc::new(move |asset: &AssetSummary| {
+                // One tile, one album count bump - the UI patches instead of
+                // reloading the timeline.
+                let _ = handle.emit(
+                    "catalog://changed",
+                    CatalogChangedEvent {
+                        kind: CatalogChangeKind::Assets,
+                        assets: vec![asset.clone()],
+                        albums: Vec::new(),
+                    },
+                );
+            })
+        },
+    }
 }

@@ -24,7 +24,10 @@ pub trait UploadQueueStore: Send + Sync {
     async fn update_upload(&self, task: &UploadTask) -> Result<(), AppError>;
     async fn upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError>;
     async fn upload_tasks(&self) -> Result<Vec<UploadTask>, AppError>;
-    async fn pending_uploads(&self) -> Result<Vec<UploadTask>, AppError>;
+    /// Put in-flight rows back in the queue and report what is waiting.
+    async fn recover_uploads(&self) -> Result<Vec<UploadTask>, AppError>;
+    /// The local files already waiting for a slot in one destination folder.
+    async fn queued_local_ids(&self, dest_uri: &str) -> Result<Vec<String>, AppError>;
 }
 
 pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), AppError> {
@@ -100,7 +103,7 @@ pub(crate) async fn upload_tasks(cat: &SqliteCatalog) -> Result<Vec<UploadTask>,
     Ok(rows.into_iter().map(UploadTask::from).collect())
 }
 
-pub(crate) async fn pending_uploads(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, AppError> {
+pub(crate) async fn recover_uploads(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, AppError> {
     let mut conn = cat.conn().await?;
     // A previous process may have died mid-upload. Requeue in-flight rows
     // so startup actually loads the durable session snapshot and resumes.
@@ -129,6 +132,21 @@ pub(crate) async fn pending_uploads(cat: &SqliteCatalog) -> Result<Vec<UploadTas
     Ok(rows.into_iter().map(UploadTask::from).collect())
 }
 
+/// The local files already waiting for a slot in one destination folder.
+pub(crate) async fn queued_local_ids(
+    cat: &SqliteCatalog,
+    dest_uri: &str,
+) -> Result<Vec<String>, AppError> {
+    let mut conn = cat.conn().await?;
+    queue::table
+        .filter(queue::dest_uri.eq(dest_uri))
+        .filter(queue::state.eq_any(["queued", "creatingSession", "uploading", "completing"]))
+        .select(queue::local_asset_id)
+        .load::<String>(&mut conn)
+        .await
+        .map_err(db_err)
+}
+
 fn serialize_error(error: Option<&AppError>) -> Result<Option<String>, AppError> {
     error
         .map(serde_json::to_string)
@@ -154,7 +172,11 @@ impl UploadQueueStore for SqliteCatalog {
         upload_tasks(self).await
     }
 
-    async fn pending_uploads(&self) -> Result<Vec<UploadTask>, AppError> {
-        pending_uploads(self).await
+    async fn recover_uploads(&self) -> Result<Vec<UploadTask>, AppError> {
+        recover_uploads(self).await
+    }
+
+    async fn queued_local_ids(&self, dest_uri: &str) -> Result<Vec<String>, AppError> {
+        queued_local_ids(self, dest_uri).await
     }
 }

@@ -28,6 +28,7 @@ import type {MediaPermissionState} from './bindings/MediaPermissionState';
 import type {MediaSourceParams} from './bindings/MediaSourceParams';
 import type {MoveAssetsParams} from './bindings/MoveAssetsParams';
 import type {RemoteFolderPage} from './bindings/RemoteFolderPage';
+import type {Run} from './bindings/Run';
 import type {SearchParams} from './bindings/SearchParams';
 import type {AccountState} from './bindings/AccountState';
 import type {SetAlbumCoverParams} from './bindings/SetAlbumCoverParams';
@@ -82,7 +83,9 @@ export const api = {
     addAlbum: (params: AddAlbumParams) => call<AlbumSummary>('album_add', params),
     removeAlbum: (params: AlbumParams) => call<void>('album_remove', params),
     refreshAlbum: (params: AlbumParams) => call<AlbumSummary>('album_refresh', params),
-    refreshAllAlbums: () => call<AlbumSummary[]>('album_refresh_all'),
+    indexStart: () => call<Run>('index_start'),
+    indexStop: () => call<void>('index_stop'),
+    indexRun: () => call<Run | null>('index_run'),
     assetDetail: (params: AssetDetailParams) => call<AssetDetail>('asset_detail', params),
     mediaSource: (params: MediaSourceParams) => call<string>('media_source', params),
     searchAssets: (params: SearchParams) => call<TimelinePage>('search_assets', params),
@@ -98,6 +101,9 @@ export const api = {
     addLocalAlbum: (params: AddLocalAlbumParams) => call<LocalAlbumSummary>('local_album_add', params),
     removeLocalAlbum: (params: LocalAlbumParams) => call<void>('local_album_remove', params),
     localAssetPage: (params: LocalAssetPageParams) => call<LocalAssetPage>('local_asset_page', params),
+    syncStart: () => call<Run>('sync_start'),
+    syncStop: () => call<void>('sync_stop'),
+    syncRun: () => call<Run | null>('sync_run'),
 
     enqueueUploads: (params: EnqueueUploadsParams) => call<UploadTask[]>('enqueue_uploads', params),
     uploadTasks: () => call<UploadTask[]>('upload_tasks'),

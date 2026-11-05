@@ -17,6 +17,8 @@ pub mod albums;
 pub mod browse;
 mod dto;
 pub mod folders;
+mod run;
+pub mod sync;
 pub mod uploads;
 
 pub use account::{AccountService, AccountState, LoginOutcome};
@@ -24,6 +26,8 @@ pub use albums::AlbumsService;
 pub use browse::BrowseService;
 pub use dto::*;
 pub use folders::FoldersService;
+pub use run::{RunSink, RunTracker};
+pub use sync::SyncService;
 pub use uploads::{UploadOutcome, UploadsService};
 
 /// Upload progress is written to the catalog at most this often.

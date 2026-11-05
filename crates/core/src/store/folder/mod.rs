@@ -34,6 +34,8 @@ pub trait FolderStore: Send + Sync {
         folder_id: &str,
         assets: &[AssetRecord],
     ) -> Result<(), AppError>;
+    /// The names of the media files the album currently holds.
+    async fn album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError>;
 }
 
 pub(crate) async fn upsert_folder(
@@ -180,6 +182,21 @@ pub(crate) async fn mark_folder(
     Ok(())
 }
 
+/// The names of an album's files as the catalog last listed them. Used to tell
+/// a file that is already in the album from one that still has to go up.
+pub(crate) async fn album_asset_names(
+    cat: &SqliteCatalog,
+    folder_id: &str,
+) -> Result<Vec<String>, AppError> {
+    let mut conn = cat.conn().await?;
+    assets::table
+        .filter(assets::folder_id.eq(folder_id))
+        .select(assets::name)
+        .load::<String>(&mut conn)
+        .await
+        .map_err(db_err)
+}
+
 /// Replace an album's assets with a fresh one-level listing.
 ///
 /// Assets still present keep their row, so the thumbnail hash and the parsed
@@ -258,5 +275,9 @@ impl FolderStore for SqliteCatalog {
         asset_records: &[AssetRecord],
     ) -> Result<(), AppError> {
         replace_folder_assets(self, folder_id, asset_records).await
+    }
+
+    async fn album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError> {
+        album_asset_names(self, folder_id).await
     }
 }

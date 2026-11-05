@@ -4266,6 +4266,7 @@ dependencies = [
  "sha2",
  "time",
  "tokio",
+ "tokio-util",
  "ts-rs",
  "url",
  "urlencoding",
@@ -5039,6 +5040,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]

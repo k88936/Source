@@ -5,7 +5,7 @@
     import type {FolderRef} from '#lib/api/bindings/FolderRef';
     import AlbumCard from '#lib/components/AlbumCard.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
-    import {Images, Plus, RefreshCw, WifiOff} from '@lucide/svelte';
+    import {Images, Plus, RefreshCw, Square, WifiOff} from '@lucide/svelte';
     import RemoteFolderPicker from '#lib/components/RemoteFolderPicker.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import {common} from '#lib/i18n/common.i18n';
@@ -19,15 +19,38 @@
     let error = $state('');
     let pickerOpen = $state(false);
     let adding = $state(false);
-    let refreshing = $state(false);
+    let settled = $state('');
+    // A pass restored from storage is already over, so it must not announce
+    // itself; only a pass this page saw running can end while it is open.
+    let observed = $state(false);
 
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
+    const run = $derived(app.indexRun);
+    const indexing = $derived(run?.state === 'running');
 
     $effect(() => {
         // Counts and mosaics come from assets too, so any catalog write refreshes
         // this grid; keyed each-blocks keep the scroll position intact.
         return changes.subscribe(() => void load());
+    });
+
+    $effect(() => {
+        // A pass ends on its own, possibly long after the button was pressed.
+        const current = run;
+        if (!current) return;
+        if (current.state === 'running') {
+            observed = true;
+            return;
+        }
+        if (!observed) return;
+        const key = `${current.id}:${current.state}`;
+        if (settled === key) return;
+        settled = key;
+        void load();
+        if (current.state === 'cancelled') return;
+        if (current.failed > 0) app.showToast(t.partialFailed(current.failed), 'error');
+        else app.showToast(t.refreshed, 'success');
     });
 
     onMount(() => {
@@ -59,15 +82,21 @@
     }
 
     async function refreshAll() {
-        if (refreshing) return;
-        refreshing = true;
         try {
-            albums = await api.refreshAllAlbums();
-            app.showToast(t.refreshed, 'success');
+            // This page started the pass, so this page may announce its end; a
+            // pass restored from storage stays silent.
+            observed = true;
+            app.indexRun = await api.indexStart();
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
-        } finally {
-            refreshing = false;
+        }
+    }
+
+    async function stopRefresh() {
+        try {
+            await api.indexStop();
+        } catch (err) {
+            app.showToast(app.describeError(err), 'error');
         }
     }
 </script>
@@ -77,12 +106,12 @@
 <TopBar title={t.title} subtitle={loading ? c.loading : t.count(albums.length)}>
     {#snippet actions()}
         <button
-            onclick={() => void refreshAll()}
+            onclick={() => void (indexing ? stopRefresh() : refreshAll())}
             class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-            aria-label={t.refreshAll}
+            aria-label={indexing ? t.stopRefresh : t.refreshAll}
         >
-            {#if refreshing}
-                <div class="size-4 animate-spin rounded-full border-2 border-line border-t-primary"></div>
+            {#if indexing}
+                <Square size={18} />
             {:else}
                 <RefreshCw size={20} />
             {/if}
@@ -115,7 +144,13 @@
     <EmptyState icon={Images} title={t.empty} actionLabel={t.addAlbum} onAction={() => (pickerOpen = true)} />
 {:else}
     <div class="px-4 pb-24 pt-2">
-        <p class="mb-2 px-1 text-xs text-muted">{t.hint}</p>
+        <p class="mb-2 px-1 text-xs text-muted">
+            {#if indexing && run}
+                {t.progress(run.done + run.failed, run.total)}
+            {:else}
+                {t.hint}
+            {/if}
+        </p>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 sidebar:grid-cols-4">
             {#each albums as album (album.id)}
                 <AlbumCard {album} />

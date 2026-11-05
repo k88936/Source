@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, FoldersService,
-    FsLocalMedia, SqliteCatalog, ThumbCache, UploadsService,
+    FsLocalMedia, SqliteCatalog, SyncService, ThumbCache, UploadsService,
 };
 
 /// The composed dependency graph.
@@ -19,6 +19,7 @@ pub(crate) type Folders = FoldersService<CloudreveStorage, SqliteCatalog>;
 pub(crate) type Albums = AlbumsService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
 pub(crate) type Browse = BrowseService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
 pub(crate) type Uploads = UploadsService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
+pub(crate) type Sync = SyncService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
 
 pub(crate) struct App {
     pub(crate) account: Arc<Account>,
@@ -26,6 +27,7 @@ pub(crate) struct App {
     pub(crate) albums: Arc<Albums>,
     pub(crate) browse: Arc<Browse>,
     pub(crate) uploads: Arc<Uploads>,
+    pub(crate) sync: Arc<Sync>,
 }
 
 /// Everything a command needs: the use cases plus the thumbnail cache.
