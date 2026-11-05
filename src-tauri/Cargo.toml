@@ -26,4 +26,4 @@ mime_guess = "2"
 tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring", rev = "b0a137bab0c3e592c637c32c328040d86f28256a", version = "0.2.1" }
 # Dev builds can expose a simulated CDP endpoint (`--debug-cdp-port`); the code
 # lives behind `cfg(debug_assertions)` in `src/dev.rs`.
-tauri-plugin-playwright = { path = "../../tauri-playwright/packages/plugin" }
+tauri-plugin-playwright = { git = "https://github.com/k88936/tauri-playwright", rev = "a05e8dc0d39d0aed529a68513a82422d110468fc", version = "0.4.1" }

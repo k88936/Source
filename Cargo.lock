@@ -681,6 +681,7 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 [[package]]
 name = "cloudreve-sdk-api"
 version = "0.1.1"
+source = "git+https://github.com/k88936/cloudreve-sdk-rs?rev=060275e4b1c4c168ee31744345c7c2314bfdd67d#060275e4b1c4c168ee31744345c7c2314bfdd67d"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -700,6 +701,7 @@ dependencies = [
 [[package]]
 name = "cloudreve-sdk-uploader"
 version = "0.2.0"
+source = "git+https://github.com/k88936/cloudreve-sdk-rs?rev=060275e4b1c4c168ee31744345c7c2314bfdd67d#060275e4b1c4c168ee31744345c7c2314bfdd67d"
 dependencies = [
  "aes",
  "anyhow",
@@ -4743,6 +4745,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-playwright"
 version = "0.4.1"
+source = "git+https://github.com/k88936/tauri-playwright?rev=a05e8dc0d39d0aed529a68513a82422d110468fc#a05e8dc0d39d0aed529a68513a82422d110468fc"
 dependencies = [
  "cairo-rs",
  "gio",
