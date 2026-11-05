@@ -118,7 +118,7 @@ use cloudreve_sdk_api::models::explorer::{
 
 #[async_trait]
 impl RemoteStorage for CloudreveStorage {
-    async fn capacity(&self) -> Result<Capacity, AppError> {
+    async fn get_capacity(&self) -> Result<Capacity, AppError> {
         let client = self.client()?;
         let cap = client.get_user_capacity().await.map_err(map_api_error)?;
         Ok(Capacity {
@@ -161,21 +161,21 @@ impl RemoteStorage for CloudreveStorage {
 
     /// A folder's own entry, taken from a listing: the listing's `parent` field
     /// describes the folder that was listed, the drive root included.
-    async fn folder_info(&self, uri: &str) -> Result<RemoteEntry, AppError> {
+    async fn get_folder_info(&self, uri: &str) -> Result<RemoteEntry, AppError> {
         Ok(self.list_entries(uri, None).await?.current)
     }
 
-    async fn thumb_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError> {
+    async fn get_thumb_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError> {
         let url = self.signed_thumb_url(uri).await?;
         self.get_bytes(&url).await
     }
 
-    async fn media_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError> {
+    async fn get_media_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError> {
         let url = self.signed_media_url(uri).await?;
         self.get_bytes(&url).await
     }
 
-    async fn media_range(
+    async fn get_media_range(
         &self,
         uri: &str,
         range: Option<&str>,
@@ -184,12 +184,12 @@ impl RemoteStorage for CloudreveStorage {
         self.get_range(&url, range).await
     }
 
-    async fn media_url(&self, uri: &str) -> Result<String, AppError> {
+    async fn get_media_url(&self, uri: &str) -> Result<String, AppError> {
         self.signed_media_url(uri).await
     }
 
     async fn client_taken_at(&self, uri: &str) -> Result<Option<i64>, AppError> {
-        let head = self.media_range(uri, Some("bytes=0-262143")).await?;
+        let head = self.get_media_range(uri, Some("bytes=0-262143")).await?;
         if !head.is_success() {
             return Ok(None);
         }

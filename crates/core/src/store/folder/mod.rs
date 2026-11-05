@@ -21,9 +21,9 @@ const PRUNE_CHUNK: usize = 500;
 #[async_trait]
 pub trait FolderStore: Send + Sync {
     async fn upsert_folder(&self, folder: &FolderRecord) -> Result<(), AppError>;
-    async fn folder(&self, id: &str) -> Result<Option<FolderRecord>, AppError>;
-    async fn folder_by_uri(&self, uri: &str) -> Result<Option<FolderRecord>, AppError>;
-    async fn folder_state(&self, id: &str) -> Result<Option<FolderSyncState>, AppError>;
+    async fn get_folder(&self, id: &str) -> Result<Option<FolderRecord>, AppError>;
+    async fn get_folder_by_uri(&self, uri: &str) -> Result<Option<FolderRecord>, AppError>;
+    async fn get_folder_state(&self, id: &str) -> Result<Option<FolderSyncState>, AppError>;
     async fn mark_folder(
         &self,
         id: &str,
@@ -37,7 +37,7 @@ pub trait FolderStore: Send + Sync {
     /// Drop the assets a complete listing no longer holds, given every id it listed.
     async fn prune_album_assets(&self, folder_id: &str, listed: &[String]) -> Result<(), AppError>;
     /// The names of the media files the album currently holds.
-    async fn album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError>;
+    async fn list_album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError>;
 }
 
 pub(crate) async fn upsert_folder(
@@ -88,7 +88,7 @@ pub(crate) async fn upsert_folder(
     Ok(())
 }
 
-pub(crate) async fn folder(
+pub(crate) async fn get_folder(
     cat: &SqliteCatalog,
     id: &str,
 ) -> Result<Option<FolderRecord>, AppError> {
@@ -103,7 +103,7 @@ pub(crate) async fn folder(
         .map_err(db_err)
 }
 
-pub(crate) async fn folder_by_uri(
+pub(crate) async fn get_folder_by_uri(
     cat: &SqliteCatalog,
     uri: &str,
 ) -> Result<Option<FolderRecord>, AppError> {
@@ -122,7 +122,7 @@ pub(crate) async fn folder_by_uri(
         .map(FolderRecord::from))
 }
 
-pub(crate) async fn folder_state(
+pub(crate) async fn get_folder_state(
     cat: &SqliteCatalog,
     id: &str,
 ) -> Result<Option<FolderSyncState>, AppError> {
@@ -186,7 +186,7 @@ pub(crate) async fn mark_folder(
 
 /// The names of an album's files as the catalog last listed them. Used to tell
 /// a file that is already in the album from one that still has to go up.
-pub(crate) async fn album_asset_names(
+pub(crate) async fn list_album_asset_names(
     cat: &SqliteCatalog,
     folder_id: &str,
 ) -> Result<Vec<String>, AppError> {
@@ -258,16 +258,16 @@ impl FolderStore for SqliteCatalog {
         upsert_folder(self, folder_record).await
     }
 
-    async fn folder(&self, id: &str) -> Result<Option<FolderRecord>, AppError> {
-        folder(self, id).await
+    async fn get_folder(&self, id: &str) -> Result<Option<FolderRecord>, AppError> {
+        get_folder(self, id).await
     }
 
-    async fn folder_by_uri(&self, uri: &str) -> Result<Option<FolderRecord>, AppError> {
-        folder_by_uri(self, uri).await
+    async fn get_folder_by_uri(&self, uri: &str) -> Result<Option<FolderRecord>, AppError> {
+        get_folder_by_uri(self, uri).await
     }
 
-    async fn folder_state(&self, id: &str) -> Result<Option<FolderSyncState>, AppError> {
-        folder_state(self, id).await
+    async fn get_folder_state(&self, id: &str) -> Result<Option<FolderSyncState>, AppError> {
+        get_folder_state(self, id).await
     }
 
     async fn mark_folder(
@@ -289,7 +289,7 @@ impl FolderStore for SqliteCatalog {
         prune_album_assets(self, folder_id, listed).await
     }
 
-    async fn album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError> {
-        album_asset_names(self, folder_id).await
+    async fn list_album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError> {
+        list_album_asset_names(self, folder_id).await
     }
 }

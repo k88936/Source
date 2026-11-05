@@ -24,7 +24,7 @@ pub use thumb_hash::preview_from_jpeg;
 pub use thumbs::{THUMB_BUDGET_BYTES, ThumbCache};
 
 pub trait LocalMediaPort: Send + Sync {
-    fn permission_state(&self) -> MediaPermissionState;
+    fn get_permission_state(&self) -> MediaPermissionState;
     fn request_permission(&self) -> MediaPermissionState;
 
     /// The directories one level below `parent`, so the user can pick one.
@@ -38,19 +38,19 @@ pub trait LocalMediaPort: Send + Sync {
     ///
     /// Never recursive: nested files belong to their own album if the user
     /// adds that directory too.
-    fn assets(
+    fn list_assets(
         &self,
         album_uri: &str,
         cursor: Option<&str>,
         limit: u32,
     ) -> Result<LocalAssetPage, AppError>;
-    fn asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError>;
+    fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError>;
     /// How many assets [`Self::assets`] would report, without reading them.
-    fn count(&self, album_uri: &str) -> Result<u32, AppError>;
+    fn count_assets(&self, album_uri: &str) -> Result<u32, AppError>;
 
     /// Small JPEG preview for a grid tile.
     ///
     /// Each platform picks its cheapest source: MediaStore thumbnails on
     /// Android, decode or `ffmpeg` on desktop.
-    fn thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError>;
+    fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError>;
 }

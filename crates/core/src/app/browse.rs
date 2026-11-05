@@ -124,22 +124,22 @@ where
     C: AssetStore + FolderStore + TimelineStore,
     M: LocalMediaPort,
 {
-    pub async fn timeline_page(
+    pub async fn get_timeline_page(
         &self,
         params: TimelinePageParams,
     ) -> Result<TimelinePage, AppError> {
         self.catalog
-            .timeline_page(params.cursor.as_ref(), clamp_limit(params.limit))
+            .get_timeline_page(params.cursor.as_ref(), clamp_limit(params.limit))
             .await
     }
 
-    pub async fn asset_detail(&self, asset_id: &str) -> Result<AssetDetail, AppError> {
+    pub async fn get_asset_detail(&self, asset_id: &str) -> Result<AssetDetail, AppError> {
         let record = self
             .catalog
-            .asset(asset_id)
+            .get_asset(asset_id)
             .await?
             .ok_or_else(|| AppError::not_found("资产不存在"))?;
-        let folder = self.catalog.folder(&record.summary.folder_id.0).await?;
+        let folder = self.catalog.get_folder(&record.summary.folder_id.0).await?;
         Ok(AssetDetail {
             download_name: record.summary.name.clone(),
             exif: exif_fields(record.exif_json.as_deref()),
@@ -151,42 +151,42 @@ where
 
     async fn asset_uri(&self, asset_id: &str) -> Result<String, AppError> {
         self.catalog
-            .asset(asset_id)
+            .get_asset(asset_id)
             .await?
             .map(|a| a.uri)
             .ok_or_else(|| AppError::not_found("资产不存在"))
     }
 
-    pub async fn thumb_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
+    pub async fn get_thumb_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
         let uri = self.asset_uri(asset_id).await?;
-        self.cloud.thumb_bytes(&uri).await
+        self.cloud.get_thumb_bytes(&uri).await
     }
 
-    pub async fn media_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
+    pub async fn get_media_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
         let uri = self.asset_uri(asset_id).await?;
-        self.cloud.media_bytes(&uri).await
+        self.cloud.get_media_bytes(&uri).await
     }
 
-    pub async fn media_range(
+    pub async fn get_media_range(
         &self,
         asset_id: &str,
         range: Option<&str>,
     ) -> Result<MediaRange, AppError> {
         let uri = self.asset_uri(asset_id).await?;
         self.cloud
-            .media_range(&uri, bounded_range(range).as_deref())
+            .get_media_range(&uri, bounded_range(range).as_deref())
             .await
     }
 
     /// Signed server URL of the original file, for the viewports that cannot
     /// play the `media` protocol themselves.
-    pub async fn media_url(&self, asset_id: &str) -> Result<String, AppError> {
+    pub async fn get_media_url(&self, asset_id: &str) -> Result<String, AppError> {
         let uri = self.asset_uri(asset_id).await?;
-        self.cloud.media_url(&uri).await
+        self.cloud.get_media_url(&uri).await
     }
 
-    pub fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
-        self.local.asset(id)
+    pub fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+        self.local.get_asset(id)
     }
 
     pub async fn search(&self, params: SearchParams) -> Result<TimelinePage, AppError> {
@@ -210,7 +210,7 @@ where
     ) -> Result<AssetSummary, AppError> {
         let record = self
             .catalog
-            .asset(asset_id)
+            .get_asset(asset_id)
             .await?
             .ok_or_else(|| AppError::not_found("资产不存在"))?;
         self.catalog.set_favorite(asset_id, value).await?;
@@ -231,10 +231,10 @@ where
     }
 
     /// Blur-up mosaic already stored for an asset, if any.
-    pub async fn asset_thumb_hash(&self, asset_id: &str) -> Result<Option<String>, AppError> {
+    pub async fn get_asset_thumb_hash(&self, asset_id: &str) -> Result<Option<String>, AppError> {
         Ok(self
             .catalog
-            .asset(asset_id)
+            .get_asset(asset_id)
             .await?
             .and_then(|record| record.summary.thumb_hash))
     }
@@ -247,16 +247,16 @@ where
     // Local library
     // ---------------------------------------------------------------------
 
-    pub fn media_permission_state(&self) -> MediaPermissionState {
-        self.local.permission_state()
+    pub fn get_media_permission_state(&self) -> MediaPermissionState {
+        self.local.get_permission_state()
     }
 
     pub fn request_media_permission(&self) -> MediaPermissionState {
         self.local.request_permission()
     }
 
-    pub fn local_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
-        self.local.thumb(id, edge)
+    pub fn get_local_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
+        self.local.get_thumb(id, edge)
     }
 }
 

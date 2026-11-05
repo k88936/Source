@@ -130,7 +130,7 @@ where
     ) -> Result<Vec<UploadTask>, AppError> {
         let mut assets = Vec::with_capacity(params.local_ids.len());
         for local_id in params.local_ids {
-            if let Some(asset) = self.local.asset(local_id.as_str())? {
+            if let Some(asset) = self.local.get_asset(local_id.as_str())? {
                 assets.push(asset);
             }
         }
@@ -152,12 +152,12 @@ where
         }
         let dest = self
             .catalog
-            .folder(&album_id.0)
+            .get_folder(&album_id.0)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))?;
         let mut queued: HashSet<LocalAssetId> = self
             .catalog
-            .queued_local_ids(&dest.uri)
+            .list_queued_local_ids(&dest.uri)
             .await?
             .into_iter()
             .collect();
@@ -192,12 +192,12 @@ where
     }
 
     /// What the queue is doing now, for the card that shows it.
-    pub async fn tasks(&self) -> Result<Vec<UploadTask>, AppError> {
-        self.catalog.upload_tasks().await
+    pub async fn list_tasks(&self) -> Result<Vec<UploadTask>, AppError> {
+        self.catalog.list_upload_tasks().await
     }
 
-    pub async fn task(&self, id: &UploadTaskId) -> Result<Option<UploadTask>, AppError> {
-        self.catalog.upload_task(&id.0).await
+    pub async fn get_task(&self, id: &UploadTaskId) -> Result<Option<UploadTask>, AppError> {
+        self.catalog.get_upload_task(&id.0).await
     }
 
     /// Cancel one task, whether or not it is running.
@@ -206,7 +206,7 @@ where
     /// between two chunks; the attempt keeps its session, so retrying the task
     /// later resumes instead of starting over.
     pub async fn cancel(&self, task_id: &UploadTaskId) -> Result<(), AppError> {
-        let Some(mut task) = self.catalog.upload_task(&task_id.0).await? else {
+        let Some(mut task) = self.catalog.get_upload_task(&task_id.0).await? else {
             return Err(AppError::not_found("上传任务不存在"));
         };
         if matches!(task.state, UploadState::Done | UploadState::Failed) {
@@ -218,7 +218,7 @@ where
     }
 
     pub async fn retry(&self, task_id: &UploadTaskId) -> Result<UploadTask, AppError> {
-        let Some(mut task) = self.catalog.upload_task(&task_id.0).await? else {
+        let Some(mut task) = self.catalog.get_upload_task(&task_id.0).await? else {
             return Err(AppError::not_found("上传任务不存在"));
         };
         task.state = UploadState::Queued;
@@ -241,7 +241,7 @@ where
     /// backoff, and reviving a task the user cancelled meanwhile would undo the
     /// cancellation.
     async fn requeue(&self, task_id: &UploadTaskId) -> Result<UploadTask, AppError> {
-        let Some(mut task) = self.catalog.upload_task(&task_id.0).await? else {
+        let Some(mut task) = self.catalog.get_upload_task(&task_id.0).await? else {
             return Err(AppError::not_found("上传任务不存在"));
         };
         if task.state != UploadState::Failed {
@@ -294,7 +294,7 @@ where
 
     /// One attempt, including the states it announces before and after.
     async fn try_upload(&self, id: &UploadTaskId, attempt: Try) -> Result<(), AppError> {
-        if let Some(task) = self.catalog.upload_task(&id.0).await? {
+        if let Some(task) = self.catalog.get_upload_task(&id.0).await? {
             (self.sinks.state)(&UploadStateEvent {
                 task_id: task.id,
                 state: UploadState::Queued,
@@ -339,7 +339,7 @@ where
 
     /// Write the terminal failure, unless the task was cancelled meanwhile.
     async fn fail(&self, id: &UploadTaskId, error: AppError) -> Result<UploadTask, AppError> {
-        let Some(mut task) = self.catalog.upload_task(&id.0).await? else {
+        let Some(mut task) = self.catalog.get_upload_task(&id.0).await? else {
             return Err(error);
         };
         if task.state == UploadState::Cancelled {
@@ -361,7 +361,7 @@ where
     ) -> Result<UploadOutcome, AppError> {
         let mut task = self
             .catalog
-            .upload_task(&task_id.0)
+            .get_upload_task(&task_id.0)
             .await?
             .ok_or_else(|| AppError::not_found("上传任务不存在"))?;
         if task.state != UploadState::Queued {
@@ -369,9 +369,9 @@ where
         }
         let local = self
             .catalog
-            .local_asset(task.local_asset_id.as_str())
+            .get_local_asset(task.local_asset_id.as_str())
             .await?
-            .or(self.local.asset(task.local_asset_id.as_str())?)
+            .or(self.local.get_asset(task.local_asset_id.as_str())?)
             .ok_or_else(|| AppError::not_found("本机文件不存在"))?;
 
         let max_total = task.total;
@@ -387,7 +387,7 @@ where
             .await?;
         let folder_id = self
             .catalog
-            .folder_by_uri(&task.dest_uri)
+            .get_folder_by_uri(&task.dest_uri)
             .await?
             .map(|f| f.id)
             .unwrap_or_else(|| task.dest_uri.clone());
@@ -406,7 +406,7 @@ where
                     while let Ok(next) = progress_rx.try_recv() {
                         latest = next;
                     }
-                    if let Ok(Some(mut current)) = catalog.upload_task(&task_id).await {
+                    if let Ok(Some(mut current)) = catalog.get_upload_task(&task_id).await {
                         current.uploaded = latest.uploaded;
                         current.total = if latest.total > 0 {
                             latest.total
@@ -455,7 +455,7 @@ where
 
         // The attempt may have been cancelled while it ran: its result must not
         // turn a cancelled task back into a finished or failed one.
-        if let Some(current) = self.catalog.upload_task(&session_key).await?
+        if let Some(current) = self.catalog.get_upload_task(&session_key).await?
             && current.state == UploadState::Cancelled
         {
             return Ok(UploadOutcome {

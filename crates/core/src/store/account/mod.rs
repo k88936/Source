@@ -2,7 +2,7 @@
 //! behind it.
 //!
 //! The catalog indexes one account at a time, so every read goes through
-//! [`AccountStore::current_account`] instead of keeping a copy of the server
+//! [`AccountStore::get_current_account`] instead of keeping a copy of the server
 //! anywhere else.
 
 use async_trait::async_trait;
@@ -31,9 +31,9 @@ pub(crate) const CURRENT_ACCOUNT: &str = "current_account";
 pub trait AccountStore: Send + Sync {
     /// The account `current_account` points at, so `None` means "no library
     /// chosen yet".
-    async fn current_account(&self) -> Result<Option<Account>, AppError>;
+    async fn get_current_account(&self) -> Result<Option<Account>, AppError>;
     /// The account remembered for `base_url`, if that server was used before.
-    async fn account(&self, base_url: &str) -> Result<Option<Account>, AppError>;
+    async fn get_account(&self, base_url: &str) -> Result<Option<Account>, AppError>;
     /// Insert or update the row and make it the current account.
     async fn save_account(&self, value: &Account) -> Result<(), AppError>;
     /// Drop everything that belongs to the previous server.
@@ -44,7 +44,7 @@ pub trait AccountStore: Send + Sync {
     async fn reset_catalog(&self) -> Result<(), AppError>;
 }
 
-pub(crate) async fn current_account(cat: &SqliteCatalog) -> Result<Option<Account>, AppError> {
+pub(crate) async fn get_current_account(cat: &SqliteCatalog) -> Result<Option<Account>, AppError> {
     let mut conn = cat.conn().await?;
     let base_url = app_state::table
         .filter(app_state::key.eq(CURRENT_ACCOUNT))
@@ -60,7 +60,7 @@ pub(crate) async fn current_account(cat: &SqliteCatalog) -> Result<Option<Accoun
     row.map(AccountRow::into_account).transpose()
 }
 
-pub(crate) async fn account(
+pub(crate) async fn get_account(
     cat: &SqliteCatalog,
     base_url: &str,
 ) -> Result<Option<Account>, AppError> {
@@ -144,12 +144,12 @@ pub(crate) async fn reset_catalog(cat: &SqliteCatalog) -> Result<(), AppError> {
 
 #[async_trait]
 impl AccountStore for SqliteCatalog {
-    async fn current_account(&self) -> Result<Option<Account>, AppError> {
-        current_account(self).await
+    async fn get_current_account(&self) -> Result<Option<Account>, AppError> {
+        get_current_account(self).await
     }
 
-    async fn account(&self, base_url: &str) -> Result<Option<Account>, AppError> {
-        account(self, base_url).await
+    async fn get_account(&self, base_url: &str) -> Result<Option<Account>, AppError> {
+        get_account(self, base_url).await
     }
 
     async fn save_account(&self, value: &Account) -> Result<(), AppError> {

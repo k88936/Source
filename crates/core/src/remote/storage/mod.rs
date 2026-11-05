@@ -28,7 +28,7 @@ pub(crate) const PAGE_SIZE: i32 = 100;
 #[async_trait]
 pub trait RemoteStorage: Send + Sync {
     /// The account's quota, read from the server rather than cached.
-    async fn capacity(&self) -> Result<Capacity, AppError>;
+    async fn get_capacity(&self) -> Result<Capacity, AppError>;
 
     /// One page of `uri`'s children, with `uri` itself as `current`.
     async fn list_entries(
@@ -38,24 +38,24 @@ pub trait RemoteStorage: Send + Sync {
     ) -> Result<RemoteEntryPage, AppError>;
 
     /// The folder `uri` itself, the drive root included.
-    async fn folder_info(&self, uri: &str) -> Result<RemoteEntry, AppError>;
+    async fn get_folder_info(&self, uri: &str) -> Result<RemoteEntry, AppError>;
 
     /// Thumbnail bytes for `uri`, signed and fetched in one step so the URL
     /// never leaves the adapter.
-    async fn thumb_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError>;
+    async fn get_thumb_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError>;
 
     /// Whole original file for `uri`.
-    async fn media_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError>;
+    async fn get_media_bytes(&self, uri: &str) -> Result<Vec<u8>, AppError>;
 
     /// A `Range` request against the original file, answered as the server
     /// sent it. `range=None` fetches the whole file.
-    async fn media_range(&self, uri: &str, range: Option<&str>)
+    async fn get_media_range(&self, uri: &str, range: Option<&str>)
     -> Result<MediaRange, AppError>;
 
     /// Signed URL of the original file, for playing it straight from the
     /// server: WebKitGTK's media player rejects custom schemes, so desktop
     /// cannot stream `<video>` through the `media` protocol.
-    async fn media_url(&self, uri: &str) -> Result<String, AppError>;
+    async fn get_media_url(&self, uri: &str) -> Result<String, AppError>;
 
     /// Download just the head of a remote file and parse its EXIF timestamp.
     /// Used only when Cloudreve did not extract `exif:taken_at` server-side.

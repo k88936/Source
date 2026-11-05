@@ -89,7 +89,7 @@ where
     pub async fn bootstrap(&self) -> Option<AccountState> {
         let account = self
             .account_store
-            .current_account()
+            .get_current_account()
             .await
             .ok()
             .flatten()?;
@@ -120,8 +120,8 @@ where
     pub async fn set_server(&self, base_url: &str) -> Result<SiteInfo, AppError> {
         let base = normalize_base_url(base_url)?;
         let info = self.auth.site_info(&base).await?;
-        let known = self.account_store.account(&base).await?;
-        if let Some(previous) = self.account_store.current_account().await?
+        let known = self.account_store.get_account(&base).await?;
+        if let Some(previous) = self.account_store.get_current_account().await?
             && previous.base_url != base
         {
             self.account_store.reset_catalog().await?;
@@ -137,7 +137,7 @@ where
     }
 
     pub async fn login(&self, email: &str, password: &str) -> Result<LoginOutcome, AppError> {
-        let account = self.current_account("请先填写服务器地址").await?;
+        let account = self.require_account("请先填写服务器地址").await?;
         match self
             .auth
             .sign_in(&account.base_url, email, password)
@@ -154,7 +154,7 @@ where
 
     pub async fn login_2fa(&self, session_id: &str, otp: &str) -> Result<AccountState, AppError> {
         let account = self
-            .current_account("登录会话已过期, 请重新输入密码")
+            .require_account("登录会话已过期, 请重新输入密码")
             .await?;
         let signed_in = self
             .auth
@@ -164,7 +164,7 @@ where
     }
 
     pub async fn logout(&self) -> Result<(), AppError> {
-        let Some(account) = self.account_store.current_account().await? else {
+        let Some(account) = self.account_store.get_current_account().await? else {
             return Ok(());
         };
         let _ = self.auth.sign_out(&account.base_url).await;
@@ -174,8 +174,8 @@ where
         Ok(())
     }
 
-    pub async fn account_state(&self) -> Result<Option<AccountState>, AppError> {
-        let Some(account) = self.account_store.current_account().await? else {
+    pub async fn get_account_state(&self) -> Result<Option<AccountState>, AppError> {
+        let Some(account) = self.account_store.get_current_account().await? else {
             return Ok(None);
         };
         Ok(account.user.map(|user| AccountState {
@@ -185,13 +185,13 @@ where
         }))
     }
 
-    pub async fn capacity(&self) -> Result<Capacity, AppError> {
-        self.storage.capacity().await
+    pub async fn get_capacity(&self) -> Result<Capacity, AppError> {
+        self.storage.get_capacity().await
     }
 
-    async fn current_account(&self, missing: &str) -> Result<Account, AppError> {
+    async fn require_account(&self, missing: &str) -> Result<Account, AppError> {
         self.account_store
-            .current_account()
+            .get_current_account()
             .await?
             .ok_or_else(|| AppError::internal(missing))
     }

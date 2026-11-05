@@ -15,7 +15,7 @@ pub use dto::*;
 
 #[async_trait]
 pub trait TimelineStore: Send + Sync {
-    async fn timeline_page(
+    async fn get_timeline_page(
         &self,
         cursor: Option<&TimelineCursor>,
         limit: u32,
@@ -23,7 +23,7 @@ pub trait TimelineStore: Send + Sync {
     async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, AppError>;
 }
 
-pub(crate) async fn timeline_page(
+pub(crate) async fn get_timeline_page(
     cat: &SqliteCatalog,
     cursor: Option<&TimelineCursor>,
     limit: u32,
@@ -80,12 +80,12 @@ pub(crate) async fn search(
 
 #[async_trait]
 impl TimelineStore for SqliteCatalog {
-    async fn timeline_page(
+    async fn get_timeline_page(
         &self,
         cursor: Option<&TimelineCursor>,
         limit: u32,
     ) -> Result<TimelinePage, AppError> {
-        timeline_page(self, cursor, limit).await
+        get_timeline_page(self, cursor, limit).await
     }
 
     async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, AppError> {

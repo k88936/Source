@@ -20,7 +20,7 @@ pub(crate) async fn enqueue_uploads(
 
 #[tauri::command]
 pub(crate) async fn upload_tasks(state: State<'_, AppState>) -> Result<Vec<UploadTask>, AppError> {
-    state.core.uploads.tasks().await
+    state.core.uploads.list_tasks().await
 }
 
 #[tauri::command]

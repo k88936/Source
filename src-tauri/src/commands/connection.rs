@@ -52,12 +52,12 @@ pub(crate) async fn logout(state: State<'_, AppState>) -> Result<(), AppError> {
 pub(crate) async fn account_state(
     state: State<'_, AppState>,
 ) -> Result<Option<AccountState>, AppError> {
-    state.core.account.account_state().await
+    state.core.account.get_account_state().await
 }
 
 #[tauri::command]
 pub(crate) async fn capacity(state: State<'_, AppState>) -> Result<Capacity, AppError> {
-    state.core.account.capacity().await
+    state.core.account.get_capacity().await
 }
 
 #[tauri::command]

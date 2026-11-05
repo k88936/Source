@@ -21,7 +21,7 @@ pub trait AssetStore: Send + Sync {
     async fn upsert_asset(&self, asset: &AssetRecord) -> Result<(), AppError>;
     /// Re-point an asset at another folder and URI after a remote move.
     async fn move_asset(&self, asset_id: &str, folder_id: &str, uri: &str) -> Result<(), AppError>;
-    async fn asset(&self, id: &str) -> Result<Option<AssetRecord>, AppError>;
+    async fn get_asset(&self, id: &str) -> Result<Option<AssetRecord>, AppError>;
     async fn set_favorite(&self, asset_id: &str, value: bool) -> Result<(), AppError>;
     /// Store the blur-up mosaic for a tile. Written once per asset, lazily.
     async fn set_asset_thumb_hash(&self, asset_id: &str, value: &str) -> Result<(), AppError>;
@@ -32,7 +32,7 @@ pub(crate) async fn upsert_asset(cat: &SqliteCatalog, asset: &AssetRecord) -> Re
     upsert_asset_row(&mut conn, asset).await
 }
 
-pub(crate) async fn asset(
+pub(crate) async fn get_asset(
     cat: &SqliteCatalog,
     id: &str,
 ) -> Result<Option<AssetRecord>, AppError> {
@@ -114,8 +114,8 @@ impl AssetStore for SqliteCatalog {
         move_asset(self, asset_id, folder_id, uri).await
     }
 
-    async fn asset(&self, id: &str) -> Result<Option<AssetRecord>, AppError> {
-        asset(self, id).await
+    async fn get_asset(&self, id: &str) -> Result<Option<AssetRecord>, AppError> {
+        get_asset(self, id).await
     }
 
     async fn set_favorite(&self, asset_id: &str, value: bool) -> Result<(), AppError> {

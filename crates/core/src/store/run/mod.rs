@@ -37,9 +37,9 @@ pub trait RunStore: Send + Sync {
     /// Close the pass. A pass that is already closed is returned unchanged.
     async fn finish_run(&self, id: &RunId, state: RunState) -> Result<Run, AppError>;
     /// The newest pass under one key, whatever state it is in.
-    async fn run(&self, key: RunKey) -> Result<Option<Run>, AppError>;
+    async fn get_run(&self, key: RunKey) -> Result<Option<Run>, AppError>;
     /// Reads a pass back into its surroundings without going through the key.
-    async fn run_by_id(&self, id: &RunId) -> Result<Option<Run>, AppError>;
+    async fn get_run_by_id(&self, id: &RunId) -> Result<Option<Run>, AppError>;
     /// Mark every pass still running as interrupted, and return how many there
     /// were. Called at startup: a process that died cannot still be busy.
     async fn interrupt_runs(&self) -> Result<u32, AppError>;
@@ -141,7 +141,7 @@ pub(crate) async fn finish_run(
     Ok(row.into())
 }
 
-pub(crate) async fn run(cat: &SqliteCatalog, key: RunKey) -> Result<Option<Run>, AppError> {
+pub(crate) async fn get_run(cat: &SqliteCatalog, key: RunKey) -> Result<Option<Run>, AppError> {
     let mut conn = cat.conn().await?;
     runs::table
         .filter(runs::key.eq(key.as_str()))
@@ -154,7 +154,7 @@ pub(crate) async fn run(cat: &SqliteCatalog, key: RunKey) -> Result<Option<Run>,
         .map_err(db_err)
 }
 
-pub(crate) async fn run_by_id(
+pub(crate) async fn get_run_by_id(
     cat: &SqliteCatalog,
     id: &RunId,
 ) -> Result<Option<Run>, AppError> {
@@ -197,12 +197,12 @@ impl RunStore for SqliteCatalog {
         finish_run(self, id, state).await
     }
 
-    async fn run(&self, key: RunKey) -> Result<Option<Run>, AppError> {
-        run(self, key).await
+    async fn get_run(&self, key: RunKey) -> Result<Option<Run>, AppError> {
+        get_run(self, key).await
     }
 
-    async fn run_by_id(&self, id: &RunId) -> Result<Option<Run>, AppError> {
-        run_by_id(self, id).await
+    async fn get_run_by_id(&self, id: &RunId) -> Result<Option<Run>, AppError> {
+        get_run_by_id(self, id).await
     }
 
     async fn interrupt_runs(&self) -> Result<u32, AppError> {

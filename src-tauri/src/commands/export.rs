@@ -29,8 +29,8 @@ pub(crate) async fn export_assets(
         .map_err(|e| AppError::internal(format!("创建导出目录失败: {e}")))?;
     let mut exported = 0u32;
     for id in params.asset_ids {
-        let detail = state.core.browse.asset_detail(&id.0).await?;
-        let bytes = state.core.browse.media_bytes(&id.0).await?;
+        let detail = state.core.browse.get_asset_detail(&id.0).await?;
+        let bytes = state.core.browse.get_media_bytes(&id.0).await?;
         let name = sanitize_filename(&detail.download_name);
         let path = unique_path(&directory, &name);
         std::fs::write(&path, bytes)

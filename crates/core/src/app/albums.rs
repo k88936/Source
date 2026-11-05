@@ -157,17 +157,17 @@ where
         + 'static,
     M: LocalMediaPort + 'static,
 {
-    pub async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError> {
-        self.catalog.album_list().await
+    pub async fn list_albums(&self) -> Result<Vec<AlbumSummary>, AppError> {
+        self.catalog.list_albums().await
     }
 
-    pub async fn album(&self, album_id: &str) -> Result<Option<AlbumSummary>, AppError> {
-        self.catalog.album(album_id).await
+    pub async fn get_album(&self, album_id: &str) -> Result<Option<AlbumSummary>, AppError> {
+        self.catalog.get_album(album_id).await
     }
 
-    pub async fn album_page(&self, params: AlbumPageParams) -> Result<TimelinePage, AppError> {
+    pub async fn get_album_page(&self, params: AlbumPageParams) -> Result<TimelinePage, AppError> {
         self.catalog
-            .album_page(
+            .get_album_page(
                 &params.album_id.0,
                 params.cursor.as_ref(),
                 clamp_limit(params.limit),
@@ -178,7 +178,7 @@ where
     /// Add a folder as an album and list it once, so it is never shown empty
     /// while the server has media in it.
     pub async fn add_album(&self, params: AddAlbumParams) -> Result<AlbumSummary, AppError> {
-        let info = self.cloud.folder_info(&params.uri).await?;
+        let info = self.cloud.get_folder_info(&params.uri).await?;
         if !info.is_folder {
             return Err(AppError::internal("只能把文件夹添加为相册"));
         }
@@ -205,8 +205,8 @@ where
     }
 
     /// The newest index pass, whatever state it is in.
-    pub async fn index_run(&self) -> Result<Option<Run>, AppError> {
-        self.catalog.run(INDEX_RUN).await
+    pub async fn get_index_run(&self) -> Result<Option<Run>, AppError> {
+        self.catalog.get_run(INDEX_RUN).await
     }
 
     /// Start listing every album, and return the pass instead of waiting for it.
@@ -217,7 +217,7 @@ where
     pub async fn start_index(self: &Arc<Self>, sink: RunSink) -> Result<Run, AppError> {
         let ids = self
             .catalog
-            .album_list()
+            .list_albums()
             .await?
             .into_iter()
             .map(|album| album.id.0)
@@ -236,7 +236,7 @@ where
             let runner = Runner::new(INDEX_CONCURRENCY, Retry::default());
             let batch = Arc::clone(&albums);
             runner
-                .run(ids, tracker.cancel(), |id, _| {
+                .run(ids, tracker.get_cancel(), |id, _| {
                     let albums = Arc::clone(&batch);
                     let tracker = tracker.clone();
                     async move { albums.index_album(&id, &tracker).await }
@@ -265,7 +265,7 @@ where
     ) -> Result<AlbumSummary, AppError> {
         let album = self
             .catalog
-            .folder(album_id)
+            .get_folder(album_id)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))?;
         if let Err(err) = self.sync_album(&album, cancel).await {
@@ -278,14 +278,14 @@ where
             return Err(err);
         }
         self.catalog
-            .album(album_id)
+            .get_album(album_id)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))
     }
 
     /// One entry of an index pass.
     async fn index_album(&self, album_id: &str, tracker: &RunTracker<C>) -> Result<(), AppError> {
-        match self.refresh(album_id, tracker.cancel()).await {
+        match self.refresh(album_id, tracker.get_cancel()).await {
             Ok(_) => tracker.step(true).await,
             Err(err) if err.code == ErrorCode::Cancelled => Ok(()),
             Err(_) => tracker.step(false).await,
@@ -350,7 +350,7 @@ where
     ) -> Result<AlbumSummary, AppError> {
         let folder = self
             .catalog
-            .folder(album_id)
+            .get_folder(album_id)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))?;
         let patch = (COVER_KEY.to_string(), Some(asset_id.to_string()));
@@ -359,7 +359,7 @@ where
             .set_album_cover(album_id, Some(asset_id))
             .await?;
         self.catalog
-            .album(album_id)
+            .get_album(album_id)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))
     }
@@ -371,7 +371,7 @@ where
     ) -> Result<AlbumSummary, AppError> {
         let folder = self
             .catalog
-            .folder(album_id)
+            .get_folder(album_id)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))?;
         let value = if description.trim().is_empty() {
@@ -386,7 +386,7 @@ where
             .set_album_description(album_id, value.as_deref())
             .await?;
         self.catalog
-            .album(album_id)
+            .get_album(album_id)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))
     }
@@ -406,14 +406,14 @@ where
         }
         let folder = self
             .catalog
-            .folder(album_id)
+            .get_folder(album_id)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))?;
         let mut records = Vec::with_capacity(asset_ids.len());
         for id in asset_ids {
             let record = self
                 .catalog
-                .asset(id)
+                .get_asset(id)
                 .await?
                 .ok_or_else(|| AppError::not_found("资产不存在"))?;
             records.push(record);
@@ -444,32 +444,32 @@ where
     // ---------------------------------------------------------------------
 
     pub async fn local_album_list(&self) -> Result<Vec<LocalAlbumSummary>, AppError> {
-        let albums = self.catalog.local_albums().await?;
+        let albums = self.catalog.list_local_albums().await?;
         albums
             .into_iter()
-            .map(|album| self.local_album_summary(album))
+            .map(|album| self.local_album_to_summary(album))
             .collect()
     }
 
     /// One step of the device directory browser the picker is built on.
-    pub fn local_browse(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
+    pub fn browse_local(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
         self.local.browse(parent)
     }
 
     /// The direct media files of one local album, newest first.
-    pub fn local_asset_page(
+    pub fn get_local_asset_page(
         &self,
         params: LocalAssetPageParams,
     ) -> Result<LocalAssetPage, AppError> {
-        self.local.assets(
+        self.local.list_assets(
             &params.album_uri,
             params.cursor.as_deref(),
             clamp_limit(params.limit),
         )
     }
 
-    pub fn local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
-        self.local.asset(id)
+    pub fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+        self.local.get_asset(id)
     }
 
     /// Register a device directory as the source of one album.
@@ -482,7 +482,7 @@ where
     ) -> Result<LocalAlbumSummary, AppError> {
         let album = self
             .catalog
-            .album(&params.album_id.0)
+            .get_album(&params.album_id.0)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))?;
         self.catalog
@@ -490,10 +490,10 @@ where
             .await?;
         let record = self
             .catalog
-            .local_album(&params.uri)
+            .get_local_album(&params.uri)
             .await?
             .ok_or_else(|| AppError::not_found("本机相册不存在"))?;
-        self.local_album_summary(record)
+        self.local_album_to_summary(record)
     }
 
     /// Stop syncing a device directory. Files already uploaded stay where they
@@ -502,11 +502,11 @@ where
         self.catalog.remove_local_album(id).await
     }
 
-    fn local_album_summary(
+    fn local_album_to_summary(
         &self,
         album: LocalAlbumRecord,
     ) -> Result<LocalAlbumSummary, AppError> {
-        let asset_count = self.local.count(&album.uri)?;
+        let asset_count = self.local.count_assets(&album.uri)?;
         Ok(LocalAlbumSummary {
             id: album.id,
             uri: album.uri,

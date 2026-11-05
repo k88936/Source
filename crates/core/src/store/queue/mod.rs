@@ -25,13 +25,13 @@ const QUEUE_PAGE: i64 = 200;
 pub trait UploadQueueStore: Send + Sync {
     async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), AppError>;
     async fn update_upload(&self, task: &UploadTask) -> Result<(), AppError>;
-    async fn upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError>;
+    async fn get_upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError>;
     /// The unfinished part of the queue, newest first.
-    async fn upload_tasks(&self) -> Result<Vec<UploadTask>, AppError>;
+    async fn list_upload_tasks(&self) -> Result<Vec<UploadTask>, AppError>;
     /// Put in-flight rows back in the queue and report what is waiting.
     async fn recover_uploads(&self) -> Result<Vec<UploadTask>, AppError>;
     /// The local files already waiting for a slot in one destination folder.
-    async fn queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError>;
+    async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError>;
 }
 
 pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), AppError> {
@@ -81,7 +81,7 @@ pub(crate) async fn update_upload(cat: &SqliteCatalog, task: &UploadTask) -> Res
     Ok(())
 }
 
-pub(crate) async fn upload_task(
+pub(crate) async fn get_upload_task(
     cat: &SqliteCatalog,
     id: &str,
 ) -> Result<Option<UploadTask>, AppError> {
@@ -101,7 +101,7 @@ pub(crate) async fn upload_task(
 /// A first sync can enqueue tens of thousands of files; the queue card shows
 /// what is left, not every row ever written, so this never grows with the
 /// history and never hands the UI a payload it cannot render.
-pub(crate) async fn upload_tasks(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, AppError> {
+pub(crate) async fn list_upload_tasks(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, AppError> {
     let mut conn = cat.conn().await?;
     let rows = queue::table
         .filter(queue::state.ne(upload_state_to_str(UploadState::Done)))
@@ -145,7 +145,7 @@ pub(crate) async fn recover_uploads(cat: &SqliteCatalog) -> Result<Vec<UploadTas
 }
 
 /// The local files already waiting for a slot in one destination folder.
-pub(crate) async fn queued_local_ids(
+pub(crate) async fn list_queued_local_ids(
     cat: &SqliteCatalog,
     dest_uri: &str,
 ) -> Result<Vec<LocalAssetId>, AppError> {
@@ -177,19 +177,19 @@ impl UploadQueueStore for SqliteCatalog {
         update_upload(self, task).await
     }
 
-    async fn upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError> {
-        upload_task(self, id).await
+    async fn get_upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError> {
+        get_upload_task(self, id).await
     }
 
-    async fn upload_tasks(&self) -> Result<Vec<UploadTask>, AppError> {
-        upload_tasks(self).await
+    async fn list_upload_tasks(&self) -> Result<Vec<UploadTask>, AppError> {
+        list_upload_tasks(self).await
     }
 
     async fn recover_uploads(&self) -> Result<Vec<UploadTask>, AppError> {
         recover_uploads(self).await
     }
 
-    async fn queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError> {
-        queued_local_ids(self, dest_uri).await
+    async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError> {
+        list_queued_local_ids(self, dest_uri).await
     }
 }

@@ -65,8 +65,8 @@ where
     M: LocalMediaPort + 'static,
 {
     /// The newest sync pass, whatever state it is in.
-    pub async fn sync_run(&self) -> Result<Option<Run>, AppError> {
-        self.catalog.run(SYNC_RUN).await
+    pub async fn get_sync_run(&self) -> Result<Option<Run>, AppError> {
+        self.catalog.get_run(SYNC_RUN).await
     }
 
     /// Start one pass over every registered local album, and return immediately.
@@ -75,9 +75,9 @@ where
     /// the pass starts, from what the device reports for each directory; a file
     /// deleted mid-walk simply never gets counted, and the pass still ends.
     pub async fn start_sync(self: &Arc<Self>, sink: RunSink) -> Result<Run, AppError> {
-        let albums = self.catalog.local_albums().await?;
+        let albums = self.catalog.list_local_albums().await?;
         let total = albums.iter().try_fold(0u32, |sum, album| {
-            Ok(sum + self.local.count(&album.uri)?)
+            Ok(sum + self.local.count_assets(&album.uri)?)
         })?;
         let (run, started) = self.catalog.begin_run(SYNC_RUN, total).await?;
         if !started {
@@ -98,7 +98,7 @@ where
             // means one concurrency budget however many albums the pass walks.
             let offered = Arc::new(Mutex::new(Vec::new()));
             runner
-                .run(albums, tracker.cancel(), |album, _| {
+                .run(albums, tracker.get_cancel(), |album, _| {
                     let batch = Arc::clone(&batch);
                     let tracker = tracker.clone();
                     let offered = Arc::clone(&offered);
@@ -130,25 +130,25 @@ where
         tracker: &RunTracker<C>,
         offered: &Mutex<Vec<UploadTaskId>>,
     ) -> Result<(), AppError> {
-        let Some(folder) = self.catalog.folder(&album.album_id).await? else {
+        let Some(folder) = self.catalog.get_folder(&album.album_id).await? else {
             // The album was removed; every file of the directory counts as
             // failed, so the pass reports what could not be pushed.
-            let count = self.local.count(&album.uri)?;
+            let count = self.local.count_assets(&album.uri)?;
             return tracker.advance(0, count).await;
         };
-        let names = self.catalog.album_asset_names(&folder.id).await?;
+        let names = self.catalog.list_album_asset_names(&folder.id).await?;
         // Matched by name, so a directory of tens of thousands of files does
         // not turn every page into a scan of everything the album holds.
         let held: HashSet<&str> = names.iter().map(String::as_str).collect();
 
         let mut cursor: Option<String> = None;
         loop {
-            if tracker.cancel().is_cancelled() {
+            if tracker.get_cancel().is_cancelled() {
                 break;
             }
             let page = self
                 .local
-                .assets(&album.uri, cursor.as_deref(), LOCAL_PAGE)?;
+                .list_assets(&album.uri, cursor.as_deref(), LOCAL_PAGE)?;
             let count = page.items.len() as u32;
             let missing: Vec<LocalAsset> = page
                 .items

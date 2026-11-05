@@ -64,7 +64,7 @@ pub(crate) fn error_response(error: &AppError) -> Response<Vec<u8>> {
     )
 }
 
-fn thumb(app: AppHandle, id: String, responder: UriSchemeResponder) {
+fn get_thumb(app: AppHandle, id: String, responder: UriSchemeResponder) {
     tauri::async_runtime::spawn(async move {
         let (core, cache) = {
             let state = app.state::<AppState>();
@@ -80,13 +80,13 @@ fn thumb(app: AppHandle, id: String, responder: UriSchemeResponder) {
             ));
             return;
         }
-        match core.browse.thumb_bytes(&id).await {
+        match core.browse.get_thumb_bytes(&id).await {
             Ok(bytes) => {
                 let _ = cache.put(&id, &bytes);
                 // Derive the blur-up placeholder from the JPEG we already
                 // downloaded, so it never costs an extra request. Done
                 // before responding so the mosaic lands on first paint.
-                let mosaic = match core.browse.asset_thumb_hash(&id).await {
+                let mosaic = match core.browse.get_asset_thumb_hash(&id).await {
                     Ok(Some(_)) => None,
                     _ => preview_from_jpeg(&bytes),
                 };
@@ -128,9 +128,9 @@ pub(crate) fn media(
     };
     let (route, value) = (route.to_owned(), value.to_owned());
     match route.as_str() {
-        "thumb" => thumb(app, value, responder),
+        "thumb" => get_thumb(app, value, responder),
         "original" => original(app, value, range, responder),
-        "local" => local_thumb(app, value, responder),
+        "local" => get_local_thumb(app, value, responder),
         _ => responder.respond(not_found()),
     }
 }
@@ -148,7 +148,7 @@ fn original(app: AppHandle, id: String, range: Option<String>, responder: UriSch
             let state = app.state::<AppState>();
             Arc::clone(&state.core)
         };
-        match core.browse.media_range(&id, range.as_deref()).await {
+        match core.browse.get_media_range(&id, range.as_deref()).await {
             Ok(media) => responder.respond(http_response(
                 media.status,
                 media
@@ -190,7 +190,7 @@ fn local_thumb_response(bytes: Vec<u8>) -> Response<Vec<u8>> {
 /// videos) on the UI thread, which froze the window while a folder painted.
 /// This answers with a cached 512px JPEG built by the local media port, so the
 /// file itself is only ever read by the platform adapter.
-fn local_thumb(app: AppHandle, raw: String, responder: UriSchemeResponder) {
+fn get_local_thumb(app: AppHandle, raw: String, responder: UriSchemeResponder) {
     tauri::async_runtime::spawn(async move {
         let path = raw.strip_prefix("file://").unwrap_or(&raw);
         let (core, cache) = {
@@ -207,7 +207,7 @@ fn local_thumb(app: AppHandle, raw: String, responder: UriSchemeResponder) {
         }
         let source = path.to_owned();
         let thumb = tauri::async_runtime::spawn_blocking(move || {
-            core.browse.local_thumb(&source, LOCAL_THUMB_EDGE).ok()
+            core.browse.get_local_thumb(&source, LOCAL_THUMB_EDGE).ok()
         })
         .await
         .ok()

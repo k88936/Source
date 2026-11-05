@@ -5,7 +5,7 @@ use crate::prelude::*;
 
 #[tauri::command]
 pub(crate) fn media_permission_state(state: State<'_, AppState>) -> MediaPermissionState {
-    state.core.browse.media_permission_state()
+    state.core.browse.get_media_permission_state()
 }
 
 #[tauri::command]
@@ -19,7 +19,7 @@ pub(crate) fn local_browse(
     state: State<'_, AppState>,
     params: LocalBrowseParams,
 ) -> Result<LocalBrowsePage, AppError> {
-    state.core.albums.local_browse(params.parent.as_deref())
+    state.core.albums.browse_local(params.parent.as_deref())
 }
 
 #[tauri::command]
@@ -50,7 +50,7 @@ pub(crate) fn local_asset_page(
     state: State<'_, AppState>,
     params: LocalAssetPageParams,
 ) -> Result<LocalAssetPage, AppError> {
-    state.core.albums.local_asset_page(params)
+    state.core.albums.get_local_asset_page(params)
 }
 
 /// Start a sync pass over every registered local album. Returns at once; the
@@ -77,5 +77,5 @@ pub(crate) async fn sync_stop(state: State<'_, AppState>) -> Result<(), AppError
 /// The newest sync pass, so a page can restore its progress after a reload.
 #[tauri::command]
 pub(crate) async fn sync_run(state: State<'_, AppState>) -> Result<Option<Run>, AppError> {
-    state.core.sync.sync_run().await
+    state.core.sync.get_sync_run().await
 }

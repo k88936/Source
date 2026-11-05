@@ -8,7 +8,7 @@ pub(crate) async fn timeline_page(
     state: State<'_, AppState>,
     params: TimelinePageParams,
 ) -> Result<TimelinePage, AppError> {
-    state.core.browse.timeline_page(params).await
+    state.core.browse.get_timeline_page(params).await
 }
 
 #[tauri::command]
@@ -16,7 +16,7 @@ pub(crate) async fn asset_detail(
     state: State<'_, AppState>,
     params: AssetDetailParams,
 ) -> Result<AssetDetail, AppError> {
-    state.core.browse.asset_detail(&params.asset_id.0).await
+    state.core.browse.get_asset_detail(&params.asset_id.0).await
 }
 
 #[tauri::command]
@@ -44,7 +44,7 @@ pub(crate) async fn set_favorite(
 
 #[tauri::command]
 pub(crate) async fn album_list(state: State<'_, AppState>) -> Result<Vec<AlbumSummary>, AppError> {
-    state.core.albums.album_list().await
+    state.core.albums.list_albums().await
 }
 
 #[tauri::command]
@@ -52,7 +52,7 @@ pub(crate) async fn album_get(
     state: State<'_, AppState>,
     params: AlbumParams,
 ) -> Result<Option<AlbumSummary>, AppError> {
-    state.core.albums.album(&params.album_id.0).await
+    state.core.albums.get_album(&params.album_id.0).await
 }
 
 #[tauri::command]
@@ -60,7 +60,7 @@ pub(crate) async fn album_page(
     state: State<'_, AppState>,
     params: AlbumPageParams,
 ) -> Result<TimelinePage, AppError> {
-    state.core.albums.album_page(params).await
+    state.core.albums.get_album_page(params).await
 }
 
 /// Add a folder as an album. The folder is listed once right away, so a fresh
@@ -114,7 +114,7 @@ pub(crate) async fn index_stop(state: State<'_, AppState>) -> Result<(), AppErro
 /// The newest index pass, so a page can restore its progress after a reload.
 #[tauri::command]
 pub(crate) async fn index_run(state: State<'_, AppState>) -> Result<Option<Run>, AppError> {
-    state.core.albums.index_run().await
+    state.core.albums.get_index_run().await
 }
 
 #[tauri::command]
@@ -166,7 +166,7 @@ pub(crate) async fn move_assets_to_album(
         .move_assets_to_album(&ids, &params.album_id.0)
         .await?;
     // Counts and mosaics of both the source and the target album changed.
-    if let Ok(albums) = state.core.albums.album_list().await {
+    if let Ok(albums) = state.core.albums.list_albums().await {
         let _ = app.emit(
             "catalog://changed",
             CatalogChangedEvent {
@@ -221,7 +221,7 @@ pub(crate) async fn media_source(
 /// file from a signed server URL.
 #[cfg(desktop)]
 async fn video_address(state: &AppState, asset_id: &str) -> Result<String, AppError> {
-    state.core.browse.media_url(asset_id).await
+    state.core.browse.get_media_url(asset_id).await
 }
 
 /// Android's player is fine with the custom scheme, which the webview

@@ -98,7 +98,7 @@ fn local_asset_from_path(path: &Path) -> Option<LocalAsset> {
 }
 
 impl LocalMediaPort for FsLocalMedia {
-    fn permission_state(&self) -> MediaPermissionState {
+    fn get_permission_state(&self) -> MediaPermissionState {
         MediaPermissionState {
             granted: PermissionGrant::Full,
             can_request: false,
@@ -106,7 +106,7 @@ impl LocalMediaPort for FsLocalMedia {
     }
 
     fn request_permission(&self) -> MediaPermissionState {
-        self.permission_state()
+        self.get_permission_state()
     }
 
     fn browse(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
@@ -131,7 +131,7 @@ impl LocalMediaPort for FsLocalMedia {
         })
     }
 
-    fn assets(
+    fn list_assets(
         &self,
         album_uri: &str,
         cursor: Option<&str>,
@@ -154,15 +154,15 @@ impl LocalMediaPort for FsLocalMedia {
         Ok(LocalAssetPage { items, next })
     }
 
-    fn count(&self, album_uri: &str) -> Result<u32, AppError> {
+    fn count_assets(&self, album_uri: &str) -> Result<u32, AppError> {
         Ok(direct_media(Path::new(album_uri))?.len() as u32)
     }
 
-    fn asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+    fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
         Ok(local_asset_from_path(Path::new(id)))
     }
 
-    fn thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
+    fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
         let path = Path::new(id);
         let name = path
             .file_name()

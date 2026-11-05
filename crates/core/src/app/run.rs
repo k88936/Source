@@ -37,7 +37,7 @@ where
     }
 
     /// The token the batch checks, and that a stop cancels.
-    pub fn cancel(&self) -> &CancellationToken {
+    pub fn get_cancel(&self) -> &CancellationToken {
         &self.cancel
     }
 
@@ -72,7 +72,7 @@ where
         let state = if self.cancel.is_cancelled() {
             RunState::Cancelled
         } else {
-            match self.catalog.run_by_id(&self.run_id).await? {
+            match self.catalog.get_run_by_id(&self.run_id).await? {
                 Some(run) if run.total > 0 && run.failed >= run.total => RunState::Failed,
                 _ => RunState::Done,
             }

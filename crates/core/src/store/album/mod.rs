@@ -22,9 +22,9 @@ pub trait AlbumStore: Send + Sync {
     async fn save_album(&self, album: &FolderRecord) -> Result<(), AppError>;
     /// Forget an album, its assets and every local album syncing into it.
     async fn delete_album(&self, id: &str) -> Result<(), AppError>;
-    async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError>;
-    async fn album(&self, id: &str) -> Result<Option<AlbumSummary>, AppError>;
-    async fn album_page(
+    async fn list_albums(&self) -> Result<Vec<AlbumSummary>, AppError>;
+    async fn get_album(&self, id: &str) -> Result<Option<AlbumSummary>, AppError>;
+    async fn get_album_page(
         &self,
         album_id: &str,
         cursor: Option<&TimelineCursor>,
@@ -112,7 +112,7 @@ async fn sync_states(
         .collect())
 }
 
-pub(crate) async fn album_list(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>, AppError> {
+pub(crate) async fn list_albums(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>, AppError> {
     let mut conn = cat.conn().await?;
     let mut albums = folders::table
         .select(FolderRow::as_select())
@@ -202,7 +202,7 @@ pub(crate) async fn album_list(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>,
 /// One album with its covers. Queries the row directly instead of scanning
 /// [`album_list`], so opening an album costs three indexed statements and not
 /// one per album in the library.
-pub(crate) async fn album(
+pub(crate) async fn get_album(
     cat: &SqliteCatalog,
     id: &str,
 ) -> Result<Option<AlbumSummary>, AppError> {
@@ -257,7 +257,7 @@ pub(crate) async fn album(
     }))
 }
 
-pub(crate) async fn album_page(
+pub(crate) async fn get_album_page(
     cat: &SqliteCatalog,
     album_id: &str,
     cursor: Option<&TimelineCursor>,
@@ -305,21 +305,21 @@ impl AlbumStore for SqliteCatalog {
         delete_album(self, id).await
     }
 
-    async fn album_list(&self) -> Result<Vec<AlbumSummary>, AppError> {
-        album_list(self).await
+    async fn list_albums(&self) -> Result<Vec<AlbumSummary>, AppError> {
+        list_albums(self).await
     }
 
-    async fn album(&self, id: &str) -> Result<Option<AlbumSummary>, AppError> {
-        album(self, id).await
+    async fn get_album(&self, id: &str) -> Result<Option<AlbumSummary>, AppError> {
+        get_album(self, id).await
     }
 
-    async fn album_page(
+    async fn get_album_page(
         &self,
         album_id: &str,
         cursor: Option<&TimelineCursor>,
         limit: u32,
     ) -> Result<TimelinePage, AppError> {
-        album_page(self, album_id, cursor, limit).await
+        get_album_page(self, album_id, cursor, limit).await
     }
 
     async fn set_album_cover(&self, album_id: &str, cover: Option<&str>) -> Result<(), AppError> {

@@ -208,7 +208,7 @@ pub(crate) fn autoconnect(core: &App) {
     let Some(config) = read_json::<CloudreveConfig>("cloudreve.json") else {
         return;
     };
-    let connected = tauri::async_runtime::block_on(core.account.account_state())
+    let connected = tauri::async_runtime::block_on(core.account.get_account_state())
         .ok()
         .flatten()
         .is_some_and(|account| account.server == config.endpoint);
@@ -237,7 +237,7 @@ pub(crate) fn autoconnect(core: &App) {
         }
         let has_album = core
             .albums
-            .album_list()
+            .list_albums()
             .await
             .is_ok_and(|albums| !albums.is_empty());
         if !has_album
