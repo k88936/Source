@@ -1,5 +1,10 @@
 //! A local album: one directory on this device and the album it syncs into.
 
+use crate::store::id_type;
+
+// A file on this device, as the media adapter names it.
+id_type!(LocalAssetId);
+
 /// A registered local album together with its target album.
 #[derive(Debug, Clone)]
 pub struct LocalAlbumRecord {

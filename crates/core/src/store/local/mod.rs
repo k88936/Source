@@ -25,12 +25,7 @@ pub trait LocalStore: Send + Sync {
     async fn local_albums(&self) -> Result<Vec<LocalAlbumRecord>, AppError>;
     async fn local_album(&self, id: &str) -> Result<Option<LocalAlbumRecord>, AppError>;
     /// Register `uri` as a local album syncing into `album_id`.
-    async fn add_local_album(
-        &self,
-        uri: &str,
-        name: &str,
-        album_id: &str,
-    ) -> Result<(), AppError>;
+    async fn add_local_album(&self, uri: &str, name: &str, album_id: &str) -> Result<(), AppError>;
     /// Forget a local album and its staging rows; the remote album stays.
     async fn remove_local_album(&self, id: &str) -> Result<(), AppError>;
 }
@@ -42,7 +37,7 @@ pub(crate) async fn save_local_asset(
     let mut conn = cat.conn().await?;
     diesel::insert_into(local_assets::table)
         .values((
-            local_assets::id.eq(asset.id.clone()),
+            local_assets::id.eq(asset.id.0.clone()),
             local_assets::album_id.eq(asset.album_id.clone()),
             local_assets::name.eq(asset.name.clone()),
             local_assets::mime.eq(asset.mime.clone()),
@@ -87,7 +82,9 @@ pub(crate) async fn local_asset(
         .map_err(db_err)
 }
 
-pub(crate) async fn local_albums(cat: &SqliteCatalog) -> Result<Vec<LocalAlbumRecord>, AppError> {
+pub(crate) async fn local_albums(
+    cat: &SqliteCatalog,
+) -> Result<Vec<LocalAlbumRecord>, AppError> {
     let mut conn = cat.conn().await?;
     let rows = local_albums::table
         .inner_join(local_album_mapping::table.inner_join(folders::table))
@@ -169,9 +166,11 @@ pub(crate) async fn add_local_album(
 pub(crate) async fn remove_local_album(cat: &SqliteCatalog, id: &str) -> Result<(), AppError> {
     let mut conn = cat.conn().await?;
     conn.transaction::<(), TxError, _>(async |conn| {
-        diesel::delete(local_album_mapping::table.filter(local_album_mapping::local_album_id.eq(id)))
-            .execute(&mut *conn)
-            .await?;
+        diesel::delete(
+            local_album_mapping::table.filter(local_album_mapping::local_album_id.eq(id)),
+        )
+        .execute(&mut *conn)
+        .await?;
         diesel::delete(local_assets::table.filter(local_assets::album_id.eq(id)))
             .execute(&mut *conn)
             .await?;
@@ -202,12 +201,7 @@ impl LocalStore for SqliteCatalog {
         local_album(self, id).await
     }
 
-    async fn add_local_album(
-        &self,
-        uri: &str,
-        name: &str,
-        album_id: &str,
-    ) -> Result<(), AppError> {
+    async fn add_local_album(&self, uri: &str, name: &str, album_id: &str) -> Result<(), AppError> {
         add_local_album(self, uri, name, album_id).await
     }
 

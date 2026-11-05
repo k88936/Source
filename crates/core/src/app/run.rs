@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use crate::error::AppError;
-use crate::store::{Run, RunKind, RunState, RunStore};
+use crate::store::{Run, RunId, RunState, RunStore};
 
 /// Reports a run as it changes.
 pub type RunSink = Arc<dyn Fn(&Run) + Send + Sync>;
@@ -18,8 +18,7 @@ pub type RunSink = Arc<dyn Fn(&Run) + Send + Sync>;
 #[derive(Clone)]
 pub struct RunTracker<C> {
     catalog: C,
-    kind: RunKind,
-    run_id: String,
+    run_id: RunId,
     sink: RunSink,
     cancel: CancellationToken,
 }
@@ -31,7 +30,6 @@ where
     pub fn new(catalog: C, run: &Run, sink: RunSink, cancel: CancellationToken) -> Self {
         Self {
             catalog,
-            kind: run.kind,
             run_id: run.id.clone(),
             sink,
             cancel,
@@ -74,7 +72,7 @@ where
         let state = if self.cancel.is_cancelled() {
             RunState::Cancelled
         } else {
-            match self.catalog.run(self.kind).await? {
+            match self.catalog.run_by_id(&self.run_id).await? {
                 Some(run) if run.total > 0 && run.failed >= run.total => RunState::Failed,
                 _ => RunState::Done,
             }

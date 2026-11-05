@@ -1,6 +1,6 @@
 //! Event-stream upload driving: upload sessions, progress and error mapping.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use tokio_util::sync::CancellationToken;
 
 use super::*;
 use crate::error::ErrorCode;
@@ -46,7 +46,7 @@ pub(crate) async fn drive_upload(
     records: Vec<ChunkProgress>,
     sessions: &dyn UploadSessionPort,
     key: &str,
-    cancel: &AtomicBool,
+    cancel: &CancellationToken,
     progress: &ProgressSink,
 ) -> Result<(), AppError> {
     let UploadStream {
@@ -67,7 +67,7 @@ pub(crate) async fn drive_upload(
                 // Record first, then stop: a cancelled attempt keeps every
                 // chunk the server has already accepted.
                 sessions.append_chunk(key, &record).await?;
-                if cancel.load(Ordering::SeqCst) {
+                if cancel.is_cancelled() {
                     return Err(cancelled());
                 }
             }

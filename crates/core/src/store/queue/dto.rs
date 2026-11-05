@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::AppError;
-use crate::store::id_type;
+use crate::store::{LocalAssetId, id_type};
 
 id_type!(UploadTaskId);
 
@@ -27,7 +27,7 @@ pub enum UploadState {
 #[ts(export)]
 pub struct UploadTask {
     pub id: UploadTaskId,
-    pub local_asset_id: String,
+    pub local_asset_id: LocalAssetId,
     pub name: String,
     pub dest_uri: String,
     pub dest_name: Option<String>,

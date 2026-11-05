@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
 use crate::mapping::{media_type, mime_for};
-use crate::store::MediaType;
+use crate::store::{LocalAssetId, MediaType};
 use crate::time::system_millis;
 
 use super::{
@@ -82,7 +82,7 @@ fn local_asset_from_path(path: &Path) -> Option<LocalAsset> {
     let mime = mime_for(&name).map(str::to_owned);
     let date_taken = meta.modified().ok().map(system_millis).unwrap_or(0);
     Some(LocalAsset {
-        id: path.to_string_lossy().to_string(),
+        id: LocalAssetId(path.to_string_lossy().to_string()),
         album_id: path
             .parent()
             .map(|parent| parent.to_string_lossy().to_string()),
@@ -114,8 +114,9 @@ impl LocalMediaPort for FsLocalMedia {
             Some(uri) => PathBuf::from(uri),
             None => home()?,
         };
-        let entries = fs::read_dir(&dir)
-            .map_err(|error| AppError::internal(format!("无法读取目录 {}: {error}", dir.display())))?;
+        let entries = fs::read_dir(&dir).map_err(|error| {
+            AppError::internal(format!("无法读取目录 {}: {error}", dir.display()))
+        })?;
         let mut entries: Vec<LocalEntry> = entries
             .flatten()
             .map(|entry| entry.path())

@@ -202,7 +202,10 @@ pub(crate) async fn album_list(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>,
 /// One album with its covers. Queries the row directly instead of scanning
 /// [`album_list`], so opening an album costs three indexed statements and not
 /// one per album in the library.
-pub(crate) async fn album(cat: &SqliteCatalog, id: &str) -> Result<Option<AlbumSummary>, AppError> {
+pub(crate) async fn album(
+    cat: &SqliteCatalog,
+    id: &str,
+) -> Result<Option<AlbumSummary>, AppError> {
     let mut conn = cat.conn().await?;
     let Some(folder) = folders::table
         .filter(folders::id.eq(id))

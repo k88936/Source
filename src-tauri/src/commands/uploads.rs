@@ -10,11 +10,11 @@ pub(crate) async fn enqueue_uploads(
     state: State<'_, AppState>,
     params: EnqueueUploadsParams,
 ) -> Result<Vec<UploadTask>, AppError> {
-    let tasks = state.core.uploads.enqueue(params).await?;
+    let tasks = state.core.uploads.enqueue_files(params).await?;
     state
         .core
         .uploads
-        .start(tasks.iter().map(|task| task.id.0.clone()).collect());
+        .start(tasks.iter().map(|task| task.id.clone()).collect());
     Ok(tasks)
 }
 
@@ -28,7 +28,7 @@ pub(crate) async fn cancel_upload(
     state: State<'_, AppState>,
     params: UploadTaskParams,
 ) -> Result<(), AppError> {
-    state.core.uploads.cancel(&params.task_id.0).await
+    state.core.uploads.cancel(&params.task_id).await
 }
 
 #[tauri::command]
@@ -36,7 +36,7 @@ pub(crate) async fn retry_upload(
     state: State<'_, AppState>,
     params: UploadTaskParams,
 ) -> Result<UploadTask, AppError> {
-    let task = state.core.uploads.retry(&params.task_id.0).await?;
-    state.core.uploads.start(vec![task.id.0.clone()]);
+    let task = state.core.uploads.retry(&params.task_id).await?;
+    state.core.uploads.start(vec![task.id.clone()]);
     Ok(task)
 }

@@ -4,7 +4,10 @@
 //! it the keys to visit and one closure that performs a single attempt; what a
 //! visit means - rows, progress, events - stays in the use case.
 
+use std::collections::HashMap;
 use std::future::Future;
+use std::hash::Hash;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use futures::StreamExt;
@@ -55,6 +58,9 @@ pub struct Try {
     pub retry: Retry,
 }
 
+/// How many attempt futures are polled per concurrency slot.
+const WINDOW_PER_SLOT: usize = 32;
+
 /// A batch policy: how many attempts run at once, and how they are retried.
 #[derive(Debug, Clone, Copy)]
 pub struct Runner {
@@ -82,15 +88,85 @@ impl Runner {
         F: Fn(T, Try) -> Fut + Sync,
         Fut: Future<Output = Result<(), AppError>> + Send,
     {
-        let in_flight = keys.len().max(1);
+        // The window is not the concurrency limit - a permit is - but it is
+        // bounded, so a backlog of twenty thousand files never materialises
+        // twenty thousand attempt futures at once.
+        let window = keys.len().min(self.concurrency * WINDOW_PER_SLOT).max(1);
         let semaphore = Semaphore::new(self.concurrency);
         let retry = self.retry;
 
         stream::iter(keys)
             .map(|key| run_one(&semaphore, retry, cancel, &attempt, key))
-            .buffer_unordered(in_flight)
+            .buffer_unordered(window)
             .collect::<Vec<()>>()
             .await;
+    }
+}
+
+/// The attempts running right now, so one of them can be stopped from outside.
+///
+/// A batch token stops a whole pass; this is the other direction - one key,
+/// picked from a list, while the rest of the batch keeps going.
+pub struct Attempts<K: Eq + Hash> {
+    running: Mutex<HashMap<K, CancellationToken>>,
+}
+
+impl<K: Eq + Hash> Default for Attempts<K> {
+    fn default() -> Self {
+        Self {
+            running: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+impl<K: Eq + Hash + Clone> Attempts<K> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Register an attempt before it touches anything, so a stop that lands
+    /// during setup is not lost. The registration ends with the guard.
+    pub fn open(&self, key: K) -> Attempt<'_, K> {
+        let token = CancellationToken::new();
+        self.running
+            .lock()
+            .unwrap()
+            .insert(key.clone(), token.clone());
+        Attempt {
+            attempts: self,
+            key,
+            token,
+        }
+    }
+
+    /// Stop the attempt running under `key`, if there is one.
+    pub fn stop(&self, key: &K) {
+        if let Some(token) = self.running.lock().unwrap().get(key) {
+            token.cancel();
+        }
+    }
+}
+
+/// One registered attempt. The token it listens to lives as long as the guard.
+pub struct Attempt<'a, K: Eq + Hash> {
+    attempts: &'a Attempts<K>,
+    key: K,
+    token: CancellationToken,
+}
+
+impl<K: Eq + Hash> Attempt<'_, K> {
+    pub fn token(&self) -> CancellationToken {
+        self.token.clone()
+    }
+}
+
+impl<K: Eq + Hash> Drop for Attempt<'_, K> {
+    fn drop(&mut self) {
+        let mut running = self.attempts.running.lock().unwrap();
+        // A newer attempt for the same key may have taken the slot already.
+        if running.get(&self.key) == Some(&self.token) {
+            running.remove(&self.key);
+        }
     }
 }
 

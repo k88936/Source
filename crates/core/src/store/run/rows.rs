@@ -1,18 +1,40 @@
 //! Row struct mirroring the `runs` table, plus its DTO conversion.
 
 use diesel::prelude::*;
-use diesel::sqlite::Sqlite;
 
-use super::dto::Run;
-use super::schema;
-use super::values::{run_kind_from_str, run_state_from_str};
+use super::dto::{Run, RunId};
+use super::schema::runs;
+use super::values::run_state_from_str;
 
-#[derive(Queryable, Selectable)]
-#[diesel(table_name = schema::runs)]
-#[diesel(check_for_backend(Sqlite))]
+/// The row's columns, in the order [`RunRow`] declares them.
+///
+/// Spelled out instead of `RunRow::as_select()` so the row never carries the
+/// run key: reading a pass back needs only what the UI shows.
+pub(crate) type RunColumns = (
+    runs::id,
+    runs::state,
+    runs::total,
+    runs::done,
+    runs::failed,
+    runs::started_at,
+    runs::finished_at,
+);
+
+pub(crate) fn run_columns() -> RunColumns {
+    (
+        runs::id,
+        runs::state,
+        runs::total,
+        runs::done,
+        runs::failed,
+        runs::started_at,
+        runs::finished_at,
+    )
+}
+
+#[derive(Queryable)]
 pub(crate) struct RunRow {
     pub(crate) id: String,
-    pub(crate) kind: String,
     pub(crate) state: String,
     pub(crate) total: i64,
     pub(crate) done: i64,
@@ -24,8 +46,7 @@ pub(crate) struct RunRow {
 impl From<RunRow> for Run {
     fn from(row: RunRow) -> Self {
         Run {
-            id: row.id,
-            kind: run_kind_from_str(&row.kind),
+            id: RunId(row.id),
             state: run_state_from_str(&row.state),
             total: row.total.max(0) as u32,
             done: row.done.max(0) as u32,

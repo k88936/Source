@@ -3,9 +3,9 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 
 use serde::{Deserialize, Serialize};
+use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 
 use crate::store::UploadTaskId;
@@ -33,7 +33,7 @@ pub struct UploadRequest {
     pub name: String,
     pub mime: Option<String>,
     /// Raised by `cancel_upload`; uploaders stop between two chunks.
-    pub cancel: Arc<AtomicBool>,
+    pub cancel: CancellationToken,
     pub progress: ProgressSink,
 }
 

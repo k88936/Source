@@ -79,10 +79,17 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
 
     let cache = Arc::new(ThumbCache::default_cache(&app_data)?);
 
-    // Uploads a previous process left behind resume from their sessions.
-    let pending = tauri::async_runtime::block_on(core.uploads.recover()).unwrap_or_default();
-    core.uploads
-        .start(pending.into_iter().map(|task| task.id.0).collect());
+    // Uploads a previous process left behind resume from their sessions. The
+    // work runs as a task on Tauri's runtime, not inside a one-off block: the
+    // batch it starts has to outlive setup, and recovering twenty thousand rows
+    // must not hold the window.
+    {
+        let uploads = Arc::clone(&core.uploads);
+        tauri::async_runtime::spawn(async move {
+            let pending = uploads.recover().await.unwrap_or_default();
+            uploads.start(pending.into_iter().map(|task| task.id).collect());
+        });
+    }
 
     app.manage(AppState {
         core,

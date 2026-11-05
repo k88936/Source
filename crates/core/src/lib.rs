@@ -34,6 +34,6 @@ pub use remote::{
 pub use sqlite::SqliteCatalog;
 pub use store::{
     Account, AccountStore, AlbumStore, AssetRecord, AssetStore, FolderRecord, FolderStore,
-    FolderSyncState, LocalStore, Run, RunKind, RunState, RunStore, SearchQuery, SettingsStore,
+    FolderSyncState, LocalStore, Run, RunKey, RunState, RunStore, SearchQuery, SettingsStore,
     TimelineStore, UploadQueueStore, UploadSessionPort, UserInfo,
 };

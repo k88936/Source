@@ -175,7 +175,11 @@ impl RemoteStorage for CloudreveStorage {
         self.get_bytes(&url).await
     }
 
-    async fn media_range(&self, uri: &str, range: Option<&str>) -> Result<MediaRange, AppError> {
+    async fn media_range(
+        &self,
+        uri: &str,
+        range: Option<&str>,
+    ) -> Result<MediaRange, AppError> {
         let url = self.signed_media_url(uri).await?;
         self.get_range(&url, range).await
     }

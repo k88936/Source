@@ -72,11 +72,7 @@ pub(crate) async fn account(
 async fn account_row(conn: &mut Conn, base_url: &str) -> Result<Option<AccountRow>, AppError> {
     account::table
         .filter(account::base_url.eq(base_url))
-        .select((
-            account::base_url,
-            account::user,
-            account::site_name,
-        ))
+        .select((account::base_url, account::user, account::site_name))
         .first::<AccountRow>(conn)
         .await
         .optional()
@@ -122,13 +118,21 @@ pub(crate) async fn save_account(cat: &SqliteCatalog, value: &Account) -> Result
 pub(crate) async fn reset_catalog(cat: &SqliteCatalog) -> Result<(), AppError> {
     let mut conn = cat.conn().await?;
     conn.transaction::<(), TxError, _>(async |conn| {
-        diesel::delete(upload_sessions::table).execute(&mut *conn).await?;
-        diesel::delete(upload_queue::table).execute(&mut *conn).await?;
+        diesel::delete(upload_sessions::table)
+            .execute(&mut *conn)
+            .await?;
+        diesel::delete(upload_queue::table)
+            .execute(&mut *conn)
+            .await?;
         diesel::delete(local_album_mapping::table)
             .execute(&mut *conn)
             .await?;
-        diesel::delete(local_albums::table).execute(&mut *conn).await?;
-        diesel::delete(sync_state::table).execute(&mut *conn).await?;
+        diesel::delete(local_albums::table)
+            .execute(&mut *conn)
+            .await?;
+        diesel::delete(sync_state::table)
+            .execute(&mut *conn)
+            .await?;
         diesel::delete(assets::table).execute(&mut *conn).await?;
         diesel::delete(folders::table).execute(&mut *conn).await?;
         Ok(())

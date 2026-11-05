@@ -32,7 +32,10 @@ pub(crate) async fn upsert_asset(cat: &SqliteCatalog, asset: &AssetRecord) -> Re
     upsert_asset_row(&mut conn, asset).await
 }
 
-pub(crate) async fn asset(cat: &SqliteCatalog, id: &str) -> Result<Option<AssetRecord>, AppError> {
+pub(crate) async fn asset(
+    cat: &SqliteCatalog,
+    id: &str,
+) -> Result<Option<AssetRecord>, AppError> {
     let mut conn = cat.conn().await?;
     let row = assets::table
         .filter(assets::id.eq(id))

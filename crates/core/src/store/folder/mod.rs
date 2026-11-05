@@ -15,6 +15,9 @@ pub use dto::*;
 
 use self::rows::*;
 
+/// How many ids one delete names: a whole album can be thousands of files.
+const PRUNE_CHUNK: usize = 500;
+
 #[async_trait]
 pub trait FolderStore: Send + Sync {
     async fn upsert_folder(&self, folder: &FolderRecord) -> Result<(), AppError>;
@@ -29,11 +32,10 @@ pub trait FolderStore: Send + Sync {
         remote_updated_at: Option<i64>,
         now: i64,
     ) -> Result<(), AppError>;
-    async fn replace_folder_assets(
-        &self,
-        folder_id: &str,
-        assets: &[AssetRecord],
-    ) -> Result<(), AppError>;
+    /// Write one listing page, keeping the rows the album already has.
+    async fn upsert_album_assets(&self, assets: &[AssetRecord]) -> Result<(), AppError>;
+    /// Drop the assets a complete listing no longer holds, given every id it listed.
+    async fn prune_album_assets(&self, folder_id: &str, listed: &[String]) -> Result<(), AppError>;
     /// The names of the media files the album currently holds.
     async fn album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError>;
 }
@@ -197,40 +199,20 @@ pub(crate) async fn album_asset_names(
         .map_err(db_err)
 }
 
-/// Replace an album's assets with a fresh one-level listing.
+/// Write one listing page without touching the rest of the album.
 ///
-/// Assets still present keep their row, so the thumbnail hash and the parsed
-/// EXIF survive a refresh; only the ones missing from the listing are deleted.
-pub(crate) async fn replace_folder_assets(
+/// Assets already in the album keep their row, so the thumbnail hash and the
+/// parsed EXIF survive a refresh; a page that does not mention an asset leaves
+/// it for the prune that follows the complete listing.
+pub(crate) async fn upsert_album_assets(
     cat: &SqliteCatalog,
-    folder_id: &str,
     asset_records: &[AssetRecord],
 ) -> Result<(), AppError> {
+    if asset_records.is_empty() {
+        return Ok(());
+    }
     let mut conn = cat.conn().await?;
     conn.transaction::<(), TxError, _>(async |conn| {
-        let keep = asset_records
-            .iter()
-            .map(|row| row.summary.id.0.clone())
-            .collect::<Vec<_>>();
-        let stale = if keep.is_empty() {
-            assets::table
-                .filter(assets::folder_id.eq(folder_id))
-                .select(assets::id)
-                .load::<String>(&mut *conn)
-                .await?
-        } else {
-            assets::table
-                .filter(assets::folder_id.eq(folder_id))
-                .filter(diesel::dsl::not(assets::id.eq_any(&keep)))
-                .select(assets::id)
-                .load::<String>(&mut *conn)
-                .await?
-        };
-        if !stale.is_empty() {
-            diesel::delete(assets::table.filter(assets::id.eq_any(&stale)))
-                .execute(&mut *conn)
-                .await?;
-        }
         for asset in asset_records {
             upsert_asset_row(conn, asset).await?;
         }
@@ -238,6 +220,36 @@ pub(crate) async fn replace_folder_assets(
     })
     .await
     .map_err(|error| error.0)
+}
+
+/// Drop the assets a complete listing no longer holds.
+///
+/// `listed` must be every id the listing returned: a page-by-page prune would
+/// delete the rows of the pages it has not read yet.
+pub(crate) async fn prune_album_assets(
+    cat: &SqliteCatalog,
+    folder_id: &str,
+    listed: &[String],
+) -> Result<(), AppError> {
+    let mut conn = cat.conn().await?;
+    let existing = assets::table
+        .filter(assets::folder_id.eq(folder_id))
+        .select(assets::id)
+        .load::<String>(&mut conn)
+        .await
+        .map_err(db_err)?;
+    let keep: std::collections::HashSet<&str> = listed.iter().map(String::as_str).collect();
+    let stale: Vec<String> = existing
+        .into_iter()
+        .filter(|id| !keep.contains(id.as_str()))
+        .collect();
+    for chunk in stale.chunks(PRUNE_CHUNK) {
+        diesel::delete(assets::table.filter(assets::id.eq_any(chunk)))
+            .execute(&mut conn)
+            .await
+            .map_err(db_err)?;
+    }
+    Ok(())
 }
 
 #[async_trait]
@@ -269,12 +281,12 @@ impl FolderStore for SqliteCatalog {
         mark_folder(self, id, status, error, remote_updated_at, now).await
     }
 
-    async fn replace_folder_assets(
-        &self,
-        folder_id: &str,
-        asset_records: &[AssetRecord],
-    ) -> Result<(), AppError> {
-        replace_folder_assets(self, folder_id, asset_records).await
+    async fn upsert_album_assets(&self, asset_records: &[AssetRecord]) -> Result<(), AppError> {
+        upsert_album_assets(self, asset_records).await
+    }
+
+    async fn prune_album_assets(&self, folder_id: &str, listed: &[String]) -> Result<(), AppError> {
+        prune_album_assets(self, folder_id, listed).await
     }
 
     async fn album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError> {

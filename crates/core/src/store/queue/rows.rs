@@ -6,6 +6,7 @@ use diesel::sqlite::Sqlite;
 use super::dto::{UploadTask, UploadTaskId};
 use super::schema;
 use super::values::upload_state_from_str;
+use crate::store::LocalAssetId;
 
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = schema::upload_queue)]
@@ -29,7 +30,7 @@ impl From<UploadRow> for UploadTask {
     fn from(row: UploadRow) -> Self {
         UploadTask {
             id: UploadTaskId(row.id),
-            local_asset_id: row.local_asset_id,
+            local_asset_id: LocalAssetId(row.local_asset_id),
             dest_uri: row.dest_uri,
             dest_name: row.dest_name,
             name: row.name,

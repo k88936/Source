@@ -18,18 +18,15 @@
         RefreshCw,
         Square,
         Trash,
-        Upload,
     } from '@lucide/svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import UploadQueueCard from '#lib/components/UploadQueueCard.svelte';
-    import UploadSheet from '#lib/components/UploadSheet.svelte';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
     import {library as text} from './page.i18n';
 
     let localAlbums = $state<LocalAlbumSummary[]>([]);
-    let uploadOpen = $state(false);
     let settled = $state('');
     // A pass restored from storage is already over, so it must not announce
     // itself; only a pass this page saw running can end while it is open.
@@ -55,11 +52,6 @@
         {icon: Eye, label: t.upcoming.lockedFolders},
         {icon: LayoutGrid, label: t.upcoming.partners},
     ]);
-
-    onMount(() => {
-        if (page.url.searchParams.get('upload') === '1') uploadOpen = true;
-        void loadLocal();
-    });
 
     $effect(() => {
         // The pass ends on its own; pick the new counts up when it does.
@@ -105,17 +97,7 @@
 
 <svelte:head><title>{t.title} - Source</title></svelte:head>
 
-<TopBar title={t.title} subtitle={app.account?.user.email ?? ''}>
-    {#snippet actions()}
-        <button
-            onclick={() => (uploadOpen = true)}
-            class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-            aria-label={c.upload}
-        >
-            <Upload size={20} />
-        </button>
-    {/snippet}
-</TopBar>
+<TopBar title={t.title} subtitle={app.account?.user.email ?? ''}></TopBar>
 
 <div class="space-y-3 px-4 pb-24 pt-2">
     <CapacityCard />
@@ -174,5 +156,3 @@
         </div>
     </div>
 </div>
-
-<UploadSheet bind:open={uploadOpen} onUploaded={() => void app.refreshUploads()} />

@@ -1,7 +1,6 @@
 //! One upload attempt end to end: source, resumable stream, progress, entry.
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use cloudreve_sdk_api::Client;
 use cloudreve_sdk_api::api::ExplorerApi;
@@ -53,7 +52,7 @@ impl CloudreveStorage {
         // Cancellation between `Completed` and the read-back would write the
         // asset locally for a file the user gave up on; the session is already
         // gone at that point, so this only skips the local bookkeeping.
-        if request.cancel.load(Ordering::SeqCst) {
+        if request.cancel.is_cancelled() {
             return Err(AppError::new(
                 ErrorCode::Cancelled,
                 "上传已取消".to_string(),

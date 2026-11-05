@@ -18,16 +18,20 @@ pub use dto::*;
 use self::rows::*;
 use self::values::*;
 
+/// How many unfinished rows the queue card reads at once.
+const QUEUE_PAGE: i64 = 200;
+
 #[async_trait]
 pub trait UploadQueueStore: Send + Sync {
     async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), AppError>;
     async fn update_upload(&self, task: &UploadTask) -> Result<(), AppError>;
     async fn upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError>;
+    /// The unfinished part of the queue, newest first.
     async fn upload_tasks(&self) -> Result<Vec<UploadTask>, AppError>;
     /// Put in-flight rows back in the queue and report what is waiting.
     async fn recover_uploads(&self) -> Result<Vec<UploadTask>, AppError>;
     /// The local files already waiting for a slot in one destination folder.
-    async fn queued_local_ids(&self, dest_uri: &str) -> Result<Vec<String>, AppError>;
+    async fn queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError>;
 }
 
 pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), AppError> {
@@ -37,7 +41,7 @@ pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Re
     diesel::insert_into(queue::table)
         .values((
             queue::id.eq(task.id.0.clone()),
-            queue::local_asset_id.eq(task.local_asset_id.clone()),
+            queue::local_asset_id.eq(task.local_asset_id.0.clone()),
             queue::dest_uri.eq(task.dest_uri.clone()),
             queue::dest_name.eq(task.dest_name.clone()),
             queue::name.eq(task.name.clone()),
@@ -92,11 +96,19 @@ pub(crate) async fn upload_task(
         .map_err(db_err)
 }
 
+/// The queue still moving, newest first, capped at [`QUEUE_PAGE`].
+///
+/// A first sync can enqueue tens of thousands of files; the queue card shows
+/// what is left, not every row ever written, so this never grows with the
+/// history and never hands the UI a payload it cannot render.
 pub(crate) async fn upload_tasks(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, AppError> {
     let mut conn = cat.conn().await?;
     let rows = queue::table
+        .filter(queue::state.ne(upload_state_to_str(UploadState::Done)))
+        .filter(queue::state.ne(upload_state_to_str(UploadState::Cancelled)))
         .select(UploadRow::as_select())
         .order(queue::created_at.desc())
+        .limit(QUEUE_PAGE)
         .load::<UploadRow>(&mut conn)
         .await
         .map_err(db_err)?;
@@ -136,7 +148,7 @@ pub(crate) async fn recover_uploads(cat: &SqliteCatalog) -> Result<Vec<UploadTas
 pub(crate) async fn queued_local_ids(
     cat: &SqliteCatalog,
     dest_uri: &str,
-) -> Result<Vec<String>, AppError> {
+) -> Result<Vec<LocalAssetId>, AppError> {
     let mut conn = cat.conn().await?;
     queue::table
         .filter(queue::dest_uri.eq(dest_uri))
@@ -144,6 +156,7 @@ pub(crate) async fn queued_local_ids(
         .select(queue::local_asset_id)
         .load::<String>(&mut conn)
         .await
+        .map(|ids| ids.into_iter().map(LocalAssetId).collect())
         .map_err(db_err)
 }
 
@@ -176,7 +189,7 @@ impl UploadQueueStore for SqliteCatalog {
         recover_uploads(self).await
     }
 
-    async fn queued_local_ids(&self, dest_uri: &str) -> Result<Vec<String>, AppError> {
+    async fn queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError> {
         queued_local_ids(self, dest_uri).await
     }
 }

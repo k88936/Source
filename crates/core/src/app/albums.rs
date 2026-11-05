@@ -18,9 +18,9 @@ use crate::media::{
 };
 use crate::remote::RemoteStorage;
 use crate::store::{
-    AlbumId, AlbumStore, AlbumSummary, AssetId, AssetStore, AssetSummary, FolderId, FolderRecord,
-    FolderStore, LocalAlbumRecord, LocalStore, MediaType, Run, RunKind, RunStore, SYNC_DONE,
-    SYNC_FAILED, TimelineCursor, TimelinePage, TimelineStore,
+    AlbumId, AlbumStore, AlbumSummary, AssetId, AssetRecord, AssetStore, AssetSummary, FolderId,
+    FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, Run, RunKey, RunStore,
+    SYNC_DONE, SYNC_FAILED, TimelineCursor, TimelinePage, TimelineStore,
 };
 use crate::task::{Retry, Runner};
 use crate::time::now_ms;
@@ -141,6 +141,9 @@ impl<R, C, M> AlbumsService<R, C, M> {
 /// are sharing at the same time.
 const INDEX_CONCURRENCY: usize = 3;
 
+/// Which pass this is. The store compares keys and never learns what one means.
+const INDEX_RUN: RunKey = RunKey::new("index");
+
 impl<R, C, M> AlbumsService<R, C, M>
 where
     R: RemoteStorage + 'static,
@@ -203,7 +206,7 @@ where
 
     /// The newest index pass, whatever state it is in.
     pub async fn index_run(&self) -> Result<Option<Run>, AppError> {
-        self.catalog.run(RunKind::Index).await
+        self.catalog.run(INDEX_RUN).await
     }
 
     /// Start listing every album, and return the pass instead of waiting for it.
@@ -219,10 +222,7 @@ where
             .into_iter()
             .map(|album| album.id.0)
             .collect::<Vec<_>>();
-        let (run, started) = self
-            .catalog
-            .begin_run(RunKind::Index, ids.len() as u32)
-            .await?;
+        let (run, started) = self.catalog.begin_run(INDEX_RUN, ids.len() as u32).await?;
         if !started {
             return Ok(run);
         }
@@ -298,7 +298,10 @@ where
         cancel: &CancellationToken,
     ) -> Result<(), AppError> {
         let folder_id = FolderId::new(album.id.clone());
-        let mut records = Vec::new();
+        // Every id the listing returned, for the prune below. The rows
+        // themselves go in page by page, so a big album never sits in memory
+        // whole and a page boundary is a place the pass can be stopped.
+        let mut listed = Vec::new();
         let mut token: Option<String> = None;
         let mut remote_updated_at = 0;
         loop {
@@ -309,18 +312,25 @@ where
                 .cloud
                 .list_entries(&album.uri, token.as_deref())
                 .await?;
-            for entry in page.entries.iter().filter(|entry| is_media_entry(entry)) {
-                remote_updated_at = remote_updated_at.max(entry.updated_at);
-                records.push(asset_record(entry, &folder_id, None));
-            }
+            let records: Vec<AssetRecord> = page
+                .entries
+                .iter()
+                .filter(|entry| is_media_entry(entry))
+                .map(|entry| {
+                    remote_updated_at = remote_updated_at.max(entry.updated_at);
+                    asset_record(entry, &folder_id, None)
+                })
+                .collect();
+            listed.extend(records.iter().map(|record| record.summary.id.0.clone()));
+            self.catalog.upsert_album_assets(&records).await?;
             token = page.next;
             if token.is_none() {
                 break;
             }
         }
-        self.catalog
-            .replace_folder_assets(&album.id, &records)
-            .await?;
+        // Only a listing that ran to the end can tell a removed file from a
+        // page this pass has not reached.
+        self.catalog.prune_album_assets(&album.id, &listed).await?;
         self.catalog
             .mark_folder(
                 &album.id,
@@ -492,7 +502,10 @@ where
         self.catalog.remove_local_album(id).await
     }
 
-    fn local_album_summary(&self, album: LocalAlbumRecord) -> Result<LocalAlbumSummary, AppError> {
+    fn local_album_summary(
+        &self,
+        album: LocalAlbumRecord,
+    ) -> Result<LocalAlbumSummary, AppError> {
         let asset_count = self.local.count(&album.uri)?;
         Ok(LocalAlbumSummary {
             id: album.id,

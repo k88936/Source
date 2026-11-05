@@ -3,7 +3,7 @@
 use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 
-use super::dto::LocalAlbumRecord;
+use super::dto::{LocalAlbumRecord, LocalAssetId};
 use super::schema;
 use crate::media::LocalAsset;
 
@@ -26,7 +26,7 @@ pub(crate) struct LocalAssetRow {
 impl From<LocalAssetRow> for LocalAsset {
     fn from(row: LocalAssetRow) -> Self {
         LocalAsset {
-            id: row.id,
+            id: LocalAssetId(row.id),
             album_id: row.album_id,
             name: row.name,
             mime: row.mime,

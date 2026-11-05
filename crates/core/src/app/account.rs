@@ -87,7 +87,12 @@ where
     /// reached: a dead token drops it, but a network failure does not, because
     /// an offline library is still browsable.
     pub async fn bootstrap(&self) -> Option<AccountState> {
-        let account = self.account_store.current_account().await.ok().flatten()?;
+        let account = self
+            .account_store
+            .current_account()
+            .await
+            .ok()
+            .flatten()?;
         match self.auth.restore(&account.base_url).await {
             Ok(Some(signed_in)) => self.remember(&account, signed_in).await.ok(),
             Ok(None) => {

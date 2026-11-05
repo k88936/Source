@@ -49,7 +49,8 @@ pub trait RemoteStorage: Send + Sync {
 
     /// A `Range` request against the original file, answered as the server
     /// sent it. `range=None` fetches the whole file.
-    async fn media_range(&self, uri: &str, range: Option<&str>) -> Result<MediaRange, AppError>;
+    async fn media_range(&self, uri: &str, range: Option<&str>)
+    -> Result<MediaRange, AppError>;
 
     /// Signed URL of the original file, for playing it straight from the
     /// server: WebKitGTK's media player rejects custom schemes, so desktop

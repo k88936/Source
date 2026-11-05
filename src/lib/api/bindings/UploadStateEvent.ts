@@ -3,8 +3,4 @@ import type {AppError} from './AppError';
 import type {UploadState} from './UploadState';
 import type {UploadTaskId} from './UploadTaskId';
 
-export type UploadStateEvent = {
-    taskId: UploadTaskId;
-    state: UploadState;
-    error: AppError | null;
-};
+export type UploadStateEvent = {taskId: UploadTaskId; state: UploadState; error: AppError | null};
