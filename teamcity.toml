@@ -1,0 +1,4 @@
+[[server]]
+url = 'https://teamcity.k88936.top:8936'
+project = 'Source'
+job = 'Source_Build'
