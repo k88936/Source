@@ -40,3 +40,5 @@ xvfb-run -a -s "-screen 0 1400x1000x24" ./target/debug/source --debug-cdp-port {
 * NEVER emoji, full-width punctuation.
 
 * Still in inner and rapid dev, Only consider cloudreve v4 , Never consider migration
+
+* ALWAYS IN ZH
