@@ -8,6 +8,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use async_trait::async_trait;
+
 use crate::error::AppError;
 use crate::mapping::{media_type, mime_for};
 use crate::store::{LocalAssetId, MediaType};
@@ -97,19 +99,20 @@ fn local_asset_from_path(path: &Path) -> Option<LocalAsset> {
     })
 }
 
+#[async_trait]
 impl LocalMediaPort for FsLocalMedia {
-    fn get_permission_state(&self) -> MediaPermissionState {
-        MediaPermissionState {
+    async fn get_permission_state(&self) -> Result<MediaPermissionState, AppError> {
+        Ok(MediaPermissionState {
             granted: PermissionGrant::Full,
             can_request: false,
-        }
+        })
     }
 
-    fn request_permission(&self) -> MediaPermissionState {
-        self.get_permission_state()
+    async fn request_permission(&self) -> Result<MediaPermissionState, AppError> {
+        self.get_permission_state().await
     }
 
-    fn browse(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
+    async fn browse(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
         let dir = match parent {
             Some(uri) => PathBuf::from(uri),
             None => home()?,
@@ -131,7 +134,7 @@ impl LocalMediaPort for FsLocalMedia {
         })
     }
 
-    fn list_assets(
+    async fn list_assets(
         &self,
         album_uri: &str,
         cursor: Option<&str>,
@@ -154,15 +157,15 @@ impl LocalMediaPort for FsLocalMedia {
         Ok(LocalAssetPage { items, next })
     }
 
-    fn count_assets(&self, album_uri: &str) -> Result<u32, AppError> {
+    async fn count_assets(&self, album_uri: &str) -> Result<u32, AppError> {
         Ok(direct_media(Path::new(album_uri))?.len() as u32)
     }
 
-    fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+    async fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
         Ok(local_asset_from_path(Path::new(id)))
     }
 
-    fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
+    async fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
         let path = Path::new(id);
         let name = path
             .file_name()

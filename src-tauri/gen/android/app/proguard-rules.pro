@@ -1,3 +1,8 @@
+# Keep the device library bridge: Rust instantiates it by name through
+# `register_android_plugin`, and Tauri invokes its @Command methods reflectively,
+# so neither the class nor its members may be renamed or removed.
+-keep class top.k88936.source.MediaStorePlugin { *; }
+
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.

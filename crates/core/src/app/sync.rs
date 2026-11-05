@@ -76,9 +76,10 @@ where
     /// deleted mid-walk simply never gets counted, and the pass still ends.
     pub async fn start_sync(self: &Arc<Self>, sink: RunSink) -> Result<Run, AppError> {
         let albums = self.catalog.list_local_albums().await?;
-        let total = albums.iter().try_fold(0u32, |sum, album| {
-            Ok(sum + self.local.count_assets(&album.uri)?)
-        })?;
+        let mut total = 0u32;
+        for album in &albums {
+            total += self.local.count_assets(&album.uri).await?;
+        }
         let (run, started) = self.catalog.begin_run(SYNC_RUN, total).await?;
         if !started {
             return Ok(run);
@@ -133,7 +134,7 @@ where
         let Some(folder) = self.catalog.get_folder(&album.album_id).await? else {
             // The album was removed; every file of the directory counts as
             // failed, so the pass reports what could not be pushed.
-            let count = self.local.count_assets(&album.uri)?;
+            let count = self.local.count_assets(&album.uri).await?;
             return tracker.advance(0, count).await;
         };
         let names = self.catalog.list_album_asset_names(&folder.id).await?;
@@ -148,7 +149,8 @@ where
             }
             let page = self
                 .local
-                .list_assets(&album.uri, cursor.as_deref(), LOCAL_PAGE)?;
+                .list_assets(&album.uri, cursor.as_deref(), LOCAL_PAGE)
+                .await?;
             let count = page.items.len() as u32;
             let missing: Vec<LocalAsset> = page
                 .items

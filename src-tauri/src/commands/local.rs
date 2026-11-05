@@ -4,22 +4,27 @@
 use crate::prelude::*;
 
 #[tauri::command]
-pub(crate) fn media_permission_state(state: State<'_, AppState>) -> MediaPermissionState {
-    state.core.browse.get_media_permission_state()
+pub(crate) async fn media_permission_state(
+    state: State<'_, AppState>,
+) -> Result<MediaPermissionState, AppError> {
+    state.core.browse.get_media_permission_state().await
 }
 
 #[tauri::command]
-pub(crate) fn request_media_permission(state: State<'_, AppState>) -> MediaPermissionState {
-    state.core.browse.request_media_permission()
+pub(crate) async fn request_media_permission(
+    state: State<'_, AppState>,
+) -> Result<MediaPermissionState, AppError> {
+    state.core.browse.request_media_permission().await
 }
 
-/// One step of the device directory browser (`$HOME` when `parent` is absent).
+/// One step of the device library browser: `$HOME` on desktop, every bucket on
+/// Android, where asking also raises the system permission dialog.
 #[tauri::command]
-pub(crate) fn local_browse(
+pub(crate) async fn local_browse(
     state: State<'_, AppState>,
     params: LocalBrowseParams,
 ) -> Result<LocalBrowsePage, AppError> {
-    state.core.albums.browse_local(params.parent.as_deref())
+    state.core.albums.browse_local(params.parent.as_deref()).await
 }
 
 #[tauri::command]
@@ -46,11 +51,11 @@ pub(crate) async fn local_album_remove(
 }
 
 #[tauri::command]
-pub(crate) fn local_asset_page(
+pub(crate) async fn local_asset_page(
     state: State<'_, AppState>,
     params: LocalAssetPageParams,
 ) -> Result<LocalAssetPage, AppError> {
-    state.core.albums.get_local_asset_page(params)
+    state.core.albums.get_local_asset_page(params).await
 }
 
 /// Start a sync pass over every registered local album. Returns at once; the

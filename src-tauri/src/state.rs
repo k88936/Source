@@ -5,8 +5,15 @@ use std::sync::Arc;
 
 use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, FoldersService,
-    FsLocalMedia, SqliteCatalog, SyncService, ThumbCache, UploadsService,
+    SqliteCatalog, SyncService, ThumbCache, UploadsService,
 };
+
+/// Where local albums come from on this platform: the filesystem on desktop,
+/// MediaStore on a phone.
+#[cfg(target_os = "android")]
+pub(crate) type LocalMedia = crate::android_media::AndroidMedia;
+#[cfg(not(target_os = "android"))]
+pub(crate) type LocalMedia = source_core::FsLocalMedia;
 
 /// The composed dependency graph.
 ///
@@ -16,10 +23,10 @@ use source_core::{
 /// login is visible to every service at once.
 pub(crate) type Account = AccountService<CloudreveAuth, CloudreveStorage, SqliteCatalog>;
 pub(crate) type Folders = FoldersService<CloudreveStorage, SqliteCatalog>;
-pub(crate) type Albums = AlbumsService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
-pub(crate) type Browse = BrowseService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
-pub(crate) type Uploads = UploadsService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
-pub(crate) type Sync = SyncService<CloudreveStorage, SqliteCatalog, FsLocalMedia>;
+pub(crate) type Albums = AlbumsService<CloudreveStorage, SqliteCatalog, LocalMedia>;
+pub(crate) type Browse = BrowseService<CloudreveStorage, SqliteCatalog, LocalMedia>;
+pub(crate) type Uploads = UploadsService<CloudreveStorage, SqliteCatalog, LocalMedia>;
+pub(crate) type Sync = SyncService<CloudreveStorage, SqliteCatalog, LocalMedia>;
 
 pub(crate) struct App {
     pub(crate) account: Arc<Account>,

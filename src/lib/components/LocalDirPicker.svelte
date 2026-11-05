@@ -9,16 +9,23 @@
     import {dirPicker} from './LocalDirPicker.i18n';
 
     /// Walks the device directories one level at a time. Desktop starts at the
-    /// home directory and can go back; on platforms that only expose a list of
-    /// media directories there is no parent and no descent.
+    /// home directory and can go back; a phone library only offers a flat list
+    /// of buckets, so there the same view is a picker: no parent, no descent.
     let {open = $bindable(false), onPick}: {open?: boolean; onPick?: (entry: LocalEntry) => void} = $props();
 
     const t = $derived(i18n.pick(dirPicker));
     const c = $derived(i18n.pick(common));
 
     let page = $state<LocalBrowsePage | null>(null);
+    /// The bucket chosen out of the flat library list; the platform has no
+    /// current directory to report, so the picker remembers the choice.
+    let bucket = $state<LocalEntry | null>(null);
     let loading = $state(false);
     let error = $state('');
+
+    /// No current directory and no parent means the platform handed over a
+    /// list to pick from instead of a tree to walk.
+    const flat = $derived(page !== null && page.current === null);
 
     $effect(() => {
         if (open) void browseTo(null);
@@ -29,6 +36,7 @@
         error = '';
         try {
             page = await api.localBrowse({parent});
+            bucket = page.current;
         } catch (err) {
             error = app.describeError(err);
         } finally {
@@ -37,7 +45,15 @@
     }
 
     function current(): LocalEntry | null {
-        return page?.current ?? null;
+        return page?.current ?? bucket;
+    }
+
+    function enter(entry: LocalEntry) {
+        if (flat) {
+            bucket = entry;
+            return;
+        }
+        void browseTo(entry.uri);
     }
 
     function pick() {
@@ -86,17 +102,20 @@
                 {:else if error}
                     <p class="px-3 py-6 text-center text-xs text-red-500">{error}</p>
                 {:else if page && page.entries.length === 0}
-                    <p class="px-3 py-8 text-center text-xs text-muted">{t.empty}</p>
+                    <p class="px-3 py-8 text-center text-xs text-muted">{flat ? t.emptyLibrary : t.empty}</p>
                 {:else}
                     {#each page?.entries ?? [] as entry (entry.uri)}
                         <button
-                            onclick={() => void browseTo(entry.uri)}
+                            onclick={() => enter(entry)}
                             class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
+                            class:bg-gray={flat && current()?.uri === entry.uri}
                         >
                             <Folder size={20} class="text-amber-500" />
                             <span class="min-w-0 flex-1 truncate">{entry.name}</span>
                             <span class="max-w-[45%] truncate text-[11px] text-muted">{entry.path ?? ''}</span>
-                            <ChevronRight size={15} class="text-muted" />
+                            {#if !flat}
+                                <ChevronRight size={15} class="text-muted" />
+                            {/if}
                         </button>
                     {/each}
                 {/if}
@@ -108,7 +127,7 @@
                     disabled={!current()}
                     class="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
-                    {current() ? t.sync(current()?.name ?? '') : t.syncPrompt}
+                    {current() ? t.sync(current()?.name ?? '') : flat ? t.syncPromptLibrary : t.syncPrompt}
                 </button>
             </div>
         </div>

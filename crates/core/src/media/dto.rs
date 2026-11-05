@@ -6,20 +6,25 @@ use ts_rs::TS;
 
 use crate::store::LocalAssetId;
 
+/// How much of the device library the app may read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum PermissionGrant {
     Full,
+    /// Only the files the user picked out of the library (Android 14+).
     Partial,
     Denied,
 }
 
+/// What the platform allows right now, and whether the user can still be asked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct MediaPermissionState {
     pub granted: PermissionGrant,
+    /// Whether the dialog can still appear: `false` once the device will not
+    /// show it again, and on desktop, where there is nothing to ask.
     pub can_request: bool,
 }
 

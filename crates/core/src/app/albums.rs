@@ -445,34 +445,38 @@ where
 
     pub async fn local_album_list(&self) -> Result<Vec<LocalAlbumSummary>, AppError> {
         let albums = self.catalog.list_local_albums().await?;
-        albums
-            .into_iter()
-            .map(|album| self.local_album_to_summary(album))
-            .collect()
+        let mut summaries = Vec::with_capacity(albums.len());
+        for album in albums {
+            summaries.push(self.local_album_to_summary(album).await?);
+        }
+        Ok(summaries)
     }
 
-    /// One step of the device directory browser the picker is built on.
-    pub fn browse_local(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
-        self.local.browse(parent)
+    /// One step of the device library browser the picker is built on.
+    pub async fn browse_local(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
+        self.local.browse(parent).await
     }
 
     /// The direct media files of one local album, newest first.
-    pub fn get_local_asset_page(
+    pub async fn get_local_asset_page(
         &self,
         params: LocalAssetPageParams,
     ) -> Result<LocalAssetPage, AppError> {
-        self.local.list_assets(
-            &params.album_uri,
-            params.cursor.as_deref(),
-            clamp_limit(params.limit),
-        )
+        self.local
+            .list_assets(
+                &params.album_uri,
+                params.cursor.as_deref(),
+                clamp_limit(params.limit),
+            )
+            .await
     }
 
-    pub fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
-        self.local.get_asset(id)
+    pub async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+        self.local.get_asset(id).await
     }
 
-    /// Register a device directory as the source of one album.
+    /// Register a device album - a directory, or a phone library bucket - as
+    /// the source of one album.
     ///
     /// A local album only ever exists to sync somewhere, so the target album is
     /// part of the same write as the registration.
@@ -493,7 +497,7 @@ where
             .get_local_album(&params.uri)
             .await?
             .ok_or_else(|| AppError::not_found("本机相册不存在"))?;
-        self.local_album_to_summary(record)
+        self.local_album_to_summary(record).await
     }
 
     /// Stop syncing a device directory. Files already uploaded stay where they
@@ -502,11 +506,11 @@ where
         self.catalog.remove_local_album(id).await
     }
 
-    fn local_album_to_summary(
+    async fn local_album_to_summary(
         &self,
         album: LocalAlbumRecord,
     ) -> Result<LocalAlbumSummary, AppError> {
-        let asset_count = self.local.count_assets(&album.uri)?;
+        let asset_count = self.local.count_assets(&album.uri).await?;
         Ok(LocalAlbumSummary {
             id: album.id,
             uri: album.uri,

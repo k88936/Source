@@ -1,6 +1,8 @@
 //! Thin Tauri adapter: argument/error mapping, events, and the `media://`
 //! protocol. Business rules live in `source-core`.
 
+#[cfg(target_os = "android")]
+mod android_media;
 mod bootstrap;
 mod commands;
 mod credentials;
@@ -20,6 +22,11 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_keyring::init());
+
+    // The device photo library lives behind a Kotlin bridge that has to be
+    // registered before the composition root can reach it.
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(android_media::plugin());
 
     // The simulated CDP endpoint only exists when `--debug-cdp-port` is passed.
     #[cfg(debug_assertions)]

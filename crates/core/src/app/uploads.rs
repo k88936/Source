@@ -130,7 +130,7 @@ where
     ) -> Result<Vec<UploadTask>, AppError> {
         let mut assets = Vec::with_capacity(params.local_ids.len());
         for local_id in params.local_ids {
-            if let Some(asset) = self.local.get_asset(local_id.as_str())? {
+            if let Some(asset) = self.local.get_asset(local_id.as_str()).await? {
                 assets.push(asset);
             }
         }
@@ -367,12 +367,15 @@ where
         if task.state != UploadState::Queued {
             return Ok(UploadOutcome { task, asset: None });
         }
-        let local = self
+        let local = match self
             .catalog
             .get_local_asset(task.local_asset_id.as_str())
             .await?
-            .or(self.local.get_asset(task.local_asset_id.as_str())?)
-            .ok_or_else(|| AppError::not_found("本机文件不存在"))?;
+        {
+            Some(asset) => Some(asset),
+            None => self.local.get_asset(task.local_asset_id.as_str()).await?,
+        }
+        .ok_or_else(|| AppError::not_found("本机文件不存在"))?;
 
         let max_total = task.total;
         let session_key = task.id.0.clone();

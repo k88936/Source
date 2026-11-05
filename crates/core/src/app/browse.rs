@@ -185,8 +185,8 @@ where
         self.cloud.get_media_url(&uri).await
     }
 
-    pub fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
-        self.local.get_asset(id)
+    pub async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+        self.local.get_asset(id).await
     }
 
     pub async fn search(&self, params: SearchParams) -> Result<TimelinePage, AppError> {
@@ -247,16 +247,16 @@ where
     // Local library
     // ---------------------------------------------------------------------
 
-    pub fn get_media_permission_state(&self) -> MediaPermissionState {
-        self.local.get_permission_state()
+    pub async fn get_media_permission_state(&self) -> Result<MediaPermissionState, AppError> {
+        self.local.get_permission_state().await
     }
 
-    pub fn request_media_permission(&self) -> MediaPermissionState {
-        self.local.request_permission()
+    pub async fn request_media_permission(&self) -> Result<MediaPermissionState, AppError> {
+        self.local.request_permission().await
     }
 
-    pub fn get_local_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
-        self.local.get_thumb(id, edge)
+    pub async fn get_local_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
+        self.local.get_thumb(id, edge).await
     }
 }
 

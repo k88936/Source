@@ -7,14 +7,14 @@ use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
 use source_core::store::AssetSummary;
 use source_core::{
     AccountService, AlbumsService, AppError, BrowseService, CloudreveAuth, CloudreveStorage,
-    CredentialStore, FoldersService, FsLocalMedia, RunStore, SqliteCatalog, SyncService,
-    ThumbCache, UploadSessionPort, UploadsService,
+    CredentialStore, FoldersService, RunStore, SqliteCatalog, SyncService, ThumbCache,
+    UploadSessionPort, UploadsService,
 };
 use tauri::{Emitter, Manager};
 
 #[cfg(not(debug_assertions))]
 use crate::credentials::KeyringCredentialStore;
-use crate::state::{App, AppState};
+use crate::state::{App, AppState, LocalMedia};
 
 /// Open storage, build every service, and pick up what a crash left behind.
 ///
@@ -48,7 +48,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         };
         let auth = CloudreveAuth::new(cred_store);
         let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
-        let local = FsLocalMedia::new();
+        let local = LocalMedia::new();
         let uploads = Arc::new(UploadsService::new(
             cloud.clone(),
             catalog.clone(),

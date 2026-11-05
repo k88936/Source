@@ -166,7 +166,9 @@ fn original(app: AppHandle, id: String, range: Option<String>, responder: UriSch
 
 /// Cache key that follows the file on disk: a rewrite bumps the mtime and
 /// therefore the key, so a stale JPEG is never served.
-fn local_thumb_key(path: &str) -> Option<String> {
+#[cfg(desktop)]
+fn local_thumb_key(uri: &str) -> Option<String> {
+    let path = uri.strip_prefix("file://").unwrap_or(uri);
     let meta = std::fs::metadata(path).ok()?;
     if !meta.is_file() {
         return None;
@@ -178,6 +180,14 @@ fn local_thumb_key(path: &str) -> Option<String> {
         .map(|age| age.as_millis())
         .unwrap_or(0);
     Some(format!("local:{LOCAL_THUMB_EDGE}:{modified}:{path}"))
+}
+
+/// A media-library row is a `content://` uri, which cannot be stat'ed. The
+/// adapter always answers for a row that exists, so the uri alone is the key;
+/// a photo replaced in place keeps its uri, and its thumbnail with it.
+#[cfg(mobile)]
+fn local_thumb_key(uri: &str) -> Option<String> {
+    Some(format!("local:{LOCAL_THUMB_EDGE}:{uri}"))
 }
 
 fn local_thumb_response(bytes: Vec<u8>) -> Response<Vec<u8>> {
@@ -192,12 +202,11 @@ fn local_thumb_response(bytes: Vec<u8>) -> Response<Vec<u8>> {
 /// file itself is only ever read by the platform adapter.
 fn get_local_thumb(app: AppHandle, raw: String, responder: UriSchemeResponder) {
     tauri::async_runtime::spawn(async move {
-        let path = raw.strip_prefix("file://").unwrap_or(&raw);
         let (core, cache) = {
             let state = app.state::<AppState>();
             (Arc::clone(&state.core), Arc::clone(&state.cache))
         };
-        let Some(key) = local_thumb_key(path) else {
+        let Some(key) = local_thumb_key(&raw) else {
             responder.respond(not_found());
             return;
         };
@@ -205,19 +214,12 @@ fn get_local_thumb(app: AppHandle, raw: String, responder: UriSchemeResponder) {
             responder.respond(local_thumb_response(bytes));
             return;
         }
-        let source = path.to_owned();
-        let thumb = tauri::async_runtime::spawn_blocking(move || {
-            core.browse.get_local_thumb(&source, LOCAL_THUMB_EDGE).ok()
-        })
-        .await
-        .ok()
-        .flatten();
-        match thumb {
-            Some(bytes) => {
+        match core.browse.get_local_thumb(&raw, LOCAL_THUMB_EDGE).await {
+            Ok(bytes) => {
                 let _ = cache.put(&key, &bytes);
                 responder.respond(local_thumb_response(bytes));
             }
-            None => responder.respond(http_response(
+            Err(_) => responder.respond(http_response(
                 415,
                 "text/plain",
                 Vec::new(),

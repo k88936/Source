@@ -18,6 +18,8 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
+async-trait = "0.1"
+base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 source-core = { path = "../crates/core" }
 tokio = { version = "1", features = ["sync", "time", "rt"] }
