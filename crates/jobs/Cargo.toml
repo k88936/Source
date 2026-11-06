@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 serde = { workspace = true }
 ts-rs = { workspace = true }
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["rt", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 
 [dev-dependencies]

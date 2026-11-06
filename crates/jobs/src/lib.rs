@@ -15,7 +15,7 @@ use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -97,6 +97,28 @@ impl Jobs {
         };
         self.0.publish(board);
         self.0.pump();
+    }
+
+    /// Run `tick` every `interval`, starting at once.
+    ///
+    /// A timer is not a job: it has no id, it is not on the board and it never
+    /// holds one of the `concurrency` slots. That is what a queue needs to look
+    /// at its own backlog on a schedule - as a job it would starve the work it
+    /// starts.
+    pub fn timer<F, Fut, E>(&self, interval: Duration, tick: F)
+    where
+        F: Fn() -> Fut + Send + 'static,
+        Fut: Future<Output = Result<(), E>> + Send + 'static,
+        E: ToString + Send + 'static,
+    {
+        tokio::spawn(async move {
+            loop {
+                if let Err(error) = tick().await {
+                    eprintln!("timer failed: {}", error.to_string());
+                }
+                tokio::time::sleep(interval).await;
+            }
+        });
     }
 
     /// Stop everything of this kind: what is still waiting is dropped, what is

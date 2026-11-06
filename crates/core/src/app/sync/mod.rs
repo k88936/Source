@@ -1,11 +1,11 @@
 //! Sync: pushing the files of the registered local albums into their albums.
 //!
 //! A local album is a device directory the user pointed at one album. Scanning
-//! one directory is one job: it walks the directory page by page, offers every
-//! file the album does not already hold to the upload queue, and counts one step
-//! per page. Everything after "offer this page" belongs to the upload queue: it
-//! turns the offer into rows and every row into an upload job of its own, with
-//! its own retries and its own session resume. A scan only decides what to offer.
+//! one directory is one job: it walks the directory page by page, writes every
+//! file the album does not already hold into the upload queue, and counts one
+//! step per page. Everything after the row belongs to the upload queue: every
+//! row becomes an upload job of its own, with its own retries and its own
+//! session resume. A scan only decides what to queue.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -55,7 +55,7 @@ where
     /// Queue one scan per registered local album, and return how many.
     ///
     /// Nothing here waits, and nothing here counts files: a directory is walked
-    /// by its job, one page at a time. The files it offers become upload jobs in
+    /// by its job, one page at a time. The files it queues become upload jobs in
     /// the same queue, so a scan and the uploads it started share one budget
     /// instead of each holding its own.
     pub async fn sync_all(self: &Arc<Self>) -> Result<usize, AppError> {
@@ -63,7 +63,7 @@ where
     }
 
     /// Stop the scan: what is still waiting is dropped, what is walking ends
-    /// after the page it is on. Files already offered keep uploading.
+    /// after the page it is on. Files already queued keep uploading.
     pub fn stop(&self) {
         self.stop_impl()
     }
@@ -97,7 +97,7 @@ where
         self.jobs.cancel(SYNC_JOB);
     }
 
-    /// Walk one directory: offer every file the album does not hold yet.
+    /// Walk one directory: queue every file the album does not hold yet.
     ///
     /// A file is handled when it is already in the album or already sitting in
     /// the queue; only a directory that cannot be walked fails.
@@ -126,13 +126,11 @@ where
                 .into_iter()
                 .filter(|asset| !held.contains(asset.name.as_str()))
                 .collect();
-            // The page goes to the upload queue as one offer, a job of its own:
-            // a scan never writes the queue itself, and a slow server pushes
-            // back through the one shared budget. Offering page by page also
-            // means a directory of tens of thousands of files is never held in
-            // memory whole, and a stop between pages keeps everything offered
-            // so far.
-            self.uploads.offer(album_id.clone(), missing);
+            // The page goes straight into the queue: a scan and the uploads it
+            // starts share one budget. Page by page also means a directory of
+            // tens of thousands of files is never held in memory whole, and a
+            // stop between pages keeps everything queued so far.
+            self.uploads.enqueue_assets(&album_id, &missing).await?;
             ctx.advance(1);
             cursor = page.next;
             if cursor.is_none() {

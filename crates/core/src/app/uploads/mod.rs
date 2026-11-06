@@ -4,7 +4,8 @@ mod dto;
 
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::time::Duration;
 
 use source_jobs::{Ctx, JobId, JobKind, Jobs};
 use tokio::sync::mpsc;
@@ -39,19 +40,28 @@ pub struct UploadOutcome {
 /// stays here, and a row's cancel button reaches its job through it.
 pub const UPLOAD_JOB: JobKind = JobKind::new("upload");
 
-/// Taking a batch of offered files into the queue is one job too, so a scan
-/// never writes the queue on its own thread of control.
-const ENQUEUE_JOB: JobKind = JobKind::new("enqueue");
-
-/// Keeps two offers made in the same millisecond apart.
-static OFFER_SEQ: AtomicU64 = AtomicU64::new(0);
-
 /// Automatic retries after the first failure; the first wait is 3s, then it
 /// doubles.
 const UPLOAD_RETRY: Retry = Retry {
     attempts: 3,
     base: std::time::Duration::from_secs(3),
 };
+
+/// How many uploads the board holds before the backlog makes it grow.
+///
+/// The rest wait as rows in the table, so the board - and every broadcast of it
+/// - never carries the whole backlog, whatever the size of a first sync.
+const MIN_UPLOAD_IN_FLIGHT: usize = 32;
+
+/// The most the board ever reserves, however large the backlog gets.
+const MAX_UPLOAD_IN_FLIGHT: usize = 128;
+
+/// How often the queue looks at the backlog for rows to start.
+///
+/// Short enough that a file a user just picked starts without a visible wait,
+/// long enough that the board is still full of uploads when the next tick
+/// comes, so a tick never runs dry while there is work.
+const UPLOAD_TICK: Duration = Duration::from_millis(250);
 
 /// Keeps two tasks enqueued in the same millisecond apart, across every batch.
 static TASK_SEQ: AtomicU64 = AtomicU64::new(0);
@@ -72,17 +82,29 @@ pub struct UploadsService<R, C, M> {
     local: M,
     sinks: UploadSinks,
     jobs: Jobs,
+    /// How many uploads the board may hold, before this tick moves it.
+    target: AtomicUsize,
 }
 
-impl<R, C, M> UploadsService<R, C, M> {
-    pub fn new(cloud: R, catalog: C, local: M, sinks: UploadSinks, jobs: Jobs) -> Self {
-        Self {
+impl<R, C, M> UploadsService<R, C, M>
+where
+    R: RemoteStorage + 'static,
+    C: AssetStore + FolderStore + LocalStore + UploadQueueStore + Clone + 'static,
+    M: LocalMediaPort + 'static,
+{
+    pub fn new(cloud: R, catalog: C, local: M, sinks: UploadSinks, jobs: Jobs) -> Arc<Self> {
+        let uploads = Arc::new(Self {
             cloud,
             catalog,
             local,
             sinks,
             jobs,
-        }
+            target: AtomicUsize::new(MIN_UPLOAD_IN_FLIGHT),
+        });
+        // The queue keeps itself fed from birth, so recovering rows is all a
+        // startup has to do.
+        uploads.watch();
+        uploads
     }
 }
 
@@ -99,17 +121,6 @@ where
         params: EnqueueUploadsParams,
     ) -> Result<Vec<UploadTask>, AppError> {
         self.enqueue_files_impl(params).await
-    }
-
-    /// Offer files to the upload queue and return at once.
-    ///
-    /// A scan does not write the queue itself: it hands the files over and keeps
-    /// walking, and the queue decides when they become rows and when each one
-    /// moves. One offer is one job, so a slow server backpressures the scan
-    /// through the same budget as everything else instead of through a batch of
-    /// its own.
-    pub(super) fn offer(self: &Arc<Self>, album_id: AlbumId, assets: Vec<LocalAsset>) {
-        self.offer_impl(album_id, assets)
     }
 
     /// What the queue is doing now, for the card that shows it.
@@ -168,11 +179,11 @@ where
 
     /// Queue files the caller already holds, skipping the ones waiting already.
     ///
-    /// A file already in the queue is not queued twice: sync offers every file
-    /// it finds, pass after pass, and a second row would mean a second upload
-    /// of the same bytes.
-    async fn enqueue_assets(
-        self: &Arc<Self>,
+    /// A file already in the queue is not queued twice: sync hands over every
+    /// file it finds, pass after pass, and a second row would mean a second
+    /// upload of the same bytes.
+    pub(super) async fn enqueue_assets(
+        &self,
         album_id: &AlbumId,
         assets: &[LocalAsset],
     ) -> Result<Vec<UploadTask>, AppError> {
@@ -217,51 +228,84 @@ where
             self.catalog.enqueue_upload(&task).await?;
             tasks.push(task);
         }
-        self.submit(tasks.clone());
         Ok(tasks)
     }
 
-    fn offer_impl(self: &Arc<Self>, album_id: AlbumId, assets: Vec<LocalAsset>) {
-        if assets.is_empty() {
-            return;
+    /// Start the oldest rows the board has room for.
+    ///
+    /// The table is the backlog, and this is the only place a row becomes work.
+    /// Submitting the same row twice is harmless, since one id is one job, so a
+    /// tick racing another never runs a row twice.
+    ///
+    /// The room moves like a vector's capacity: it doubles while the backlog
+    /// spills over it, and halves while the backlog cannot fill a quarter of it.
+    /// A first sync of thousands of files therefore reserves more than the small
+    /// steady state, and the board comes back down once the import is done
+    /// instead of staying large for the rest of the process.
+    async fn spawn_pending(self: &Arc<Self>) -> Result<(), AppError> {
+        let live = self
+            .jobs
+            .list()
+            .iter()
+            .filter(|job| job.key == UPLOAD_JOB && job.state.is_live())
+            .count();
+        let target = self.target.load(Ordering::Relaxed);
+        let free = target.saturating_sub(live);
+        // One row past the free room tells "the backlog spills over" from "the
+        // backlog is done": without it a full board and an empty queue look
+        // the same.
+        let queued = self.catalog.next_queued((free + 1) as i64).await?;
+        if queued.len() > free {
+            // The table still holds rows this room cannot take: grow.
+            if target < MAX_UPLOAD_IN_FLIGHT {
+                self.target
+                    .store((target * 2).min(MAX_UPLOAD_IN_FLIGHT), Ordering::Relaxed);
+            }
+        } else if (live + queued.len()) * 4 < target && target > MIN_UPLOAD_IN_FLIGHT {
+            // Everything still to do would not fill a quarter of the room: the
+            // import is over, so shrink. A quarter, not a half, leaves a dead
+            // band between the two thresholds, so one more file cannot grow it
+            // straight back.
+            self.target
+                .store((target / 2).max(MIN_UPLOAD_IN_FLIGHT), Ordering::Relaxed);
         }
-        let uploads = Arc::clone(self);
-        self.jobs.submit(
-            ENQUEUE_JOB,
-            JobId::from(format!(
-                "offer-{}-{}",
-                now_ms(),
-                OFFER_SEQ.fetch_add(1, Ordering::Relaxed)
-            )),
-            move |ctx| async move {
-                let count = assets.len() as u64;
-                uploads.enqueue_assets(&album_id, &assets).await?;
-                ctx.advance(count);
-                Ok::<(), AppError>(())
-            },
-        );
+        for task in queued.into_iter().take(free) {
+            self.submit(task);
+        }
+        Ok(())
     }
 
-    /// Queue one job per task, so the queue decides when each file moves.
+    /// Keep the board filled, off the job budget.
+    ///
+    /// A timer is not a job, so the board only ever holds uploads, and a tick
+    /// never takes a slot from the work it starts. Started once, at
+    /// construction, so nothing has to remember to start it later.
+    fn watch(self: &Arc<Self>) {
+        let uploads = Arc::clone(self);
+        self.jobs.timer(UPLOAD_TICK, move || {
+            let uploads = Arc::clone(&uploads);
+            async move { uploads.spawn_pending().await }
+        });
+    }
+
+    /// Queue one task as a job, so the queue decides when this file moves.
     ///
     /// A row that is already queued or uploading is one job already: pressing
-    /// retry twice, or a scan offering the same file again, never puts two
+    /// retry twice, or a scan queueing the same file again, never puts two
     /// attempts on the same bytes.
-    fn submit(self: &Arc<Self>, tasks: Vec<UploadTask>) {
-        for task in tasks {
-            let uploads = Arc::clone(self);
-            let task_id = task.id;
-            self.jobs.submit(
-                UPLOAD_JOB,
-                JobId::from(task_id.0.clone()),
-                move |ctx| async move {
-                    attempt(UPLOAD_RETRY, ctx.cancel(), |try_number| {
-                        uploads.try_upload(&task_id, &ctx, try_number)
-                    })
-                    .await
-                },
-            );
-        }
+    fn submit(self: &Arc<Self>, task: UploadTask) {
+        let uploads = Arc::clone(self);
+        let task_id = task.id;
+        self.jobs.submit(
+            UPLOAD_JOB,
+            JobId::from(task_id.0.clone()),
+            move |ctx| async move {
+                attempt(UPLOAD_RETRY, ctx.cancel(), |try_number| {
+                    uploads.try_upload(&task_id, &ctx, try_number)
+                })
+                .await
+            },
+        );
     }
 
     async fn list_tasks_impl(&self) -> Result<Vec<UploadTask>, AppError> {
@@ -296,7 +340,6 @@ where
         task.eta_seconds = None;
         task.attempts += 1;
         self.catalog.update_upload(&task).await?;
-        self.submit(vec![task.clone()]);
         Ok(task)
     }
 
@@ -551,9 +594,7 @@ where
         self.catalog.update_upload(task).await
     }
 
-    async fn recover_impl(self: &Arc<Self>) -> Result<Vec<UploadTask>, AppError> {
-        let tasks = self.catalog.recover_uploads().await?;
-        self.submit(tasks.clone());
-        Ok(tasks)
+    async fn recover_impl(&self) -> Result<Vec<UploadTask>, AppError> {
+        self.catalog.recover_uploads().await
     }
 }

@@ -55,13 +55,13 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
         let local = LocalMedia::new();
         let jobs = Jobs::new(JOB_CONCURRENCY);
-        let uploads = Arc::new(UploadsService::new(
+        let uploads = UploadsService::new(
             cloud.clone(),
             catalog.clone(),
             local.clone(),
             sinks,
             jobs.clone(),
-        ));
+        );
         Ok::<_, AppError>(App {
             account: Arc::new(AccountService::new(auth, cloud.clone(), catalog.clone())),
             folders: Arc::new(FoldersService::new(cloud.clone(), catalog.clone())),
@@ -94,8 +94,8 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     let cache = Arc::new(ThumbCache::default_cache(&app_data)?);
 
     // Uploads a previous process left behind go back in the queue, so they
-    // resume from their sessions. Recovering twenty thousand rows is one read
-    // and one submission each: the queue runs them on its own budget.
+    // resume from their sessions. Recovery only rewrites rows: the upload
+    // service is already ticking and starts them on its own budget.
     let _ = tauri::async_runtime::block_on(core.uploads.recover());
 
     // One bridge for the whole board: the page picks its rows by key instead of

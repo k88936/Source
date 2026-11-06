@@ -32,6 +32,8 @@ pub trait UploadQueueStore: Send + Sync {
     async fn recover_uploads(&self) -> Result<Vec<UploadTask>, AppError>;
     /// The local files already waiting for a slot in one destination folder.
     async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError>;
+    /// The oldest rows still waiting for a slot, oldest first.
+    async fn next_queued(&self, limit: i64) -> Result<Vec<UploadTask>, AppError>;
 }
 
 pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), AppError> {
@@ -160,6 +162,26 @@ pub(crate) async fn list_queued_local_ids(
         .map_err(db_err)
 }
 
+/// The oldest rows still waiting for a slot, oldest first.
+///
+/// The table is the backlog: this is how the upload service learns what to
+/// start next, so a restart, a retry or a finished job all resume from here.
+pub(crate) async fn next_queued(
+    cat: &SqliteCatalog,
+    limit: i64,
+) -> Result<Vec<UploadTask>, AppError> {
+    let mut conn = cat.conn().await?;
+    let rows = queue::table
+        .filter(queue::state.eq(upload_state_to_str(UploadState::Queued)))
+        .select(UploadRow::as_select())
+        .order(queue::created_at.asc())
+        .limit(limit)
+        .load::<UploadRow>(&mut conn)
+        .await
+        .map_err(db_err)?;
+    Ok(rows.into_iter().map(UploadTask::from).collect())
+}
+
 fn serialize_error(error: Option<&AppError>) -> Result<Option<String>, AppError> {
     error
         .map(serde_json::to_string)
@@ -191,5 +213,9 @@ impl UploadQueueStore for SqliteCatalog {
 
     async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError> {
         list_queued_local_ids(self, dest_uri).await
+    }
+
+    async fn next_queued(&self, limit: i64) -> Result<Vec<UploadTask>, AppError> {
+        next_queued(self, limit).await
     }
 }
