@@ -11,6 +11,8 @@
       <sourceFolder url="file://$MODULE_DIR$/src-tauri/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/core/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/core/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/jobs/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/jobs/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/src-tauri/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
