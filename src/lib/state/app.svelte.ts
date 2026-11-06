@@ -15,6 +15,8 @@ export class AppState {
     uploads = $state<UploadTask[]>([]);
     /** The queue's board: every job this process ran, newest first. */
     jobs = $state<Job[]>([]);
+    /** Whether background work is paused, persisted by the adapter. */
+    jobsPaused = $state(false);
     columns = $state(3);
     toast = $state<{message: string; kind: ToastKind} | null>(null);
     private started = false;
@@ -26,6 +28,11 @@ export class AppState {
         if (stored) {
             const n = Number(stored);
             if (n >= 2 && n <= 6) this.columns = n;
+        }
+        try {
+            this.jobsPaused = await api.jobsPaused();
+        } catch (err) {
+            this.showToast(this.describeError(err), 'error');
         }
         try {
             this.account = await api.accountState();
@@ -68,6 +75,18 @@ export class AppState {
     /** Pick up jobs that were already queued when the window loaded. */
     async refreshJobs(): Promise<void> {
         this.jobs = await api.jobList();
+    }
+
+    /** Pause or resume every background job, and remember the choice. */
+    async setJobsPaused(paused: boolean): Promise<void> {
+        const previous = this.jobsPaused;
+        this.jobsPaused = paused;
+        try {
+            await api.setJobsPaused({paused});
+        } catch (err) {
+            this.jobsPaused = previous;
+            this.showToast(this.describeError(err), 'error');
+        }
     }
 
     async refreshAccount(): Promise<void> {

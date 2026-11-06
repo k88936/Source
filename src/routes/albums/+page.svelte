@@ -23,9 +23,12 @@
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
     // One album is one job, so the button is busy while any album of this kind
-    // is still queued or listing - there is no pass to ask about.
+    // is still queued, paused or listing - there is no pass to ask about.
     const indexing = $derived(
-        app.jobs.some((job) => job.key === 'index' && (job.state === 'queued' || job.state === 'running')),
+        app.jobs.some(
+            (job) =>
+                job.key === 'index' && (job.state === 'queued' || job.state === 'running' || job.state === 'paused'),
+        ),
     );
 
     $effect(() => {

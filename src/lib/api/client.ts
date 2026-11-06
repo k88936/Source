@@ -34,6 +34,7 @@ import type {AccountState} from './bindings/AccountState';
 import type {SetAlbumCoverParams} from './bindings/SetAlbumCoverParams';
 import type {SetAlbumDescriptionParams} from './bindings/SetAlbumDescriptionParams';
 import type {SetFavoriteParams} from './bindings/SetFavoriteParams';
+import type {SetJobsPausedParams} from './bindings/SetJobsPausedParams';
 import type {SetServerParams} from './bindings/SetServerParams';
 import type {SiteInfo} from './bindings/SiteInfo';
 import type {TimelinePage} from './bindings/TimelinePage';
@@ -86,6 +87,8 @@ export const api = {
     indexStart: () => call<number>('index_start'),
     indexStop: () => call<void>('index_stop'),
     jobList: () => call<Job[]>('job_list'),
+    jobsPaused: () => call<boolean>('jobs_paused'),
+    setJobsPaused: (params: SetJobsPausedParams) => call<void>('set_jobs_paused', params),
     assetDetail: (params: AssetDetailParams) => call<AssetDetail>('asset_detail', params),
     mediaSource: (params: MediaSourceParams) => call<string>('media_source', params),
     searchAssets: (params: SearchParams) => call<TimelinePage>('search_assets', params),

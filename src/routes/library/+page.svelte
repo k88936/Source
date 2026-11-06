@@ -31,9 +31,12 @@
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
     // One directory is one job, so the button is busy while any directory of
-    // this kind is still queued or being walked.
+    // this kind is still queued, paused or being walked.
     const syncing = $derived(
-        app.jobs.some((job) => job.key === 'sync' && (job.state === 'queued' || job.state === 'running')),
+        app.jobs.some(
+            (job) =>
+                job.key === 'sync' && (job.state === 'queued' || job.state === 'running' || job.state === 'paused'),
+        ),
     );
 
     // Entries Immich's library page has and this app does not implement yet.

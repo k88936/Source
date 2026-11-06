@@ -151,6 +151,31 @@
         </div>
     </section>
 
+    <section class="mt-3 overflow-hidden rounded-2xl bg-gray px-4 py-3">
+        <div class="flex items-center justify-between gap-3">
+            <p class="text-sm font-medium">{t.background}</p>
+            <div class="flex shrink-0 rounded-lg bg-light p-0.5">
+                <button
+                    onclick={() => void app.setJobsPaused(false)}
+                    class="rounded-md px-3 py-1 text-xs transition-colors {!app.jobsPaused
+                        ? 'bg-primary text-on-primary'
+                        : 'text-muted'}"
+                >
+                    {t.running}
+                </button>
+                <button
+                    onclick={() => void app.setJobsPaused(true)}
+                    class="rounded-md px-3 py-1 text-xs transition-colors {app.jobsPaused
+                        ? 'bg-primary text-on-primary'
+                        : 'text-muted'}"
+                >
+                    {t.paused}
+                </button>
+            </div>
+        </div>
+        <p class="mt-1 text-[11px] text-muted">{t.backgroundHint}</p>
+    </section>
+
     <section class="mt-3 rounded-2xl bg-gray p-4">
         <div class="flex items-center justify-between">
             <p class="text-sm font-medium">{t.cache}</p>
