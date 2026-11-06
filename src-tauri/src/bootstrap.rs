@@ -7,7 +7,7 @@ use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
 use source_core::store::AssetSummary;
 use source_core::{
     AccountService, AlbumsService, AppError, BrowseService, CloudreveAuth, CloudreveStorage,
-    CredentialStore, FoldersService, RunStore, SqliteCatalog, SyncService, ThumbCache,
+    CredentialStore, FoldersService, Runs, SqliteCatalog, SyncService, ThumbCache,
     UploadSessionPort, UploadsService,
 };
 use tauri::{Emitter, Manager};
@@ -32,9 +32,6 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
 
     let core: Arc<App> = Arc::new(tauri::async_runtime::block_on(async {
         let catalog = SqliteCatalog::open(app_data.join("catalog.sqlite3")).await?;
-        // A process that died cannot still be busy: close its passes before
-        // anything reads them as live.
-        catalog.interrupt_runs().await?;
         let sessions: Arc<dyn UploadSessionPort> = Arc::new(catalog.clone());
         let cred_store: Arc<dyn CredentialStore> = {
             #[cfg(debug_assertions)]
@@ -49,6 +46,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         let auth = CloudreveAuth::new(cred_store);
         let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
         let local = LocalMedia::new();
+        let runs = Runs::new();
         let uploads = Arc::new(UploadsService::new(
             cloud.clone(),
             catalog.clone(),
@@ -62,13 +60,14 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
                 cloud.clone(),
                 catalog.clone(),
                 local.clone(),
+                runs.clone(),
             )),
             browse: Arc::new(BrowseService::new(
                 cloud.clone(),
                 catalog.clone(),
                 local.clone(),
             )),
-            sync: Arc::new(SyncService::new(catalog, local, Arc::clone(&uploads))),
+            sync: Arc::new(SyncService::new(catalog, local, Arc::clone(&uploads), runs)),
             uploads,
         })
     })?);

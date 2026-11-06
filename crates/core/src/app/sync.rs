@@ -15,8 +15,8 @@ use crate::error::AppError;
 use crate::media::{LocalAsset, LocalMediaPort};
 use crate::remote::RemoteStorage;
 use crate::store::{
-    AlbumId, AlbumStore, AssetStore, FolderStore, LocalAlbumRecord, LocalStore, Run, RunKey,
-    RunStore, UploadQueueStore, UploadTaskId,
+    AlbumId, AlbumStore, AssetStore, FolderStore, LocalAlbumRecord, LocalStore, Run, RunKey, Runs,
+    UploadQueueStore, UploadTaskId,
 };
 use crate::task::{Retry, Runner};
 
@@ -29,23 +29,25 @@ const LOCAL_PAGE: u32 = 200;
 /// How many local albums are walked at once.
 const SYNC_CONCURRENCY: usize = 2;
 
-/// Which pass this is. The store compares keys and never learns what one means.
+/// Which pass this is. The run book compares keys and never learns what one means.
 const SYNC_RUN: RunKey = RunKey::new("sync");
 
 pub struct SyncService<R, C, M> {
     catalog: C,
     local: M,
     uploads: Arc<UploadsService<R, C, M>>,
+    runs: Runs,
     /// The token of the sync pass running now, so a stop can reach it.
     syncing: Mutex<Option<CancellationToken>>,
 }
 
 impl<R, C, M> SyncService<R, C, M> {
-    pub fn new(catalog: C, local: M, uploads: Arc<UploadsService<R, C, M>>) -> Self {
+    pub fn new(catalog: C, local: M, uploads: Arc<UploadsService<R, C, M>>, runs: Runs) -> Self {
         Self {
             catalog,
             local,
             uploads,
+            runs,
             syncing: Mutex::new(None),
         }
     }
@@ -54,19 +56,12 @@ impl<R, C, M> SyncService<R, C, M> {
 impl<R, C, M> SyncService<R, C, M>
 where
     R: RemoteStorage + 'static,
-    C: AlbumStore
-        + AssetStore
-        + FolderStore
-        + LocalStore
-        + UploadQueueStore
-        + RunStore
-        + Clone
-        + 'static,
+    C: AlbumStore + AssetStore + FolderStore + LocalStore + UploadQueueStore + Clone + 'static,
     M: LocalMediaPort + 'static,
 {
     /// The newest sync pass, whatever state it is in.
     pub async fn get_sync_run(&self) -> Result<Option<Run>, AppError> {
-        self.catalog.get_run(SYNC_RUN).await
+        Ok(self.runs.get(SYNC_RUN))
     }
 
     /// Start one pass over every registered local album, and return immediately.
@@ -80,14 +75,14 @@ where
         for album in &albums {
             total += self.local.count_assets(&album.uri).await?;
         }
-        let (run, started) = self.catalog.begin_run(SYNC_RUN, total).await?;
+        let (run, started) = self.runs.begin(SYNC_RUN, total);
         if !started {
-            return Ok(run);
+            return Ok(run.snapshot());
         }
         let cancel = CancellationToken::new();
         *self.syncing.lock().unwrap() = Some(cancel.clone());
-        let tracker = RunTracker::new(self.catalog.clone(), &run, sink, cancel);
-        tracker.announce(&run);
+        let tracker = RunTracker::new(run.clone(), sink, cancel);
+        tracker.announce();
 
         let sync = Arc::clone(self);
         tokio::spawn(async move {
@@ -111,7 +106,7 @@ where
             let _ = tracker.close().await;
             *sync.syncing.lock().unwrap() = None;
         });
-        Ok(run)
+        Ok(run.snapshot())
     }
 
     /// Stop the pass after the directories already being walked.
@@ -128,7 +123,7 @@ where
     async fn sync_local_album(
         &self,
         album: &LocalAlbumRecord,
-        tracker: &RunTracker<C>,
+        tracker: &RunTracker,
         offered: &Mutex<Vec<UploadTaskId>>,
     ) -> Result<(), AppError> {
         let Some(folder) = self.catalog.get_folder(&album.album_id).await? else {

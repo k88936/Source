@@ -3,4 +3,4 @@
 /**
  * Where a run is in its life.
  */
-export type RunState = 'running' | 'done' | 'failed' | 'cancelled' | 'interrupted';
+export type RunState = 'running' | 'done' | 'failed' | 'cancelled';

@@ -1,6 +1,6 @@
 //! Booking the progress of one pass while it runs.
 //!
-//! A run row is opened when the pass starts, counted as items are visited, and
+//! A run is opened when the pass starts, counted as items are visited, and
 //! closed when the batch ends. Whoever listens hears every change through a
 //! plain closure, so the use case never knows it is reporting to a window.
 
@@ -9,31 +9,22 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use crate::error::AppError;
-use crate::store::{Run, RunId, RunState, RunStore};
+use crate::store::{Run, RunHandle, RunState};
 
 /// Reports a run as it changes.
 pub type RunSink = Arc<dyn Fn(&Run) + Send + Sync>;
 
 /// One open run, shared by the attempts visiting its items.
 #[derive(Clone)]
-pub struct RunTracker<C> {
-    catalog: C,
-    run_id: RunId,
+pub struct RunTracker {
+    run: RunHandle,
     sink: RunSink,
     cancel: CancellationToken,
 }
 
-impl<C> RunTracker<C>
-where
-    C: RunStore + Clone,
-{
-    pub fn new(catalog: C, run: &Run, sink: RunSink, cancel: CancellationToken) -> Self {
-        Self {
-            catalog,
-            run_id: run.id.clone(),
-            sink,
-            cancel,
-        }
+impl RunTracker {
+    pub fn new(run: RunHandle, sink: RunSink, cancel: CancellationToken) -> Self {
+        Self { run, sink, cancel }
     }
 
     /// The token the batch checks, and that a stop cancels.
@@ -42,8 +33,9 @@ where
     }
 
     /// Report the run exactly as it was opened.
-    pub fn announce(&self, run: &Run) {
-        self.emit(run);
+    pub fn announce(&self) {
+        let run = self.run.snapshot();
+        self.emit(&run);
     }
 
     /// Count one visited item: `ok` is whether it was fully handled.
@@ -52,13 +44,13 @@ where
         self.advance(done, failed).await
     }
 
-    /// Count several items at once: a whole album's listing is one write, not
-    /// one write per file.
+    /// Count several items at once: a whole album's listing is one update, not
+    /// one update per file.
     pub async fn advance(&self, done: u32, failed: u32) -> Result<(), AppError> {
         if done == 0 && failed == 0 {
             return Ok(());
         }
-        let run = self.catalog.advance_run(&self.run_id, done, failed).await?;
+        let run = self.run.advance(done, failed);
         self.emit(&run);
         Ok(())
     }
@@ -72,12 +64,14 @@ where
         let state = if self.cancel.is_cancelled() {
             RunState::Cancelled
         } else {
-            match self.catalog.get_run_by_id(&self.run_id).await? {
-                Some(run) if run.total > 0 && run.failed >= run.total => RunState::Failed,
-                _ => RunState::Done,
+            let run = self.run.snapshot();
+            if run.total > 0 && run.failed >= run.total {
+                RunState::Failed
+            } else {
+                RunState::Done
             }
         };
-        let run = self.catalog.finish_run(&self.run_id, state).await?;
+        let run = self.run.finish(state);
         self.emit(&run);
         Ok(())
     }

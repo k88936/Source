@@ -19,7 +19,7 @@ use crate::media::{
 use crate::remote::RemoteStorage;
 use crate::store::{
     AlbumId, AlbumStore, AlbumSummary, AssetId, AssetRecord, AssetStore, AssetSummary, FolderId,
-    FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, Run, RunKey, RunStore,
+    FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, Run, RunKey, Runs,
     SYNC_DONE, SYNC_FAILED, TimelineCursor, TimelinePage, TimelineStore,
 };
 use crate::task::{Retry, Runner};
@@ -120,16 +120,18 @@ pub struct AlbumsService<R, C, M> {
     cloud: R,
     catalog: C,
     local: M,
+    runs: Runs,
     /// The token of the index pass running now, so a stop can reach it.
     indexing: Mutex<Option<CancellationToken>>,
 }
 
 impl<R, C, M> AlbumsService<R, C, M> {
-    pub fn new(cloud: R, catalog: C, local: M) -> Self {
+    pub fn new(cloud: R, catalog: C, local: M, runs: Runs) -> Self {
         Self {
             cloud,
             catalog,
             local,
+            runs,
             indexing: Mutex::new(None),
         }
     }
@@ -141,20 +143,13 @@ impl<R, C, M> AlbumsService<R, C, M> {
 /// are sharing at the same time.
 const INDEX_CONCURRENCY: usize = 3;
 
-/// Which pass this is. The store compares keys and never learns what one means.
+/// Which pass this is. The run book compares keys and never learns what one means.
 const INDEX_RUN: RunKey = RunKey::new("index");
 
 impl<R, C, M> AlbumsService<R, C, M>
 where
     R: RemoteStorage + 'static,
-    C: AlbumStore
-        + AssetStore
-        + FolderStore
-        + TimelineStore
-        + LocalStore
-        + RunStore
-        + Clone
-        + 'static,
+    C: AlbumStore + AssetStore + FolderStore + TimelineStore + LocalStore + Clone + 'static,
     M: LocalMediaPort + 'static,
 {
     pub async fn list_albums(&self) -> Result<Vec<AlbumSummary>, AppError> {
@@ -206,7 +201,7 @@ where
 
     /// The newest index pass, whatever state it is in.
     pub async fn get_index_run(&self) -> Result<Option<Run>, AppError> {
-        self.catalog.get_run(INDEX_RUN).await
+        Ok(self.runs.get(INDEX_RUN))
     }
 
     /// Start listing every album, and return the pass instead of waiting for it.
@@ -222,14 +217,14 @@ where
             .into_iter()
             .map(|album| album.id.0)
             .collect::<Vec<_>>();
-        let (run, started) = self.catalog.begin_run(INDEX_RUN, ids.len() as u32).await?;
+        let (run, started) = self.runs.begin(INDEX_RUN, ids.len() as u32);
         if !started {
-            return Ok(run);
+            return Ok(run.snapshot());
         }
         let cancel = CancellationToken::new();
         *self.indexing.lock().unwrap() = Some(cancel.clone());
-        let tracker = RunTracker::new(self.catalog.clone(), &run, sink, cancel);
-        tracker.announce(&run);
+        let tracker = RunTracker::new(run.clone(), sink, cancel);
+        tracker.announce();
 
         let albums = Arc::clone(self);
         tokio::spawn(async move {
@@ -247,7 +242,7 @@ where
             let _ = tracker.close().await;
             *albums.indexing.lock().unwrap() = None;
         });
-        Ok(run)
+        Ok(run.snapshot())
     }
 
     /// Stop the index pass after the albums already in flight.
@@ -284,7 +279,7 @@ where
     }
 
     /// One entry of an index pass.
-    async fn index_album(&self, album_id: &str, tracker: &RunTracker<C>) -> Result<(), AppError> {
+    async fn index_album(&self, album_id: &str, tracker: &RunTracker) -> Result<(), AppError> {
         match self.refresh(album_id, tracker.get_cancel()).await {
             Ok(_) => tracker.step(true).await,
             Err(err) if err.code == ErrorCode::Cancelled => Ok(()),

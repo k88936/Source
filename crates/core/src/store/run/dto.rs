@@ -9,10 +9,11 @@ id_type!(RunId);
 
 /// What a pass is about, chosen by the use case that opens it.
 ///
-/// The store only compares keys; what a key means - which rows a pass visits,
-/// which events it reports - stays in the use case that started it. A new kind
-/// of pass is a new constant there, not a variant here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The run book only compares keys and never learns what one means; what a key
+/// means - which rows a pass visits, which events it reports - stays in the use
+/// case that started it. A new kind of pass is a new constant there, not a
+/// variant here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RunKey(&'static str);
 
 impl RunKey {
@@ -34,8 +35,6 @@ pub enum RunState {
     Done,
     Failed,
     Cancelled,
-    /// A previous process died with the run still marked as running.
-    Interrupted,
 }
 
 /// One pass: how far it got, and whether it is still going.
