@@ -5,59 +5,15 @@
 //! also why a restart, a logout or a second window all see the same account
 //! without anything being patched in between.
 
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
+mod dto;
 
 use crate::error::{AppError, ErrorCode};
 use crate::remote::{Capacity, RemoteAuth, RemoteStorage, SignInOutcome, SignedIn, SiteInfo};
-use crate::store::{Account, AccountStore, UserInfo};
+use crate::store::{Account, AccountStore};
 
 use super::normalize_base_url;
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct AccountState {
-    pub server: String,
-    pub site_name: Option<String>,
-    pub user: UserInfo,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase",
-    tag = "kind"
-)]
-#[ts(export)]
-#[allow(clippy::large_enum_variant)]
-pub enum LoginOutcome {
-    Authenticated { account: AccountState },
-    TwoFactorRequired { session_id: String },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct SetServerParams {
-    pub base_url: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct LoginParams {
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct Login2faParams {
-    pub session_id: String,
-    pub otp: String,
-}
+pub use dto::*;
 
 pub struct AccountService<A, S, C> {
     auth: A,
@@ -87,6 +43,51 @@ where
     /// reached: a dead token drops it, but a network failure does not, because
     /// an offline library is still browsable.
     pub async fn bootstrap(&self) -> Option<AccountState> {
+        self.bootstrap_impl().await
+    }
+
+    /// Remember the server before the first sign-in, keeping the identity of
+    /// an account that used this server before.
+    ///
+    /// Switching to a different server drops the catalog: albums, their assets
+    /// and the local album mapping all point at folders of the server the
+    /// current account lives on.
+    pub async fn set_server(&self, base_url: &str) -> Result<SiteInfo, AppError> {
+        self.set_server_impl(base_url).await
+    }
+
+    pub async fn login(&self, email: &str, password: &str) -> Result<LoginOutcome, AppError> {
+        self.login_impl(email, password).await
+    }
+
+    pub async fn login_2fa(&self, session_id: &str, otp: &str) -> Result<AccountState, AppError> {
+        self.login_2fa_impl(session_id, otp).await
+    }
+
+    pub async fn logout(&self) -> Result<(), AppError> {
+        self.logout_impl().await
+    }
+
+    pub async fn get_account_state(&self) -> Result<Option<AccountState>, AppError> {
+        self.get_account_state_impl().await
+    }
+
+    pub async fn get_capacity(&self) -> Result<Capacity, AppError> {
+        self.get_capacity_impl().await
+    }
+}
+
+// ---------------------------------------------------------------------
+// Use case implementations
+// ---------------------------------------------------------------------
+
+impl<A, S, C> AccountService<A, S, C>
+where
+    A: RemoteAuth,
+    S: RemoteStorage,
+    C: AccountStore,
+{
+    async fn bootstrap_impl(&self) -> Option<AccountState> {
         let account = self
             .account_store
             .get_current_account()
@@ -111,13 +112,7 @@ where
         }
     }
 
-    /// Remember the server before the first sign-in, keeping the identity of
-    /// an account that used this server before.
-    ///
-    /// Switching to a different server drops the catalog: albums, their assets
-    /// and the local album mapping all point at folders of the server the
-    /// current account lives on.
-    pub async fn set_server(&self, base_url: &str) -> Result<SiteInfo, AppError> {
+    async fn set_server_impl(&self, base_url: &str) -> Result<SiteInfo, AppError> {
         let base = normalize_base_url(base_url)?;
         let info = self.auth.site_info(&base).await?;
         let known = self.account_store.get_account(&base).await?;
@@ -136,7 +131,7 @@ where
         Ok(info)
     }
 
-    pub async fn login(&self, email: &str, password: &str) -> Result<LoginOutcome, AppError> {
+    async fn login_impl(&self, email: &str, password: &str) -> Result<LoginOutcome, AppError> {
         let account = self.require_account("请先填写服务器地址").await?;
         match self
             .auth
@@ -152,7 +147,7 @@ where
         }
     }
 
-    pub async fn login_2fa(&self, session_id: &str, otp: &str) -> Result<AccountState, AppError> {
+    async fn login_2fa_impl(&self, session_id: &str, otp: &str) -> Result<AccountState, AppError> {
         let account = self
             .require_account("登录会话已过期, 请重新输入密码")
             .await?;
@@ -163,7 +158,7 @@ where
         self.remember(&account, signed_in).await
     }
 
-    pub async fn logout(&self) -> Result<(), AppError> {
+    async fn logout_impl(&self) -> Result<(), AppError> {
         let Some(account) = self.account_store.get_current_account().await? else {
             return Ok(());
         };
@@ -174,7 +169,7 @@ where
         Ok(())
     }
 
-    pub async fn get_account_state(&self) -> Result<Option<AccountState>, AppError> {
+    async fn get_account_state_impl(&self) -> Result<Option<AccountState>, AppError> {
         let Some(account) = self.account_store.get_current_account().await? else {
             return Ok(None);
         };
@@ -185,7 +180,7 @@ where
         }))
     }
 
-    pub async fn get_capacity(&self) -> Result<Capacity, AppError> {
+    async fn get_capacity_impl(&self) -> Result<Capacity, AppError> {
         self.storage.get_capacity().await
     }
 

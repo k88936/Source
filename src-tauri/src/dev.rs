@@ -11,7 +11,7 @@ use crate::state::App;
 use clap::Parser;
 use serde::Deserialize;
 use source_core::CredentialStore;
-use source_core::app::LoginOutcome;
+use source_core::app::account::LoginOutcome;
 use tauri::Manager;
 
 /// Where the dev scripts hand their results over. `SOURCE_DEV_TMP` lets a shell

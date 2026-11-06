@@ -1,106 +1,18 @@
 //! Browsing the catalog, asset details and the local media library.
 
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
+mod dto;
 
 use crate::error::AppError;
-use crate::mapping::{ExifField, FAVORITE_KEY, exif_fields};
+use crate::mapping::{FAVORITE_KEY, exif_fields};
 use crate::media::{LocalAsset, LocalMediaPort, MediaPermissionState};
 use crate::remote::{MediaRange, RemoteStorage};
 use crate::store::{
-    AssetId, AssetStore, AssetSummary, FolderStore, MediaType, SearchQuery, TimelineCursor,
-    TimelinePage, TimelineStore,
+    AssetStore, AssetSummary, FolderStore, SearchQuery, TimelinePage, TimelineStore,
 };
 
 use super::clamp_limit;
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct TimelinePageParams {
-    pub cursor: Option<TimelineCursor>,
-    pub limit: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct AssetDetailParams {
-    pub asset_id: AssetId,
-}
-
-/// Which file a media element should load. The adapter turns it into an
-/// address; nothing else in the app spells a scheme or a URL suffix.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(
-    tag = "kind",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-#[ts(
-    tag = "kind",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-#[ts(export)]
-pub enum MediaSourceParams {
-    /// Catalog thumbnail, a few hundred pixels wide.
-    Thumb { asset_id: AssetId },
-    /// Catalog original: the viewer's full-size still.
-    Original { asset_id: AssetId },
-    /// Catalog original played as media. Only the desktop adapter answers this
-    /// one differently, because its media stack rejects custom schemes.
-    Video { asset_id: AssetId },
-    /// Thumbnail of a file that is not in the catalog.
-    LocalThumb { uri: String },
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct SearchParams {
-    pub query: String,
-    pub from: Option<i64>,
-    pub to: Option<i64>,
-    pub favorite: Option<bool>,
-    pub media_type: Option<MediaType>,
-    pub cursor: Option<TimelineCursor>,
-    pub limit: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct SetFavoriteParams {
-    pub asset_id: AssetId,
-    pub value: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct AssetDetail {
-    pub asset: AssetSummary,
-    pub album_name: Option<String>,
-    pub album_path: Option<String>,
-    pub exif: Vec<ExifField>,
-    pub download_name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct ExportAssetsParams {
-    pub asset_ids: Vec<AssetId>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct ExportResult {
-    pub exported: u32,
-    pub directory: String,
-}
+pub use dto::*;
 
 pub struct BrowseService<R, C, M> {
     cloud: R,
@@ -128,12 +40,93 @@ where
         &self,
         params: TimelinePageParams,
     ) -> Result<TimelinePage, AppError> {
+        self.get_timeline_page_impl(params).await
+    }
+
+    pub async fn get_asset_detail(&self, asset_id: &str) -> Result<AssetDetail, AppError> {
+        self.get_asset_detail_impl(asset_id).await
+    }
+
+    pub async fn get_thumb_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
+        self.get_thumb_bytes_impl(asset_id).await
+    }
+
+    pub async fn get_media_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
+        self.get_media_bytes_impl(asset_id).await
+    }
+
+    pub async fn get_media_range(
+        &self,
+        asset_id: &str,
+        range: Option<&str>,
+    ) -> Result<MediaRange, AppError> {
+        self.get_media_range_impl(asset_id, range).await
+    }
+
+    /// Signed server URL of the original file, for the viewports that cannot
+    /// play the `media` protocol themselves.
+    pub async fn get_media_url(&self, asset_id: &str) -> Result<String, AppError> {
+        self.get_media_url_impl(asset_id).await
+    }
+
+    pub async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+        self.get_local_asset_impl(id).await
+    }
+
+    pub async fn search(&self, params: SearchParams) -> Result<TimelinePage, AppError> {
+        self.search_impl(params).await
+    }
+
+    pub async fn set_favorite(
+        &self,
+        asset_id: &str,
+        value: bool,
+    ) -> Result<AssetSummary, AppError> {
+        self.set_favorite_impl(asset_id, value).await
+    }
+
+    /// Blur-up mosaic already stored for an asset, if any.
+    pub async fn get_asset_thumb_hash(&self, asset_id: &str) -> Result<Option<String>, AppError> {
+        self.get_asset_thumb_hash_impl(asset_id).await
+    }
+
+    pub async fn set_asset_thumb_hash(&self, asset_id: &str, value: &str) -> Result<(), AppError> {
+        self.set_asset_thumb_hash_impl(asset_id, value).await
+    }
+
+    pub async fn get_media_permission_state(&self) -> Result<MediaPermissionState, AppError> {
+        self.get_media_permission_state_impl().await
+    }
+
+    pub async fn request_media_permission(&self) -> Result<MediaPermissionState, AppError> {
+        self.request_media_permission_impl().await
+    }
+
+    pub async fn get_local_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
+        self.get_local_thumb_impl(id, edge).await
+    }
+}
+
+// ---------------------------------------------------------------------
+// Use case implementations
+// ---------------------------------------------------------------------
+
+impl<R, C, M> BrowseService<R, C, M>
+where
+    R: RemoteStorage,
+    C: AssetStore + FolderStore + TimelineStore,
+    M: LocalMediaPort,
+{
+    async fn get_timeline_page_impl(
+        &self,
+        params: TimelinePageParams,
+    ) -> Result<TimelinePage, AppError> {
         self.catalog
             .get_timeline_page(params.cursor.as_ref(), clamp_limit(params.limit))
             .await
     }
 
-    pub async fn get_asset_detail(&self, asset_id: &str) -> Result<AssetDetail, AppError> {
+    async fn get_asset_detail_impl(&self, asset_id: &str) -> Result<AssetDetail, AppError> {
         let record = self
             .catalog
             .get_asset(asset_id)
@@ -149,25 +142,17 @@ where
         })
     }
 
-    async fn asset_uri(&self, asset_id: &str) -> Result<String, AppError> {
-        self.catalog
-            .get_asset(asset_id)
-            .await?
-            .map(|a| a.uri)
-            .ok_or_else(|| AppError::not_found("资产不存在"))
-    }
-
-    pub async fn get_thumb_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
+    async fn get_thumb_bytes_impl(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
         let uri = self.asset_uri(asset_id).await?;
         self.cloud.get_thumb_bytes(&uri).await
     }
 
-    pub async fn get_media_bytes(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
+    async fn get_media_bytes_impl(&self, asset_id: &str) -> Result<Vec<u8>, AppError> {
         let uri = self.asset_uri(asset_id).await?;
         self.cloud.get_media_bytes(&uri).await
     }
 
-    pub async fn get_media_range(
+    async fn get_media_range_impl(
         &self,
         asset_id: &str,
         range: Option<&str>,
@@ -178,18 +163,16 @@ where
             .await
     }
 
-    /// Signed server URL of the original file, for the viewports that cannot
-    /// play the `media` protocol themselves.
-    pub async fn get_media_url(&self, asset_id: &str) -> Result<String, AppError> {
+    async fn get_media_url_impl(&self, asset_id: &str) -> Result<String, AppError> {
         let uri = self.asset_uri(asset_id).await?;
         self.cloud.get_media_url(&uri).await
     }
 
-    pub async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+    async fn get_local_asset_impl(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
         self.local.get_asset(id).await
     }
 
-    pub async fn search(&self, params: SearchParams) -> Result<TimelinePage, AppError> {
+    async fn search_impl(&self, params: SearchParams) -> Result<TimelinePage, AppError> {
         self.catalog
             .search(&SearchQuery {
                 query: params.query,
@@ -203,7 +186,7 @@ where
             .await
     }
 
-    pub async fn set_favorite(
+    async fn set_favorite_impl(
         &self,
         asset_id: &str,
         value: bool,
@@ -230,8 +213,7 @@ where
         })
     }
 
-    /// Blur-up mosaic already stored for an asset, if any.
-    pub async fn get_asset_thumb_hash(&self, asset_id: &str) -> Result<Option<String>, AppError> {
+    async fn get_asset_thumb_hash_impl(&self, asset_id: &str) -> Result<Option<String>, AppError> {
         Ok(self
             .catalog
             .get_asset(asset_id)
@@ -239,24 +221,28 @@ where
             .and_then(|record| record.summary.thumb_hash))
     }
 
-    pub async fn set_asset_thumb_hash(&self, asset_id: &str, value: &str) -> Result<(), AppError> {
+    async fn set_asset_thumb_hash_impl(&self, asset_id: &str, value: &str) -> Result<(), AppError> {
         self.catalog.set_asset_thumb_hash(asset_id, value).await
     }
 
-    // ---------------------------------------------------------------------
-    // Local library
-    // ---------------------------------------------------------------------
-
-    pub async fn get_media_permission_state(&self) -> Result<MediaPermissionState, AppError> {
+    async fn get_media_permission_state_impl(&self) -> Result<MediaPermissionState, AppError> {
         self.local.get_permission_state().await
     }
 
-    pub async fn request_media_permission(&self) -> Result<MediaPermissionState, AppError> {
+    async fn request_media_permission_impl(&self) -> Result<MediaPermissionState, AppError> {
         self.local.request_permission().await
     }
 
-    pub async fn get_local_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
+    async fn get_local_thumb_impl(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
         self.local.get_thumb(id, edge).await
+    }
+
+    async fn asset_uri(&self, asset_id: &str) -> Result<String, AppError> {
+        self.catalog
+            .get_asset(asset_id)
+            .await?
+            .map(|a| a.uri)
+            .ok_or_else(|| AppError::not_found("资产不存在"))
     }
 }
 

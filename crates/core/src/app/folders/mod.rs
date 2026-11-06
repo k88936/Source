@@ -1,8 +1,7 @@
 //! Picking a remote folder: the listing the album picker browses, and the
 //! folders it can create on the way.
 
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
+mod dto;
 
 use crate::error::AppError;
 use crate::remote::RemoteStorage;
@@ -10,38 +9,7 @@ use crate::store::{FolderRef, FolderStore};
 
 use super::{folder_record, folder_ref};
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct ListRemoteFoldersParams {
-    /// The folder to list; the drive root when absent.
-    #[serde(default = "root_uri")]
-    pub uri: String,
-    pub page_token: Option<String>,
-}
-
-fn root_uri() -> String {
-    "cloudreve://my".to_string()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct RemoteFolderPage {
-    pub folders: Vec<FolderRef>,
-    /// Folder currently being browsed; the drive root has an empty name.
-    pub current: FolderRef,
-    pub next: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct CreateFolderParams {
-    /// The folder the new one is created in.
-    pub parent_uri: String,
-    pub name: String,
-}
+pub use dto::*;
 
 pub struct FoldersService<R, C> {
     cloud: R,
@@ -66,6 +34,30 @@ where
         uri: &str,
         page_token: Option<&str>,
     ) -> Result<RemoteFolderPage, AppError> {
+        self.list_remote_folders_impl(uri, page_token).await
+    }
+
+    /// Create a folder from inside the picker and hand back the selectable
+    /// reference, so the user does not have to leave the app to add an album.
+    pub async fn create_folder(&self, parent_uri: &str, name: &str) -> Result<FolderRef, AppError> {
+        self.create_folder_impl(parent_uri, name).await
+    }
+}
+
+// ---------------------------------------------------------------------
+// Use case implementations
+// ---------------------------------------------------------------------
+
+impl<R, C> FoldersService<R, C>
+where
+    R: RemoteStorage,
+    C: FolderStore,
+{
+    async fn list_remote_folders_impl(
+        &self,
+        uri: &str,
+        page_token: Option<&str>,
+    ) -> Result<RemoteFolderPage, AppError> {
         let page = self.cloud.list_entries(uri, page_token).await?;
         let current = folder_ref(&page.current);
         let folders = page
@@ -81,9 +73,11 @@ where
         })
     }
 
-    /// Create a folder from inside the picker and hand back the selectable
-    /// reference, so the user does not have to leave the app to add an album.
-    pub async fn create_folder(&self, parent_uri: &str, name: &str) -> Result<FolderRef, AppError> {
+    async fn create_folder_impl(
+        &self,
+        parent_uri: &str,
+        name: &str,
+    ) -> Result<FolderRef, AppError> {
         let name = name.trim();
         if name.is_empty() {
             return Err(AppError::internal("文件夹名不能为空"));

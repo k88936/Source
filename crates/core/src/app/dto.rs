@@ -1,4 +1,5 @@
-//! Events the use cases emit to the UI, and the parameters they accept.
+//! Events no single service owns, and what the running build reports about
+//! itself.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

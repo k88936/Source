@@ -1,13 +1,13 @@
 //! Upload queue: enqueue, run, cancel, retry and progress persistence.
 
+mod dto;
+
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use serde::{Deserialize, Serialize};
 use source_jobs::{Ctx, JobId, JobKind, Jobs};
 use tokio::sync::mpsc;
-use ts_rs::TS;
 
 use crate::error::{AppError, ErrorCode};
 use crate::exif::ExifData;
@@ -23,41 +23,7 @@ use crate::time::now_ms;
 
 use super::PROGRESS_WRITE_INTERVAL;
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct EnqueueUploadsParams {
-    pub local_ids: Vec<LocalAssetId>,
-    /// The album (remote folder) every file of this batch lands in.
-    pub album_id: AlbumId,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct UploadTaskParams {
-    pub task_id: UploadTaskId,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct UploadProgressEvent {
-    pub task_id: UploadTaskId,
-    pub uploaded: i64,
-    pub total: i64,
-    pub speed: i64,
-    pub eta_seconds: Option<u32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct UploadStateEvent {
-    pub task_id: UploadTaskId,
-    pub state: UploadState,
-    pub error: Option<AppError>,
-}
+pub use dto::*;
 
 /// Result of one upload attempt.
 ///
@@ -132,6 +98,65 @@ where
         self: &Arc<Self>,
         params: EnqueueUploadsParams,
     ) -> Result<Vec<UploadTask>, AppError> {
+        self.enqueue_files_impl(params).await
+    }
+
+    /// Offer files to the upload queue and return at once.
+    ///
+    /// A scan does not write the queue itself: it hands the files over and keeps
+    /// walking, and the queue decides when they become rows and when each one
+    /// moves. One offer is one job, so a slow server backpressures the scan
+    /// through the same budget as everything else instead of through a batch of
+    /// its own.
+    pub(super) fn offer(self: &Arc<Self>, album_id: AlbumId, assets: Vec<LocalAsset>) {
+        self.offer_impl(album_id, assets)
+    }
+
+    /// What the queue is doing now, for the card that shows it.
+    pub async fn list_tasks(&self) -> Result<Vec<UploadTask>, AppError> {
+        self.list_tasks_impl().await
+    }
+
+    pub async fn get_task(&self, id: &UploadTaskId) -> Result<Option<UploadTask>, AppError> {
+        self.get_task_impl(id).await
+    }
+
+    /// Cancel one task, whether or not it is running.
+    ///
+    /// The cancelled state is written here and is what stops a running attempt
+    /// between two chunks; the attempt keeps its session, so retrying the task
+    /// later resumes instead of starting over.
+    pub async fn cancel(&self, task_id: &UploadTaskId) -> Result<(), AppError> {
+        self.cancel_impl(task_id).await
+    }
+
+    pub async fn retry(self: &Arc<Self>, task_id: &UploadTaskId) -> Result<UploadTask, AppError> {
+        self.retry_impl(task_id).await
+    }
+
+    /// Put back what a previous process left in flight and queue it again.
+    ///
+    /// Called once at startup: in-flight rows go back to queued, so the next
+    /// attempt loads their durable session and resumes instead of starting over.
+    pub async fn recover(self: &Arc<Self>) -> Result<Vec<UploadTask>, AppError> {
+        self.recover_impl().await
+    }
+}
+
+// ---------------------------------------------------------------------
+// Use case implementations
+// ---------------------------------------------------------------------
+
+impl<R, C, M> UploadsService<R, C, M>
+where
+    R: RemoteStorage + 'static,
+    C: AssetStore + FolderStore + LocalStore + UploadQueueStore + Clone + 'static,
+    M: LocalMediaPort + 'static,
+{
+    async fn enqueue_files_impl(
+        self: &Arc<Self>,
+        params: EnqueueUploadsParams,
+    ) -> Result<Vec<UploadTask>, AppError> {
         let mut assets = Vec::with_capacity(params.local_ids.len());
         for local_id in params.local_ids {
             if let Some(asset) = self.local.get_asset(local_id.as_str()).await? {
@@ -146,7 +171,7 @@ where
     /// A file already in the queue is not queued twice: sync offers every file
     /// it finds, pass after pass, and a second row would mean a second upload
     /// of the same bytes.
-    pub async fn enqueue_assets(
+    async fn enqueue_assets(
         self: &Arc<Self>,
         album_id: &AlbumId,
         assets: &[LocalAsset],
@@ -196,14 +221,7 @@ where
         Ok(tasks)
     }
 
-    /// Offer files to the upload queue and return at once.
-    ///
-    /// A scan does not write the queue itself: it hands the files over and keeps
-    /// walking, and the queue decides when they become rows and when each one
-    /// moves. One offer is one job, so a slow server backpressures the scan
-    /// through the same budget as everything else instead of through a batch of
-    /// its own.
-    pub fn offer(self: &Arc<Self>, album_id: AlbumId, assets: Vec<LocalAsset>) {
+    fn offer_impl(self: &Arc<Self>, album_id: AlbumId, assets: Vec<LocalAsset>) {
         if assets.is_empty() {
             return;
         }
@@ -229,7 +247,7 @@ where
     /// A row that is already queued or uploading is one job already: pressing
     /// retry twice, or a scan offering the same file again, never puts two
     /// attempts on the same bytes.
-    pub fn submit(self: &Arc<Self>, tasks: Vec<UploadTask>) {
+    fn submit(self: &Arc<Self>, tasks: Vec<UploadTask>) {
         for task in tasks {
             let uploads = Arc::clone(self);
             let task_id = task.id;
@@ -246,21 +264,15 @@ where
         }
     }
 
-    /// What the queue is doing now, for the card that shows it.
-    pub async fn list_tasks(&self) -> Result<Vec<UploadTask>, AppError> {
+    async fn list_tasks_impl(&self) -> Result<Vec<UploadTask>, AppError> {
         self.catalog.list_upload_tasks().await
     }
 
-    pub async fn get_task(&self, id: &UploadTaskId) -> Result<Option<UploadTask>, AppError> {
+    async fn get_task_impl(&self, id: &UploadTaskId) -> Result<Option<UploadTask>, AppError> {
         self.catalog.get_upload_task(&id.0).await
     }
 
-    /// Cancel one task, whether or not it is running.
-    ///
-    /// The cancelled state is written here and is what stops a running attempt
-    /// between two chunks; the attempt keeps its session, so retrying the task
-    /// later resumes instead of starting over.
-    pub async fn cancel(&self, task_id: &UploadTaskId) -> Result<(), AppError> {
+    async fn cancel_impl(&self, task_id: &UploadTaskId) -> Result<(), AppError> {
         let Some(mut task) = self.catalog.get_upload_task(&task_id.0).await? else {
             return Err(AppError::not_found("上传任务不存在"));
         };
@@ -273,7 +285,7 @@ where
         Ok(())
     }
 
-    pub async fn retry(self: &Arc<Self>, task_id: &UploadTaskId) -> Result<UploadTask, AppError> {
+    async fn retry_impl(self: &Arc<Self>, task_id: &UploadTaskId) -> Result<UploadTask, AppError> {
         let Some(mut task) = self.catalog.get_upload_task(&task_id.0).await? else {
             return Err(AppError::not_found("上传任务不存在"));
         };
@@ -539,11 +551,7 @@ where
         self.catalog.update_upload(task).await
     }
 
-    /// Put back what a previous process left in flight and queue it again.
-    ///
-    /// Called once at startup: in-flight rows go back to queued, so the next
-    /// attempt loads their durable session and resumes instead of starting over.
-    pub async fn recover(self: &Arc<Self>) -> Result<Vec<UploadTask>, AppError> {
+    async fn recover_impl(self: &Arc<Self>) -> Result<Vec<UploadTask>, AppError> {
         let tasks = self.catalog.recover_uploads().await?;
         self.submit(tasks.clone());
         Ok(tasks)

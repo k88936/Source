@@ -59,6 +59,27 @@ where
     /// the same queue, so a scan and the uploads it started share one budget
     /// instead of each holding its own.
     pub async fn sync_all(self: &Arc<Self>) -> Result<usize, AppError> {
+        self.sync_all_impl().await
+    }
+
+    /// Stop the scan: what is still waiting is dropped, what is walking ends
+    /// after the page it is on. Files already offered keep uploading.
+    pub fn stop(&self) {
+        self.stop_impl()
+    }
+}
+
+// ---------------------------------------------------------------------
+// Use case implementations
+// ---------------------------------------------------------------------
+
+impl<R, C, M> SyncService<R, C, M>
+where
+    R: RemoteStorage + 'static,
+    C: AlbumStore + AssetStore + FolderStore + LocalStore + UploadQueueStore + Clone + 'static,
+    M: LocalMediaPort + 'static,
+{
+    async fn sync_all_impl(self: &Arc<Self>) -> Result<usize, AppError> {
         let albums = self.catalog.list_local_albums().await?;
         for album in &albums {
             let sync = Arc::clone(self);
@@ -72,9 +93,7 @@ where
         Ok(albums.len())
     }
 
-    /// Stop the scan: what is still waiting is dropped, what is walking ends
-    /// after the page it is on. Files already offered keep uploading.
-    pub fn stop(&self) {
+    fn stop_impl(&self) {
         self.jobs.cancel(SYNC_JOB);
     }
 
