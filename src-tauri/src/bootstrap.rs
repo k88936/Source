@@ -7,14 +7,22 @@ use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
 use source_core::store::AssetSummary;
 use source_core::{
     AccountService, AlbumsService, AppError, BrowseService, CloudreveAuth, CloudreveStorage,
-    CredentialStore, FoldersService, Runs, SqliteCatalog, SyncService, ThumbCache,
-    UploadSessionPort, UploadsService,
+    CredentialStore, FoldersService, SqliteCatalog, SyncService, ThumbCache, UploadSessionPort,
+    UploadsService,
 };
+use source_jobs::Jobs;
 use tauri::{Emitter, Manager};
 
 #[cfg(not(debug_assertions))]
 use crate::credentials::KeyringCredentialStore;
 use crate::state::{App, AppState, LocalMedia};
+
+/// How many jobs run at once, over every kind of work.
+///
+/// One number for the whole process, so nothing can raise it by starting one
+/// more batch: a scan and the uploads it offered share it, and the queue decides
+/// which job goes next.
+const JOB_CONCURRENCY: usize = 3;
 
 /// Open storage, build every service, and pick up what a crash left behind.
 ///
@@ -46,12 +54,13 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         let auth = CloudreveAuth::new(cred_store);
         let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
         let local = LocalMedia::new();
-        let runs = Runs::new();
+        let jobs = Jobs::new(JOB_CONCURRENCY);
         let uploads = Arc::new(UploadsService::new(
             cloud.clone(),
             catalog.clone(),
             local.clone(),
             sinks,
+            jobs.clone(),
         ));
         Ok::<_, AppError>(App {
             account: Arc::new(AccountService::new(auth, cloud.clone(), catalog.clone())),
@@ -60,15 +69,21 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
                 cloud.clone(),
                 catalog.clone(),
                 local.clone(),
-                runs.clone(),
+                jobs.clone(),
             )),
             browse: Arc::new(BrowseService::new(
                 cloud.clone(),
                 catalog.clone(),
                 local.clone(),
             )),
-            sync: Arc::new(SyncService::new(catalog, local, Arc::clone(&uploads), runs)),
+            sync: Arc::new(SyncService::new(
+                catalog,
+                local,
+                Arc::clone(&uploads),
+                jobs.clone(),
+            )),
             uploads,
+            jobs,
         })
     })?);
     let _ = tauri::async_runtime::block_on(core.account.bootstrap());
@@ -78,15 +93,25 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
 
     let cache = Arc::new(ThumbCache::default_cache(&app_data)?);
 
-    // Uploads a previous process left behind resume from their sessions. The
-    // work runs as a task on Tauri's runtime, not inside a one-off block: the
-    // batch it starts has to outlive setup, and recovering twenty thousand rows
-    // must not hold the window.
+    // Uploads a previous process left behind go back in the queue, so they
+    // resume from their sessions. Recovering twenty thousand rows is one read
+    // and one submission each: the queue runs them on its own budget.
+    let _ = tauri::async_runtime::block_on(core.uploads.recover());
+
+    // One bridge for the whole board: the page picks its rows by key instead of
+    // listening to an event per kind of work. The first pass fires at once, so a
+    // window that loads while jobs are queued is not left with an empty board.
     {
-        let uploads = Arc::clone(&core.uploads);
+        let mut board = core.jobs.watch();
+        let handle = app.handle().clone();
         tauri::async_runtime::spawn(async move {
-            let pending = uploads.recover().await.unwrap_or_default();
-            uploads.start(pending.into_iter().map(|task| task.id).collect());
+            loop {
+                let current = board.borrow_and_update().clone();
+                let _ = handle.emit("job://changed", current.as_ref());
+                if board.changed().await.is_err() {
+                    break;
+                }
+            }
         });
     }
 

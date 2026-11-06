@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
+use source_jobs::{Ctx, JobId, JobKind, Jobs};
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 
 use crate::error::{AppError, ErrorCode};
@@ -18,7 +18,7 @@ use crate::store::{
     AlbumId, AssetStore, AssetSummary, FolderId, FolderStore, LocalAssetId, LocalStore,
     UploadQueueStore, UploadState, UploadTask, UploadTaskId,
 };
-use crate::task::{Attempts, Retry, Runner, Try};
+use crate::task::{Retry, Try, attempt};
 use crate::time::now_ms;
 
 use super::PROGRESS_WRITE_INTERVAL;
@@ -69,11 +69,16 @@ pub struct UploadOutcome {
     pub asset: Option<AssetSummary>,
 }
 
-/// How many uploads run at once.
-///
-/// Two keeps a phone uplink saturated without letting one huge video starve a
-/// batch of small photos.
-const UPLOAD_CONCURRENCY: usize = 2;
+/// One file is one job. The queue only compares the key, so what an upload is
+/// stays here, and a row's cancel button reaches its job through it.
+pub const UPLOAD_JOB: JobKind = JobKind::new("upload");
+
+/// Taking a batch of offered files into the queue is one job too, so a scan
+/// never writes the queue on its own thread of control.
+const ENQUEUE_JOB: JobKind = JobKind::new("enqueue");
+
+/// Keeps two offers made in the same millisecond apart.
+static OFFER_SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Automatic retries after the first failure; the first wait is 3s, then it
 /// doubles.
@@ -100,32 +105,31 @@ pub struct UploadsService<R, C, M> {
     catalog: C,
     local: M,
     sinks: UploadSinks,
-    /// The single attempt of each task in flight, so a cancel reaches it.
-    attempts: Attempts<UploadTaskId>,
+    jobs: Jobs,
 }
 
 impl<R, C, M> UploadsService<R, C, M> {
-    pub fn new(cloud: R, catalog: C, local: M, sinks: UploadSinks) -> Self {
+    pub fn new(cloud: R, catalog: C, local: M, sinks: UploadSinks, jobs: Jobs) -> Self {
         Self {
             cloud,
             catalog,
             local,
             sinks,
-            attempts: Attempts::new(),
+            jobs,
         }
     }
 }
 
 impl<R, C, M> UploadsService<R, C, M>
 where
-    R: RemoteStorage,
+    R: RemoteStorage + 'static,
     C: AssetStore + FolderStore + LocalStore + UploadQueueStore + Clone + 'static,
-    M: LocalMediaPort,
+    M: LocalMediaPort + 'static,
 {
     /// Offer the files a user picked. They are read from the device, then
     /// queued exactly like a sync pass queues what it finds.
     pub async fn enqueue_files(
-        &self,
+        self: &Arc<Self>,
         params: EnqueueUploadsParams,
     ) -> Result<Vec<UploadTask>, AppError> {
         let mut assets = Vec::with_capacity(params.local_ids.len());
@@ -143,7 +147,7 @@ where
     /// it finds, pass after pass, and a second row would mean a second upload
     /// of the same bytes.
     pub async fn enqueue_assets(
-        &self,
+        self: &Arc<Self>,
         album_id: &AlbumId,
         assets: &[LocalAsset],
     ) -> Result<Vec<UploadTask>, AppError> {
@@ -188,7 +192,58 @@ where
             self.catalog.enqueue_upload(&task).await?;
             tasks.push(task);
         }
+        self.submit(tasks.clone());
         Ok(tasks)
+    }
+
+    /// Offer files to the upload queue and return at once.
+    ///
+    /// A scan does not write the queue itself: it hands the files over and keeps
+    /// walking, and the queue decides when they become rows and when each one
+    /// moves. One offer is one job, so a slow server backpressures the scan
+    /// through the same budget as everything else instead of through a batch of
+    /// its own.
+    pub fn offer(self: &Arc<Self>, album_id: AlbumId, assets: Vec<LocalAsset>) {
+        if assets.is_empty() {
+            return;
+        }
+        let uploads = Arc::clone(self);
+        self.jobs.submit(
+            ENQUEUE_JOB,
+            JobId::from(format!(
+                "offer-{}-{}",
+                now_ms(),
+                OFFER_SEQ.fetch_add(1, Ordering::Relaxed)
+            )),
+            move |ctx| async move {
+                let count = assets.len() as u64;
+                uploads.enqueue_assets(&album_id, &assets).await?;
+                ctx.advance(count);
+                Ok::<(), AppError>(())
+            },
+        );
+    }
+
+    /// Queue one job per task, so the queue decides when each file moves.
+    ///
+    /// A row that is already queued or uploading is one job already: pressing
+    /// retry twice, or a scan offering the same file again, never puts two
+    /// attempts on the same bytes.
+    pub fn submit(self: &Arc<Self>, tasks: Vec<UploadTask>) {
+        for task in tasks {
+            let uploads = Arc::clone(self);
+            let task_id = task.id;
+            self.jobs.submit(
+                UPLOAD_JOB,
+                JobId::from(task_id.0.clone()),
+                move |ctx| async move {
+                    attempt(UPLOAD_RETRY, ctx.cancel(), |try_number| {
+                        uploads.try_upload(&task_id, &ctx, try_number)
+                    })
+                    .await
+                },
+            );
+        }
     }
 
     /// What the queue is doing now, for the card that shows it.
@@ -212,12 +267,13 @@ where
         if matches!(task.state, UploadState::Done | UploadState::Failed) {
             return Ok(());
         }
+        self.jobs
+            .cancel_item(UPLOAD_JOB, &JobId::from(task_id.0.clone()));
         self.set_state(&mut task, UploadState::Cancelled).await?;
-        self.attempts.stop(task_id);
         Ok(())
     }
 
-    pub async fn retry(&self, task_id: &UploadTaskId) -> Result<UploadTask, AppError> {
+    pub async fn retry(self: &Arc<Self>, task_id: &UploadTaskId) -> Result<UploadTask, AppError> {
         let Some(mut task) = self.catalog.get_upload_task(&task_id.0).await? else {
             return Err(AppError::not_found("上传任务不存在"));
         };
@@ -228,6 +284,7 @@ where
         task.eta_seconds = None;
         task.attempts += 1;
         self.catalog.update_upload(&task).await?;
+        self.submit(vec![task.clone()]);
         Ok(task)
     }
 
@@ -260,40 +317,8 @@ where
         Ok(task)
     }
 
-    /// Run the given queued tasks on the runtime and return immediately.
-    ///
-    /// Every state change goes out through [`UploadSinks`], so whoever triggers
-    /// a batch - the queue page, a retry, or a sync pass - only hands over ids.
-    pub fn start(self: &Arc<Self>, ids: Vec<UploadTaskId>)
-    where
-        R: 'static,
-        M: 'static,
-    {
-        if ids.is_empty() {
-            return;
-        }
-        let uploads = Arc::clone(self);
-        tokio::spawn(async move {
-            uploads.run_batch(ids).await;
-        });
-    }
-
-    async fn run_batch(self: Arc<Self>, ids: Vec<UploadTaskId>) {
-        let runner = Runner::new(UPLOAD_CONCURRENCY, UPLOAD_RETRY);
-        // Nothing stops a whole batch: tasks are cancelled one by one, and a
-        // cancelled attempt returns before it writes a terminal state.
-        let cancel = CancellationToken::new();
-        let uploads = Arc::clone(&self);
-        runner
-            .run(ids, &cancel, |id, attempt| {
-                let uploads = Arc::clone(&uploads);
-                async move { uploads.try_upload(&id, attempt).await }
-            })
-            .await;
-    }
-
     /// One attempt, including the states it announces before and after.
-    async fn try_upload(&self, id: &UploadTaskId, attempt: Try) -> Result<(), AppError> {
+    async fn try_upload(&self, id: &UploadTaskId, ctx: &Ctx, attempt: Try) -> Result<(), AppError> {
         if let Some(task) = self.catalog.get_upload_task(&id.0).await? {
             (self.sinks.state)(&UploadStateEvent {
                 task_id: task.id,
@@ -301,8 +326,7 @@ where
                 error: None,
             });
         }
-        let progress = Arc::clone(&self.sinks.progress);
-        match self.run(id, progress).await {
+        match self.run(id, ctx).await {
             Ok(outcome) => {
                 (self.sinks.state)(&UploadStateEvent {
                     task_id: outcome.task.id.clone(),
@@ -353,12 +377,8 @@ where
         Ok(task)
     }
 
-    /// Execute one queued task, forwarding progress to `on_progress`.
-    pub async fn run(
-        &self,
-        task_id: &UploadTaskId,
-        on_progress: Arc<dyn Fn(UploadProgressEvent) + Send + Sync>,
-    ) -> Result<UploadOutcome, AppError> {
+    /// Execute one queued task, reporting its bytes to its job.
+    async fn run(&self, task_id: &UploadTaskId, ctx: &Ctx) -> Result<UploadOutcome, AppError> {
         let mut task = self
             .catalog
             .get_upload_task(&task_id.0)
@@ -379,12 +399,14 @@ where
 
         let max_total = task.total;
         let session_key = task.id.0.clone();
-        // Opened before the first state write: a cancel that lands while this
-        // attempt is being set up must not be lost. The uploader stops between
-        // two chunks and keeps its session, so a later retry resumes instead
-        // of starting over.
-        let attempt = self.attempts.open(task_id.clone());
-        let cancel = attempt.token();
+        // A cancel that lands while this attempt is being set up must not be
+        // lost: the job's own token is already live. The uploader stops between
+        // two chunks and keeps its session, so a later retry resumes instead of
+        // starting over.
+        let cancel = ctx.cancel().clone();
+        if max_total > 0 {
+            ctx.total(max_total as u64);
+        }
 
         self.set_state(&mut task, UploadState::CreatingSession)
             .await?;
@@ -400,7 +422,7 @@ where
         // capacity-1 channel (stale samples are dropped) and the writer persists
         // at most one sample per `PROGRESS_WRITE_INTERVAL`.
         let (progress_tx, mut progress_rx) = mpsc::channel::<UploadProgress>(1);
-        let writer = tokio::spawn({
+        let writer = ctx.spawn({
             let catalog = self.catalog.clone();
             let task_id = task.id.0.clone();
             async move {
@@ -424,11 +446,22 @@ where
                 }
             }
         });
+        let sink = Arc::clone(&self.sinks.progress);
         let progress = Arc::new({
             let task_id = task.id.clone();
+            let ctx = ctx.clone();
+            let reported = AtomicU64::new(0);
             move |p: UploadProgress| {
                 let _ = progress_tx.try_send(p);
-                on_progress(UploadProgressEvent {
+                // One chunk is one step. The job counts bytes, so a big video
+                // moves its row in the queue instead of sitting at 0% until it
+                // ends.
+                let sent = p.uploaded.max(0) as u64;
+                let previous = reported.swap(sent, Ordering::Relaxed);
+                if sent > previous {
+                    ctx.advance(sent - previous);
+                }
+                sink(UploadProgressEvent {
                     task_id: task_id.clone(),
                     uploaded: p.uploaded,
                     total: if p.total > 0 { p.total } else { max_total },
@@ -506,11 +539,13 @@ where
         self.catalog.update_upload(task).await
     }
 
-    /// Put back what a previous process left in flight and report the queue.
+    /// Put back what a previous process left in flight and queue it again.
     ///
     /// Called once at startup: in-flight rows go back to queued, so the next
     /// attempt loads their durable session and resumes instead of starting over.
-    pub async fn recover(&self) -> Result<Vec<UploadTask>, AppError> {
-        self.catalog.recover_uploads().await
+    pub async fn recover(self: &Arc<Self>) -> Result<Vec<UploadTask>, AppError> {
+        let tasks = self.catalog.recover_uploads().await?;
+        self.submit(tasks.clone());
+        Ok(tasks)
     }
 }

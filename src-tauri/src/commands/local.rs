@@ -24,7 +24,11 @@ pub(crate) async fn local_browse(
     state: State<'_, AppState>,
     params: LocalBrowseParams,
 ) -> Result<LocalBrowsePage, AppError> {
-    state.core.albums.browse_local(params.parent.as_deref()).await
+    state
+        .core
+        .albums
+        .browse_local(params.parent.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -58,29 +62,17 @@ pub(crate) async fn local_asset_page(
     state.core.albums.get_local_asset_page(params).await
 }
 
-/// Start a sync pass over every registered local album. Returns at once; the
-/// pass reports through `sync://run`, and its files reach the upload queue.
+/// Queue one scan per registered local album and return how many. Each scan
+/// offers its files to the upload queue, which runs them as jobs of their own.
 #[tauri::command]
-pub(crate) async fn sync_start(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<Run, AppError> {
-    state
-        .core
-        .sync
-        .start_sync(super::run_sink(&app, "sync://run"))
-        .await
+pub(crate) async fn sync_start(state: State<'_, AppState>) -> Result<usize, AppError> {
+    state.core.sync.sync_all().await
 }
 
-/// Stop the sync pass after the directories already being walked.
+/// Stop the scan: what is still waiting is dropped, what is walking ends after
+/// the page it is on.
 #[tauri::command]
 pub(crate) async fn sync_stop(state: State<'_, AppState>) -> Result<(), AppError> {
-    state.core.sync.stop_sync();
+    state.core.sync.stop();
     Ok(())
-}
-
-/// The newest sync pass, so a page can restore its progress after a reload.
-#[tauri::command]
-pub(crate) async fn sync_run(state: State<'_, AppState>) -> Result<Option<Run>, AppError> {
-    state.core.sync.get_sync_run().await
 }

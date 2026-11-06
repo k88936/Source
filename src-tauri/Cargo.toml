@@ -23,6 +23,7 @@ async-trait = "0.1"
 base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 source-core = { path = "../crates/core" }
+source-jobs = { path = "../crates/jobs" }
 tokio = { version = "1", features = ["sync", "time", "rt"] }
 urlencoding = "2"
 mime_guess = "2"

@@ -8,10 +8,11 @@ pub(crate) mod export;
 pub(crate) mod local;
 pub(crate) mod uploads;
 
-/// A run sink that forwards a pass to one event name.
-pub(crate) fn run_sink(app: &AppHandle, event: &'static str) -> RunSink {
-    let app = app.clone();
-    Arc::new(move |run: &Run| {
-        let _ = app.emit(event, run);
-    })
+/// The board: every job this process ran, newest first.
+///
+/// One list for every kind of work, so a page picks the rows it cares about by
+/// key instead of subscribing to an event per kind.
+#[tauri::command]
+pub(crate) async fn job_list(state: State<'_, AppState>) -> Result<Vec<Job>, AppError> {
+    Ok(state.core.jobs.list())
 }

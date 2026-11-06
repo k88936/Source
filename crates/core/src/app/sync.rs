@@ -1,54 +1,47 @@
 //! Sync: pushing the files of the registered local albums into their albums.
 //!
-//! A local album is a device directory the user pointed at one album. A pass
-//! walks every registered directory one level deep and offers every file the
-//! album does not already hold to the upload queue. The queue does the moving,
-//! with its own retries and its own session resume; a pass only decides what to
-//! offer.
+//! A local album is a device directory the user pointed at one album. Scanning
+//! one directory is one job: it walks the directory page by page, offers every
+//! file the album does not already hold to the upload queue, and counts one step
+//! per page. Everything after "offer this page" belongs to the upload queue: it
+//! turns the offer into rows and every row into an upload job of its own, with
+//! its own retries and its own session resume. A scan only decides what to offer.
 
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use tokio_util::sync::CancellationToken;
+use source_jobs::{Ctx, JobId, JobKind, Jobs};
 
 use crate::error::AppError;
 use crate::media::{LocalAsset, LocalMediaPort};
 use crate::remote::RemoteStorage;
 use crate::store::{
-    AlbumId, AlbumStore, AssetStore, FolderStore, LocalAlbumRecord, LocalStore, Run, RunKey, Runs,
-    UploadQueueStore, UploadTaskId,
+    AlbumId, AlbumStore, AssetStore, FolderStore, LocalAlbumRecord, LocalStore, UploadQueueStore,
 };
-use crate::task::{Retry, Runner};
 
-use super::run::{RunSink, RunTracker};
 use super::uploads::UploadsService;
 
 /// How many files one page of a device directory lists.
 const LOCAL_PAGE: u32 = 200;
 
-/// How many local albums are walked at once.
-const SYNC_CONCURRENCY: usize = 2;
-
-/// Which pass this is. The run book compares keys and never learns what one means.
-const SYNC_RUN: RunKey = RunKey::new("sync");
+/// One directory scan is one job. The queue only compares the key, so what a
+/// sync is stays here, and the stop button reaches every directory through it.
+pub const SYNC_JOB: JobKind = JobKind::new("sync");
 
 pub struct SyncService<R, C, M> {
     catalog: C,
     local: M,
     uploads: Arc<UploadsService<R, C, M>>,
-    runs: Runs,
-    /// The token of the sync pass running now, so a stop can reach it.
-    syncing: Mutex<Option<CancellationToken>>,
+    jobs: Jobs,
 }
 
 impl<R, C, M> SyncService<R, C, M> {
-    pub fn new(catalog: C, local: M, uploads: Arc<UploadsService<R, C, M>>, runs: Runs) -> Self {
+    pub fn new(catalog: C, local: M, uploads: Arc<UploadsService<R, C, M>>, jobs: Jobs) -> Self {
         Self {
             catalog,
             local,
             uploads,
-            runs,
-            syncing: Mutex::new(None),
+            jobs,
         }
     }
 }
@@ -59,113 +52,69 @@ where
     C: AlbumStore + AssetStore + FolderStore + LocalStore + UploadQueueStore + Clone + 'static,
     M: LocalMediaPort + 'static,
 {
-    /// The newest sync pass, whatever state it is in.
-    pub async fn get_sync_run(&self) -> Result<Option<Run>, AppError> {
-        Ok(self.runs.get(SYNC_RUN))
-    }
-
-    /// Start one pass over every registered local album, and return immediately.
+    /// Queue one scan per registered local album, and return how many.
     ///
-    /// A pass already running is handed back as it is. The count is fixed when
-    /// the pass starts, from what the device reports for each directory; a file
-    /// deleted mid-walk simply never gets counted, and the pass still ends.
-    pub async fn start_sync(self: &Arc<Self>, sink: RunSink) -> Result<Run, AppError> {
+    /// Nothing here waits, and nothing here counts files: a directory is walked
+    /// by its job, one page at a time. The files it offers become upload jobs in
+    /// the same queue, so a scan and the uploads it started share one budget
+    /// instead of each holding its own.
+    pub async fn sync_all(self: &Arc<Self>) -> Result<usize, AppError> {
         let albums = self.catalog.list_local_albums().await?;
-        let mut total = 0u32;
         for album in &albums {
-            total += self.local.count_assets(&album.uri).await?;
+            let sync = Arc::clone(self);
+            let album = album.clone();
+            self.jobs.submit(
+                SYNC_JOB,
+                JobId::from(album.id.clone()),
+                move |ctx| async move { sync.scan_album(&album, &ctx).await },
+            );
         }
-        let (run, started) = self.runs.begin(SYNC_RUN, total);
-        if !started {
-            return Ok(run.snapshot());
-        }
-        let cancel = CancellationToken::new();
-        *self.syncing.lock().unwrap() = Some(cancel.clone());
-        let tracker = RunTracker::new(run.clone(), sink, cancel);
-        tracker.announce();
-
-        let sync = Arc::clone(self);
-        tokio::spawn(async move {
-            // Listing a directory fails as a whole or not at all, and the files
-            // it offers carry their own retries in the upload queue.
-            let runner = Runner::new(SYNC_CONCURRENCY, Retry::NONE);
-            let batch = Arc::clone(&sync);
-            // Everything this pass queued, started once at the end: one batch
-            // means one concurrency budget however many albums the pass walks.
-            let offered = Arc::new(Mutex::new(Vec::new()));
-            runner
-                .run(albums, tracker.get_cancel(), |album, _| {
-                    let batch = Arc::clone(&batch);
-                    let tracker = tracker.clone();
-                    let offered = Arc::clone(&offered);
-                    async move { batch.sync_local_album(&album, &tracker, &offered).await }
-                })
-                .await;
-            let queued = std::mem::take(&mut *offered.lock().unwrap());
-            sync.uploads.start(queued);
-            let _ = tracker.close().await;
-            *sync.syncing.lock().unwrap() = None;
-        });
-        Ok(run.snapshot())
+        Ok(albums.len())
     }
 
-    /// Stop the pass after the directories already being walked.
-    pub fn stop_sync(&self) {
-        if let Some(cancel) = self.syncing.lock().unwrap().as_ref() {
-            cancel.cancel();
-        }
+    /// Stop the scan: what is still waiting is dropped, what is walking ends
+    /// after the page it is on. Files already offered keep uploading.
+    pub fn stop(&self) {
+        self.jobs.cancel(SYNC_JOB);
     }
 
-    /// One local album: offer every file the album does not hold yet.
+    /// Walk one directory: offer every file the album does not hold yet.
     ///
     /// A file is handled when it is already in the album or already sitting in
     /// the queue; only a directory that cannot be walked fails.
-    async fn sync_local_album(
-        &self,
-        album: &LocalAlbumRecord,
-        tracker: &RunTracker,
-        offered: &Mutex<Vec<UploadTaskId>>,
-    ) -> Result<(), AppError> {
+    async fn scan_album(&self, album: &LocalAlbumRecord, ctx: &Ctx) -> Result<(), AppError> {
         let Some(folder) = self.catalog.get_folder(&album.album_id).await? else {
-            // The album was removed; every file of the directory counts as
-            // failed, so the pass reports what could not be pushed.
-            let count = self.local.count_assets(&album.uri).await?;
-            return tracker.advance(0, count).await;
+            // The album is gone, and the local row pointing at it goes with it.
+            return Ok(());
         };
         let names = self.catalog.list_album_asset_names(&folder.id).await?;
         // Matched by name, so a directory of tens of thousands of files does
         // not turn every page into a scan of everything the album holds.
         let held: HashSet<&str> = names.iter().map(String::as_str).collect();
+        let album_id = AlbumId(album.album_id.clone());
 
         let mut cursor: Option<String> = None;
         loop {
-            if tracker.get_cancel().is_cancelled() {
+            if ctx.cancel().is_cancelled() {
                 break;
             }
             let page = self
                 .local
                 .list_assets(&album.uri, cursor.as_deref(), LOCAL_PAGE)
                 .await?;
-            let count = page.items.len() as u32;
             let missing: Vec<LocalAsset> = page
                 .items
                 .into_iter()
                 .filter(|asset| !held.contains(asset.name.as_str()))
                 .collect();
-            // Each page is offered as it is read, so an album of tens of
-            // thousands of files is never held in memory at once, and a stop
-            // between pages keeps everything queued so far.
-            let album_id = AlbumId(album.album_id.clone());
-            match self.uploads.enqueue_assets(&album_id, &missing).await {
-                Ok(tasks) => {
-                    tracker.advance(count, 0).await?;
-                    offered
-                        .lock()
-                        .unwrap()
-                        .extend(tasks.into_iter().map(|task| task.id));
-                }
-                Err(_) => tracker.advance(0, count).await?,
-            }
+            // The page goes to the upload queue as one offer, a job of its own:
+            // a scan never writes the queue itself, and a slow server pushes
+            // back through the one shared budget. Offering page by page also
+            // means a directory of tens of thousands of files is never held in
+            // memory whole, and a stop between pages keeps everything offered
+            // so far.
+            self.uploads.offer(album_id.clone(), missing);
+            ctx.advance(1);
             cursor = page.next;
             if cursor.is_none() {
                 break;

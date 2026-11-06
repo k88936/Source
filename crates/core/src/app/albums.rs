@@ -5,9 +5,10 @@
 //! files, so refreshing an album is one listing one level deep: no recursion, no
 //! sub-folders and no non-media entries.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use source_jobs::{Ctx, JobId, JobKind, Jobs};
 use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 
@@ -19,13 +20,12 @@ use crate::media::{
 use crate::remote::RemoteStorage;
 use crate::store::{
     AlbumId, AlbumStore, AlbumSummary, AssetId, AssetRecord, AssetStore, AssetSummary, FolderId,
-    FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, Run, RunKey, Runs,
-    SYNC_DONE, SYNC_FAILED, TimelineCursor, TimelinePage, TimelineStore,
+    FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, SYNC_DONE, SYNC_FAILED,
+    TimelineCursor, TimelinePage, TimelineStore,
 };
-use crate::task::{Retry, Runner};
+use crate::task::{Retry, attempt};
 use crate::time::now_ms;
 
-use super::run::{RunSink, RunTracker};
 use super::{clamp_limit, folder_record, folder_ref};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -120,31 +120,23 @@ pub struct AlbumsService<R, C, M> {
     cloud: R,
     catalog: C,
     local: M,
-    runs: Runs,
-    /// The token of the index pass running now, so a stop can reach it.
-    indexing: Mutex<Option<CancellationToken>>,
+    jobs: Jobs,
 }
 
 impl<R, C, M> AlbumsService<R, C, M> {
-    pub fn new(cloud: R, catalog: C, local: M, runs: Runs) -> Self {
+    pub fn new(cloud: R, catalog: C, local: M, jobs: Jobs) -> Self {
         Self {
             cloud,
             catalog,
             local,
-            runs,
-            indexing: Mutex::new(None),
+            jobs,
         }
     }
 }
 
-/// How many albums an index pass lists at once.
-///
-/// Three spreads the round trips without hammering a phone uplink that uploads
-/// are sharing at the same time.
-const INDEX_CONCURRENCY: usize = 3;
-
-/// Which pass this is. The run book compares keys and never learns what one means.
-const INDEX_RUN: RunKey = RunKey::new("index");
+/// One album listing is one job. The queue only compares the key, so what a
+/// refresh is stays here, and the stop button reaches every album through it.
+pub const INDEX_JOB: JobKind = JobKind::new("index");
 
 impl<R, C, M> AlbumsService<R, C, M>
 where
@@ -196,20 +188,17 @@ where
     /// assets: the failure is recorded on the album so the UI can offer to point
     /// it somewhere else, instead of the album silently disappearing.
     pub async fn refresh_album(&self, album_id: &str) -> Result<AlbumSummary, AppError> {
-        self.refresh(album_id, &CancellationToken::new()).await
+        let cancel = CancellationToken::new();
+        self.refresh(album_id, &cancel, None).await
     }
 
-    /// The newest index pass, whatever state it is in.
-    pub async fn get_index_run(&self) -> Result<Option<Run>, AppError> {
-        Ok(self.runs.get(INDEX_RUN))
-    }
-
-    /// Start listing every album, and return the pass instead of waiting for it.
+    /// Queue one listing job per album, and return how many were queued.
     ///
-    /// A pass already running is handed back as it is, so a double trigger never
-    /// starts two. Every album ends on its own row, and the pass ends with a
-    /// count - which is what the albums page shows while it works.
-    pub async fn start_index(self: &Arc<Self>, sink: RunSink) -> Result<Run, AppError> {
+    /// Nothing here waits: every album ends on its own row and disappears from
+    /// the queue when it is done. An album already queued or listing is not
+    /// queued again, so a second press while a refresh is running only picks up
+    /// what finished meanwhile.
+    pub async fn refresh_all(self: &Arc<Self>) -> Result<usize, AppError> {
         let ids = self
             .catalog
             .list_albums()
@@ -217,53 +206,52 @@ where
             .into_iter()
             .map(|album| album.id.0)
             .collect::<Vec<_>>();
-        let (run, started) = self.runs.begin(INDEX_RUN, ids.len() as u32);
-        if !started {
-            return Ok(run.snapshot());
+        for id in &ids {
+            let albums = Arc::clone(self);
+            let album_id = id.clone();
+            self.jobs
+                .submit(INDEX_JOB, JobId::from(id.clone()), move |ctx| async move {
+                    albums.refresh_listing(&album_id, &ctx).await
+                });
         }
-        let cancel = CancellationToken::new();
-        *self.indexing.lock().unwrap() = Some(cancel.clone());
-        let tracker = RunTracker::new(run.clone(), sink, cancel);
-        tracker.announce();
-
-        let albums = Arc::clone(self);
-        tokio::spawn(async move {
-            let runner = Runner::new(INDEX_CONCURRENCY, Retry::default());
-            let batch = Arc::clone(&albums);
-            runner
-                .run(ids, tracker.get_cancel(), |id, _| {
-                    let albums = Arc::clone(&batch);
-                    let tracker = tracker.clone();
-                    async move { albums.index_album(&id, &tracker).await }
-                })
-                .await;
-            // The pass is over once every attempt has returned, whatever the
-            // stop button did meanwhile.
-            let _ = tracker.close().await;
-            *albums.indexing.lock().unwrap() = None;
-        });
-        Ok(run.snapshot())
+        Ok(ids.len())
     }
 
-    /// Stop the index pass after the albums already in flight.
-    pub fn stop_index(&self) {
-        if let Some(cancel) = self.indexing.lock().unwrap().as_ref() {
-            cancel.cancel();
+    /// Stop the refresh: what is still waiting is dropped, what is listing ends
+    /// after the page it is on.
+    pub fn stop_refresh(&self) {
+        self.jobs.cancel(INDEX_JOB);
+    }
+
+    /// One album as a job: list it page by page, one step per page.
+    async fn refresh_listing(&self, album_id: &str, ctx: &Ctx) -> Result<(), AppError> {
+        let listed = attempt(Retry::default(), ctx.cancel(), |_| {
+            self.refresh(album_id, ctx.cancel(), Some(ctx))
+        })
+        .await;
+        match listed {
+            Ok(_) => Ok(()),
+            Err(err) if err.code == ErrorCode::Cancelled => Ok(()),
+            Err(err) => Err(err),
         }
     }
 
-    /// Refresh one album, stopping between listing pages when `cancel` fires.
+    /// List one album, stopping between listing pages when `cancel` fires.
+    ///
+    /// `ctx` is the job listing this album, when there is one: it is where the
+    /// page count goes. The interactive refresh has no job and reports nowhere.
     async fn refresh(
         &self,
         album_id: &str,
         cancel: &CancellationToken,
+        ctx: Option<&Ctx>,
     ) -> Result<AlbumSummary, AppError> {
         let album = self
             .catalog
             .get_folder(album_id)
             .await?
             .ok_or_else(|| AppError::not_found("相册不存在"))?;
-        if let Err(err) = self.sync_album(&album, cancel).await {
+        if let Err(err) = self.sync_album(&album, cancel, ctx).await {
             // A stop is not a failure of the album: leave its last state alone.
             if err.code != ErrorCode::Cancelled {
                 self.catalog
@@ -278,19 +266,11 @@ where
             .ok_or_else(|| AppError::not_found("相册不存在"))
     }
 
-    /// One entry of an index pass.
-    async fn index_album(&self, album_id: &str, tracker: &RunTracker) -> Result<(), AppError> {
-        match self.refresh(album_id, tracker.get_cancel()).await {
-            Ok(_) => tracker.step(true).await,
-            Err(err) if err.code == ErrorCode::Cancelled => Ok(()),
-            Err(_) => tracker.step(false).await,
-        }
-    }
-
     async fn sync_album(
         &self,
         album: &FolderRecord,
         cancel: &CancellationToken,
+        ctx: Option<&Ctx>,
     ) -> Result<(), AppError> {
         let folder_id = FolderId::new(album.id.clone());
         // Every id the listing returned, for the prune below. The rows
@@ -318,6 +298,11 @@ where
                 .collect();
             listed.extend(records.iter().map(|record| record.summary.id.0.clone()));
             self.catalog.upsert_album_assets(&records).await?;
+            // One page is one step, so a big album moves while it is listed
+            // instead of jumping from nothing to done.
+            if let Some(ctx) = ctx {
+                ctx.advance(1);
+            }
             token = page.next;
             if token.is_none() {
                 break;

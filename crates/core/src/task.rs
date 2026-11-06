@@ -1,18 +1,12 @@
-//! Running a batch of independent attempts: concurrency, backoff, and stopping.
+//! One attempt of a job, retried while the failure looks transient.
 //!
-//! The runner knows nothing about albums, files or the server. A use case hands
-//! it the keys to visit and one closure that performs a single attempt; what a
-//! visit means - rows, progress, events - stays in the use case.
+//! The queue decides what runs and when; this decides how many times one piece
+//! of work tries before it counts as failed. What a visit means - rows, pages,
+//! events - stays in the use case.
 
-use std::collections::HashMap;
 use std::future::Future;
-use std::hash::Hash;
-use std::sync::Mutex;
 use std::time::Duration;
 
-use futures::StreamExt;
-use futures::stream;
-use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
 use crate::error::AppError;
@@ -50,158 +44,42 @@ impl Default for Retry {
 
 /// What an attempt is told about itself: its 0-based number, and the budget.
 ///
-/// The budget is handed over so an attempt can tell the retry the runner will
-/// make from the last one it will not make, and record a final failure itself.
+/// The budget is handed over so an attempt can tell the retry that follows from
+/// the last one, and record a final failure itself.
 #[derive(Debug, Clone, Copy)]
 pub struct Try {
     pub number: u32,
     pub retry: Retry,
 }
 
-/// How many attempt futures are polled per concurrency slot.
-const WINDOW_PER_SLOT: usize = 32;
-
-/// A batch policy: how many attempts run at once, and how they are retried.
-#[derive(Debug, Clone, Copy)]
-pub struct Runner {
-    concurrency: usize,
-    retry: Retry,
-}
-
-impl Runner {
-    pub fn new(concurrency: usize, retry: Retry) -> Self {
-        Self {
-            concurrency: concurrency.max(1),
-            retry,
-        }
-    }
-
-    /// Visit every key, at most [`Self::concurrency`] attempts at a time.
-    ///
-    /// An attempt holds its slot only while it runs: one sleeping in backoff
-    /// gives the slot back, so a slow key never starves the rest. Stopping the
-    /// token stops new attempts and cuts a backoff short; an attempt already
-    /// running is left to finish.
-    pub async fn run<T, F, Fut>(&self, keys: Vec<T>, cancel: &CancellationToken, attempt: F)
-    where
-        T: Clone + Send,
-        F: Fn(T, Try) -> Fut + Sync,
-        Fut: Future<Output = Result<(), AppError>> + Send,
-    {
-        // The window is not the concurrency limit - a permit is - but it is
-        // bounded, so a backlog of twenty thousand files never materialises
-        // twenty thousand attempt futures at once.
-        let window = keys.len().min(self.concurrency * WINDOW_PER_SLOT).max(1);
-        let semaphore = Semaphore::new(self.concurrency);
-        let retry = self.retry;
-
-        stream::iter(keys)
-            .map(|key| run_one(&semaphore, retry, cancel, &attempt, key))
-            .buffer_unordered(window)
-            .collect::<Vec<()>>()
-            .await;
-    }
-}
-
-/// The attempts running right now, so one of them can be stopped from outside.
+/// Run `work` until it succeeds, fails for good, or the job is stopped.
 ///
-/// A batch token stops a whole pass; this is the other direction - one key,
-/// picked from a list, while the rest of the batch keeps going.
-pub struct Attempts<K: Eq + Hash> {
-    running: Mutex<HashMap<K, CancellationToken>>,
-}
-
-impl<K: Eq + Hash> Default for Attempts<K> {
-    fn default() -> Self {
-        Self {
-            running: Mutex::new(HashMap::new()),
-        }
-    }
-}
-
-impl<K: Eq + Hash + Clone> Attempts<K> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Register an attempt before it touches anything, so a stop that lands
-    /// during setup is not lost. The registration ends with the guard.
-    pub fn open(&self, key: K) -> Attempt<'_, K> {
-        let token = CancellationToken::new();
-        self.running
-            .lock()
-            .unwrap()
-            .insert(key.clone(), token.clone());
-        Attempt {
-            attempts: self,
-            key,
-            token,
-        }
-    }
-
-    /// Stop the attempt running under `key`, if there is one.
-    pub fn stop(&self, key: &K) {
-        if let Some(token) = self.running.lock().unwrap().get(key) {
-            token.cancel();
-        }
-    }
-}
-
-/// One registered attempt. The token it listens to lives as long as the guard.
-pub struct Attempt<'a, K: Eq + Hash> {
-    attempts: &'a Attempts<K>,
-    key: K,
-    token: CancellationToken,
-}
-
-impl<K: Eq + Hash> Attempt<'_, K> {
-    pub fn token(&self) -> CancellationToken {
-        self.token.clone()
-    }
-}
-
-impl<K: Eq + Hash> Drop for Attempt<'_, K> {
-    fn drop(&mut self) {
-        let mut running = self.attempts.running.lock().unwrap();
-        // A newer attempt for the same key may have taken the slot already.
-        if running.get(&self.key) == Some(&self.token) {
-            running.remove(&self.key);
-        }
-    }
-}
-
-async fn run_one<T, F, Fut>(
-    semaphore: &Semaphore,
+/// Only a retryable failure is tried again, and a stop cuts the wait short
+/// instead of counting as one more attempt.
+pub async fn attempt<T, F, Fut>(
     retry: Retry,
     cancel: &CancellationToken,
-    attempt: &F,
-    key: T,
-) where
-    T: Clone,
-    F: Fn(T, Try) -> Fut,
-    Fut: Future<Output = Result<(), AppError>>,
+    mut work: F,
+) -> Result<T, AppError>
+where
+    F: FnMut(Try) -> Fut,
+    Fut: Future<Output = Result<T, AppError>>,
 {
-    let mut number = 0u32;
+    let mut number = 0;
     loop {
         if cancel.is_cancelled() {
-            return;
+            return Err(AppError::cancelled());
         }
-        let result = {
-            let Ok(_permit) = semaphore.acquire().await else {
-                return;
-            };
-            attempt(key.clone(), Try { number, retry }).await
-        };
-        let Err(error) = result else {
-            return;
+        let error = match work(Try { number, retry }).await {
+            Ok(value) => return Ok(value),
+            Err(error) => error,
         };
         if !error.retryable || number >= retry.attempts {
-            return;
+            return Err(error);
         }
         number += 1;
-        // A stop during the wait is a stop, not one more attempt.
         tokio::select! {
-            _ = cancel.cancelled() => return,
+            _ = cancel.cancelled() => return Err(AppError::cancelled()),
             _ = tokio::time::sleep(retry.delay(number)) => {}
         }
     }

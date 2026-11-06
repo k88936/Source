@@ -1,7 +1,6 @@
 //! Imports shared by the adapter modules.
 
 pub(crate) use std::path::PathBuf;
-pub(crate) use std::sync::Arc;
 
 pub(crate) use tauri::{AppHandle, Emitter, State};
 
@@ -21,14 +20,16 @@ pub(crate) use source_core::app::folders::{
     CreateFolderParams, ListRemoteFoldersParams, RemoteFolderPage,
 };
 pub(crate) use source_core::app::uploads::{EnqueueUploadsParams, UploadTaskParams};
-pub(crate) use source_core::app::{AppInfo, CatalogChangeKind, CatalogChangedEvent, RunSink};
+pub(crate) use source_core::app::{AppInfo, CatalogChangeKind, CatalogChangedEvent};
 pub(crate) use source_core::error::AppError;
 pub(crate) use source_core::media::{
     CacheStats, LocalAssetPage, LocalAssetPageParams, LocalBrowsePage, MediaPermissionState,
 };
 pub(crate) use source_core::remote::{Capacity, SiteInfo};
 pub(crate) use source_core::store::{
-    AlbumSummary, AssetSummary, FolderRef, Run, TimelinePage, UploadTask,
+    AlbumSummary, AssetSummary, FolderRef, TimelinePage, UploadTask,
 };
+
+pub(crate) use source_jobs::Job;
 
 pub(crate) use crate::state::AppState;

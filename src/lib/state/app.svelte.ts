@@ -2,7 +2,7 @@ import {api, listen} from '#lib/api/client';
 import type {CatalogChangedEvent} from '#lib/api/bindings/CatalogChangedEvent';
 import type {AccountState} from '#lib/api/bindings/AccountState';
 import type {UploadTask} from '#lib/api/bindings/UploadTask';
-import type {Run} from '#lib/api/bindings/Run';
+import type {Job} from '#lib/api/bindings/Job';
 import {appMessages} from './app.i18n';
 import {changes} from './changes';
 import {i18n} from './i18n.svelte';
@@ -13,10 +13,8 @@ export class AppState {
     account = $state<AccountState | null>(null);
     ready = $state(false);
     uploads = $state<UploadTask[]>([]);
-    /** The index pass, as the backend last reported it. */
-    indexRun = $state<Run | null>(null);
-    /** The sync pass, as the backend last reported it. */
-    syncRun = $state<Run | null>(null);
+    /** The queue's board: every job this process ran, newest first. */
+    jobs = $state<Job[]>([]);
     columns = $state(3);
     toast = $state<{message: string; kind: ToastKind} | null>(null);
     private started = false;
@@ -46,11 +44,8 @@ export class AppState {
         await listen<{taskId: string}>('upload://state', () => {
             void this.refreshUploads();
         });
-        await listen<Run>('index://run', (payload) => {
-            this.indexRun = payload;
-        });
-        await listen<Run>('sync://run', (payload) => {
-            this.syncRun = payload;
+        await listen<Job[]>('job://changed', (payload) => {
+            this.jobs = payload;
         });
         await listen<{taskId: string; uploaded: number; total: number}>('upload://progress', (payload) => {
             const task = this.uploads.find((t) => t.id === payload.taskId);
@@ -67,13 +62,12 @@ export class AppState {
 
     async afterLogin(): Promise<void> {
         await this.refreshUploads();
-        await this.refreshRuns();
+        await this.refreshJobs();
     }
 
-    /** Pick up a pass that was already running when the window loaded. */
-    async refreshRuns(): Promise<void> {
-        this.indexRun = await api.indexRun();
-        this.syncRun = await api.syncRun();
+    /** Pick up jobs that were already queued when the window loaded. */
+    async refreshJobs(): Promise<void> {
+        this.jobs = await api.jobList();
     }
 
     async refreshAccount(): Promise<void> {

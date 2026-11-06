@@ -7,6 +7,7 @@ use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, FoldersService,
     SqliteCatalog, SyncService, ThumbCache, UploadsService,
 };
+use source_jobs::Jobs;
 
 /// Where local albums come from on this platform: the filesystem on desktop,
 /// MediaStore on a phone.
@@ -35,6 +36,8 @@ pub(crate) struct App {
     pub(crate) browse: Arc<Browse>,
     pub(crate) uploads: Arc<Uploads>,
     pub(crate) sync: Arc<Sync>,
+    /// The queue every background job goes through, and the board the UI reads.
+    pub(crate) jobs: Jobs,
 }
 
 /// Everything a command needs: the use cases plus the thumbnail cache.

@@ -27,15 +27,14 @@
     import {library as text} from './page.i18n';
 
     let localAlbums = $state<LocalAlbumSummary[]>([]);
-    let settled = $state('');
-    // A pass restored from storage is already over, so it must not announce
-    // itself; only a pass this page saw running can end while it is open.
-    let observed = $state(false);
 
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
-    const syncRun = $derived(app.syncRun);
-    const syncing = $derived(syncRun?.state === 'running');
+    // One directory is one job, so the button is busy while any directory of
+    // this kind is still queued or being walked.
+    const syncing = $derived(
+        app.jobs.some((job) => job.key === 'sync' && (job.state === 'queued' || job.state === 'running')),
+    );
 
     // Entries Immich's library page has and this app does not implement yet.
     // They are listed so the shape of the page is already the final one, and
@@ -53,24 +52,6 @@
         {icon: LayoutGrid, label: t.upcoming.partners},
     ]);
 
-    $effect(() => {
-        // The pass ends on its own; pick the new counts up when it does.
-        const current = syncRun;
-        if (!current) return;
-        if (current.state === 'running') {
-            observed = true;
-            return;
-        }
-        if (!observed) return;
-        const key = `${current.id}:${current.state}`;
-        if (settled === key) return;
-        settled = key;
-        void loadLocal();
-        if (current.state === 'cancelled') return;
-        if (current.failed > 0) app.showToast(t.syncFailed(current.failed), 'error');
-        else app.showToast(t.syncDone, 'success');
-    });
-
     async function loadLocal() {
         try {
             localAlbums = await api.localAlbumList();
@@ -85,10 +66,7 @@
                 await api.syncStop();
                 return;
             }
-            // This page started the pass, so this page may announce its end; a
-            // pass restored from storage stays silent.
-            observed = true;
-            app.syncRun = await api.syncStart();
+            await api.syncStart();
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         }
@@ -109,16 +87,14 @@
             </div>
             <div class="min-w-0 flex-1">
                 <p class="text-sm font-semibold">{t.localAlbums}</p>
-                <p class="truncate text-xs text-muted">
-                    {#if syncing && syncRun}
-                        {t.syncing(syncRun.done + syncRun.failed, syncRun.total)}
-                    {:else}
+                {#if localAlbums.length > 0}
+                    <p class="truncate text-xs text-muted">
                         {t.synced(
                             localAlbums.length,
                             localAlbums.reduce((sum, album) => sum + album.assetCount, 0),
                         )}
-                    {/if}
-                </p>
+                    </p>
+                {/if}
             </div>
             <ChevronRight size={18} class="text-muted" />
         </a>

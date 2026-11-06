@@ -1,7 +1,7 @@
 //! Upload queue commands.
 //!
-//! The queue owns its own scheduling, so a command only changes rows and hands
-//! the ids it cares about to it; progress and state changes arrive as events.
+//! The queue owns its own scheduling, so a command only changes rows: every row
+//! it writes is offered to the job queue, which decides when it runs.
 
 use crate::prelude::*;
 
@@ -10,12 +10,7 @@ pub(crate) async fn enqueue_uploads(
     state: State<'_, AppState>,
     params: EnqueueUploadsParams,
 ) -> Result<Vec<UploadTask>, AppError> {
-    let tasks = state.core.uploads.enqueue_files(params).await?;
-    state
-        .core
-        .uploads
-        .start(tasks.iter().map(|task| task.id.clone()).collect());
-    Ok(tasks)
+    state.core.uploads.enqueue_files(params).await
 }
 
 #[tauri::command]
@@ -36,7 +31,5 @@ pub(crate) async fn retry_upload(
     state: State<'_, AppState>,
     params: UploadTaskParams,
 ) -> Result<UploadTask, AppError> {
-    let task = state.core.uploads.retry(&params.task_id).await?;
-    state.core.uploads.start(vec![task.id.clone()]);
-    Ok(task)
+    state.core.uploads.retry(&params.task_id).await
 }
