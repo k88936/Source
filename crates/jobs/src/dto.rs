@@ -62,6 +62,8 @@ impl From<&str> for JobId {
 pub enum JobState {
     Queued,
     Running,
+    /// Stopped by the queue's pause, still holding its place until resume.
+    Paused,
     Done,
     Failed,
     Cancelled,
@@ -70,6 +72,14 @@ pub enum JobState {
 impl JobState {
     /// Whether the item is still in the queue's hands.
     pub fn is_live(self) -> bool {
+        matches!(
+            self,
+            JobState::Queued | JobState::Running | JobState::Paused
+        )
+    }
+
+    /// Whether the item will make progress without the queue being resumed.
+    pub fn is_in_flight(self) -> bool {
         matches!(self, JobState::Queued | JobState::Running)
     }
 }
@@ -102,11 +112,11 @@ pub struct Job {
 }
 
 impl Job {
-    pub(crate) fn queued(id: JobId, key: JobKind, submitted_at: i64) -> Self {
+    pub(crate) fn new(id: JobId, key: JobKind, state: JobState, submitted_at: i64) -> Self {
         Self {
             id,
             key,
-            state: JobState::Queued,
+            state,
             progress: Progress::default(),
             submitted_at,
             started_at: None,

@@ -9,7 +9,7 @@ mod dto;
 
 use std::sync::Arc;
 
-use source_jobs::{Ctx, JobId, JobKind, Jobs};
+use source_jobs::{Ctx, JobId, JobKind, JobOutcome, JobPriority, Jobs};
 use tokio_util::sync::CancellationToken;
 
 use crate::error::{AppError, ErrorCode};
@@ -239,10 +239,16 @@ where
         for id in &ids {
             let albums = Arc::clone(self);
             let album_id = id.clone();
-            self.jobs
-                .submit(INDEX_JOB, JobId::from(id.clone()), move |ctx| async move {
-                    albums.refresh_listing(&album_id, &ctx).await
-                });
+            self.jobs.submit(
+                INDEX_JOB,
+                JobId::from(id.clone()),
+                JobPriority::RealTime,
+                move |ctx| {
+                    let albums = Arc::clone(&albums);
+                    let album_id = album_id.clone();
+                    async move { albums.refresh_listing(&album_id, &ctx).await }
+                },
+            );
         }
         Ok(ids.len())
     }
@@ -419,14 +425,18 @@ where
     }
 
     /// One album as a job: list it page by page, one step per page.
-    async fn refresh_listing(&self, album_id: &str, ctx: &Ctx) -> Result<(), AppError> {
-        let listed = attempt(Retry::default(), ctx.cancel(), |_| {
-            self.refresh(album_id, ctx.cancel(), Some(ctx))
-        })
-        .await;
-        match listed {
-            Ok(_) => Ok(()),
-            Err(err) if err.code == ErrorCode::Cancelled => Ok(()),
+    async fn refresh_listing(&self, album_id: &str, ctx: &Ctx) -> Result<JobOutcome, AppError> {
+        let ran = ctx
+            .run_paused(|| {
+                attempt(Retry::default(), ctx.cancel(), |_| {
+                    self.refresh(album_id, ctx.cancel(), Some(ctx))
+                })
+            })
+            .await;
+        match ran.value {
+            Ok(_) => Ok(JobOutcome::Done),
+            Err(err) if err.code == ErrorCode::Cancelled && ran.paused => Ok(JobOutcome::Paused),
+            Err(err) if err.code == ErrorCode::Cancelled => Ok(JobOutcome::Done),
             Err(err) => Err(err),
         }
     }

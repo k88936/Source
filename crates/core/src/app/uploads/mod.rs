@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
-use source_jobs::{Ctx, JobId, JobKind, Jobs};
+use source_jobs::{Ctx, JobId, JobKind, JobOutcome, JobPriority, Jobs};
 use tokio::sync::mpsc;
 
 use crate::error::{AppError, ErrorCode};
@@ -299,11 +299,28 @@ where
         self.jobs.submit(
             UPLOAD_JOB,
             JobId::from(task_id.0.clone()),
-            move |ctx| async move {
-                attempt(UPLOAD_RETRY, ctx.cancel(), |try_number| {
-                    uploads.try_upload(&task_id, &ctx, try_number)
-                })
-                .await
+            JobPriority::Normal(0),
+            move |ctx| {
+                let uploads = Arc::clone(&uploads);
+                let task_id = task_id.clone();
+                async move {
+                    let ran = ctx
+                        .run_paused(|| {
+                            attempt(UPLOAD_RETRY, ctx.cancel(), |try_number| {
+                                uploads.try_upload(&task_id, &ctx, try_number)
+                            })
+                        })
+                        .await;
+                    match ran.value {
+                        Ok(()) => Ok(JobOutcome::Done),
+                        Err(error) if error.code == ErrorCode::Cancelled && ran.paused => {
+                            uploads.park_upload(&task_id).await?;
+                            Ok(JobOutcome::Paused)
+                        }
+                        Err(error) if error.code == ErrorCode::Cancelled => Ok(JobOutcome::Done),
+                        Err(error) => Err(error),
+                    }
+                }
             },
         );
     }
@@ -323,9 +340,9 @@ where
         if matches!(task.state, UploadState::Done | UploadState::Failed) {
             return Ok(());
         }
+        self.set_state(&mut task, UploadState::Cancelled).await?;
         self.jobs
             .cancel_item(UPLOAD_JOB, &JobId::from(task_id.0.clone()));
-        self.set_state(&mut task, UploadState::Cancelled).await?;
         Ok(())
     }
 
@@ -394,6 +411,11 @@ where
                 Ok(())
             }
             Err(error) => {
+                // A stop is not a failure: the job wrapper parks a paused row
+                // back to queued, and a user cancel already wrote Cancelled.
+                if error.code == ErrorCode::Cancelled {
+                    return Err(error);
+                }
                 // Transient failures resume from the session on the next try;
                 // anything else (auth, permission, conflict) is final.
                 if error.retryable && attempt.number < attempt.retry.attempts {
@@ -414,6 +436,29 @@ where
                 Ok(())
             }
         }
+    }
+
+    /// Put a paused attempt back in the table, without counting a retry.
+    ///
+    /// The upload session is left alone, so resume continues from its chunks.
+    async fn park_upload(&self, id: &UploadTaskId) -> Result<(), AppError> {
+        let Some(mut task) = self.catalog.get_upload_task(&id.0).await? else {
+            return Ok(());
+        };
+        if task.state == UploadState::Cancelled {
+            return Ok(());
+        }
+        task.state = UploadState::Queued;
+        task.error = None;
+        task.speed = 0;
+        task.eta_seconds = None;
+        self.catalog.update_upload(&task).await?;
+        (self.sinks.state)(&UploadStateEvent {
+            task_id: task.id,
+            state: UploadState::Queued,
+            error: None,
+        });
+        Ok(())
     }
 
     /// Write the terminal failure, unless the task was cancelled meanwhile.
@@ -462,6 +507,7 @@ where
         if max_total > 0 {
             ctx.total(max_total as u64);
         }
+        ctx.set_done(task.uploaded.max(0) as u64);
 
         self.set_state(&mut task, UploadState::CreatingSession)
             .await?;
@@ -505,7 +551,7 @@ where
         let progress = Arc::new({
             let task_id = task.id.clone();
             let ctx = ctx.clone();
-            let reported = AtomicU64::new(0);
+            let reported = AtomicU64::new(task.uploaded.max(0) as u64);
             move |p: UploadProgress| {
                 let _ = progress_tx.try_send(p);
                 // One chunk is one step. The job counts bytes, so a big video

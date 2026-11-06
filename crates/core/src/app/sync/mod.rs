@@ -10,7 +10,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use source_jobs::{Ctx, JobId, JobKind, Jobs};
+use source_jobs::{Ctx, JobId, JobKind, JobOutcome, JobPriority, Jobs};
 
 use crate::error::AppError;
 use crate::media::{LocalAsset, LocalMediaPort};
@@ -87,7 +87,12 @@ where
             self.jobs.submit(
                 SYNC_JOB,
                 JobId::from(album.id.clone()),
-                move |ctx| async move { sync.scan_album(&album, &ctx).await },
+                JobPriority::RealTime,
+                move |ctx| {
+                    let sync = Arc::clone(&sync);
+                    let album = album.clone();
+                    async move { sync.scan_album(&album, &ctx).await }
+                },
             );
         }
         Ok(albums.len())
@@ -101,10 +106,14 @@ where
     ///
     /// A file is handled when it is already in the album or already sitting in
     /// the queue; only a directory that cannot be walked fails.
-    async fn scan_album(&self, album: &LocalAlbumRecord, ctx: &Ctx) -> Result<(), AppError> {
+    async fn scan_album(
+        &self,
+        album: &LocalAlbumRecord,
+        ctx: &Ctx,
+    ) -> Result<JobOutcome, AppError> {
         let Some(folder) = self.catalog.get_folder(&album.album_id).await? else {
             // The album is gone, and the local row pointing at it goes with it.
-            return Ok(());
+            return Ok(JobOutcome::Done);
         };
         let names = self.catalog.list_album_asset_names(&folder.id).await?;
         // Matched by name, so a directory of tens of thousands of files does
@@ -114,6 +123,9 @@ where
 
         let mut cursor: Option<String> = None;
         loop {
+            if ctx.pause_token().requested() {
+                return Ok(JobOutcome::Paused);
+            }
             if ctx.cancel().is_cancelled() {
                 break;
             }
@@ -137,6 +149,6 @@ where
                 break;
             }
         }
-        Ok(())
+        Ok(JobOutcome::Done)
     }
 }
