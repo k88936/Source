@@ -173,7 +173,6 @@
                 </button>
             </div>
         </div>
-        <p class="mt-1 text-[11px] text-muted">{t.backgroundHint}</p>
     </section>
 
     <section class="mt-3 rounded-2xl bg-gray p-4">
