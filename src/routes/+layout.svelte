@@ -1,5 +1,8 @@
 <script lang="ts">
     import '../app.css';
+    // Importing the plugin publishes `--safe-area-inset-*` on `:root`; it hooks the
+    // keyboard events itself, so there is nothing to call.
+    import '@saurl/tauri-plugin-safe-area-insets-css-api';
     import {onMount} from 'svelte';
     import {goto} from '$app/navigation';
     import {page} from '$app/state';

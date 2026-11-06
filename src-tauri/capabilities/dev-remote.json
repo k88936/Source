@@ -6,5 +6,5 @@
     "remote": {
         "urls": ["http://localhost:*/*", "http://127.0.0.1:*/*"]
     },
-    "permissions": ["core:default", "opener:default", "playwright:default", "app-commands"]
+    "permissions": ["core:default", "opener:default", "playwright:default", "app-commands", "safe-area-insets-css:default"]
 }

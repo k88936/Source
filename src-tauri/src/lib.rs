@@ -21,7 +21,10 @@ pub fn run() {
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_keyring::init());
+        .plugin(tauri_plugin_keyring::init())
+        // WebViews do not reliably report `env(safe-area-inset-*)`; the plugin
+        // publishes the platform insets as `--safe-area-inset-*` CSS variables.
+        .plugin(tauri_plugin_safe_area_insets_css::init());
 
     // The device photo library lives behind a Kotlin bridge that has to be
     // registered before the composition root can reach it.

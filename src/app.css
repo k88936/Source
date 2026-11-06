@@ -39,8 +39,10 @@
 @layer base {
     :root {
         --navbar-height: 3.5rem;
-        --safe-top: env(safe-area-inset-top, 0px);
-        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        /* The insets plugin publishes what WebViews do not report through `env()`: Android
+           sizes the window edge to edge, so `env()` alone leaves the shell under the bars. */
+        --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+        --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
     }
 
     html,
