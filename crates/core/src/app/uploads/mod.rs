@@ -174,7 +174,13 @@ where
                 assets.push(asset);
             }
         }
-        self.enqueue_assets(&params.album_id, &assets).await
+        let tasks = self.enqueue_assets(&params.album_id, &assets).await?;
+        // A file the user picked starts now, pause or not: the queue ranks it
+        // above the backlog a scan leaves behind.
+        for task in &tasks {
+            self.submit(task.clone(), JobPriority::RealTime);
+        }
+        Ok(tasks)
     }
 
     /// Queue files the caller already holds, skipping the ones waiting already.
@@ -270,7 +276,7 @@ where
                 .store((target / 2).max(MIN_UPLOAD_IN_FLIGHT), Ordering::Relaxed);
         }
         for task in queued.into_iter().take(free) {
-            self.submit(task);
+            self.submit(task, JobPriority::Normal(0));
         }
         Ok(())
     }
@@ -293,13 +299,13 @@ where
     /// A row that is already queued or uploading is one job already: pressing
     /// retry twice, or a scan queueing the same file again, never puts two
     /// attempts on the same bytes.
-    fn submit(self: &Arc<Self>, task: UploadTask) {
+    fn submit(self: &Arc<Self>, task: UploadTask, priority: JobPriority) {
         let uploads = Arc::clone(self);
         let task_id = task.id;
         self.jobs.submit(
             UPLOAD_JOB,
             JobId::from(task_id.0.clone()),
-            JobPriority::Normal(0),
+            priority,
             move |ctx| {
                 let uploads = Arc::clone(&uploads);
                 let task_id = task_id.clone();
@@ -357,6 +363,9 @@ where
         task.eta_seconds = None;
         task.attempts += 1;
         self.catalog.update_upload(&task).await?;
+        // A retry is the user picking the file again, so it runs like a picked
+        // upload instead of waiting for the next tick.
+        self.submit(task.clone(), JobPriority::RealTime);
         Ok(task)
     }
 
