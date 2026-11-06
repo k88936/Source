@@ -3,6 +3,8 @@
 
 #[cfg(target_os = "android")]
 mod android_media;
+#[cfg(target_os = "android")]
+mod android_keep_alive;
 mod bootstrap;
 mod commands;
 mod credentials;
@@ -26,10 +28,13 @@ pub fn run() {
         // publishes the platform insets as `--safe-area-inset-*` CSS variables.
         .plugin(tauri_plugin_safe_area_insets_css::init());
 
-    // The device photo library lives behind a Kotlin bridge that has to be
-    // registered before the composition root can reach it.
+    // The device photo library and the foreground service that keeps the
+    // process up live behind Kotlin bridges that have to be registered before
+    // the composition root can reach them.
     #[cfg(target_os = "android")]
-    let builder = builder.plugin(android_media::plugin());
+    let builder = builder
+        .plugin(android_media::plugin())
+        .plugin(android_keep_alive::plugin());
 
     // The simulated CDP endpoint only exists when `--debug-cdp-port` is passed.
     #[cfg(debug_assertions)]

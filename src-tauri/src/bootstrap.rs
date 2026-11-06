@@ -115,6 +115,33 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         });
     }
 
+    // Android freezes, then kills, a background process, so a live job anywhere
+    // on the board is the only reason to hold the process up; a foreground
+    // service is what buys the time, and the platform charges a notification for
+    // it. Only a flip is reported: progress on a long job changes the board
+    // constantly, and restarting a running service from the background is what
+    // Android 12 refuses anyway.
+    #[cfg(target_os = "android")]
+    {
+        let mut board = core.jobs.watch();
+        tauri::async_runtime::spawn(async move {
+            let mut held = None;
+            loop {
+                let live = {
+                    let jobs = board.borrow_and_update();
+                    jobs.iter().any(|job| job.state.is_live())
+                };
+                if held != Some(live) {
+                    held = Some(live);
+                    crate::android_keep_alive::sync(live).await;
+                }
+                if board.changed().await.is_err() {
+                    break;
+                }
+            }
+        });
+    }
+
     app.manage(AppState {
         core,
         cache,
