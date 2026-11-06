@@ -2,9 +2,9 @@
 //! protocol. Business rules live in `source-core`.
 
 #[cfg(target_os = "android")]
-mod android_media;
-#[cfg(target_os = "android")]
 mod android_keep_alive;
+#[cfg(target_os = "android")]
+mod android_media;
 mod bootstrap;
 mod commands;
 mod credentials;
@@ -95,6 +95,8 @@ pub fn run() {
             commands::uploads::cancel_upload,
             commands::uploads::retry_upload,
             commands::job_list,
+            commands::jobs_paused,
+            commands::set_jobs_paused,
             commands::export::cache_stats,
             commands::export::clear_cache,
             commands::export::export_assets

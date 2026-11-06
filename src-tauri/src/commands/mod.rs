@@ -1,6 +1,9 @@
 //! Tauri commands, grouped by the part of the app they serve.
 
+use source_core::app::SetJobsPausedParams;
+
 use crate::prelude::*;
+use crate::state::JOBS_PAUSED_KEY;
 
 pub(crate) mod catalog;
 pub(crate) mod connection;
@@ -15,4 +18,29 @@ pub(crate) mod uploads;
 #[tauri::command]
 pub(crate) async fn job_list(state: State<'_, AppState>) -> Result<Vec<Job>, AppError> {
     Ok(state.core.jobs.list())
+}
+
+/// Whether background work is paused, for the settings page to restore.
+#[tauri::command]
+pub(crate) async fn jobs_paused(state: State<'_, AppState>) -> Result<bool, AppError> {
+    Ok(state.core.jobs.is_paused())
+}
+
+/// Pause or resume background work, and remember it for the next launch.
+#[tauri::command]
+pub(crate) async fn set_jobs_paused(
+    state: State<'_, AppState>,
+    params: SetJobsPausedParams,
+) -> Result<(), AppError> {
+    state
+        .core
+        .settings
+        .set_setting(JOBS_PAUSED_KEY, if params.paused { "1" } else { "0" })
+        .await?;
+    if params.paused {
+        state.core.jobs.pause();
+    } else {
+        state.core.jobs.resume();
+    }
+    Ok(())
 }

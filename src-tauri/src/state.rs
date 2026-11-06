@@ -5,9 +5,12 @@ use std::sync::Arc;
 
 use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, FoldersService,
-    SqliteCatalog, SyncService, ThumbCache, UploadsService,
+    SettingsStore, SqliteCatalog, SyncService, ThumbCache, UploadsService,
 };
 use source_jobs::Jobs;
+
+/// Where the settings page keeps whether background work is paused.
+pub(crate) const JOBS_PAUSED_KEY: &str = "jobs.paused";
 
 /// Where local albums come from on this platform: the filesystem on desktop,
 /// MediaStore on a phone.
@@ -38,6 +41,7 @@ pub(crate) struct App {
     pub(crate) sync: Arc<Sync>,
     /// The queue every background job goes through, and the board the UI reads.
     pub(crate) jobs: Jobs,
+    pub(crate) settings: Arc<dyn SettingsStore>,
 }
 
 /// Everything a command needs: the use cases plus the thumbnail cache.

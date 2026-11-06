@@ -16,6 +16,14 @@ pub struct AppInfo {
     pub platform: String,
 }
 
+/// Whether the settings page wants background work to run.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SetJobsPausedParams {
+    pub paused: bool,
+}
+
 /// What a `catalog://changed` event invalidates.
 ///
 /// `Albums` is the coarse signal for a listing pass and carries the refreshed

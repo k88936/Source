@@ -7,15 +7,15 @@ use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
 use source_core::store::AssetSummary;
 use source_core::{
     AccountService, AlbumsService, AppError, BrowseService, CloudreveAuth, CloudreveStorage,
-    CredentialStore, FoldersService, SqliteCatalog, SyncService, ThumbCache, UploadSessionPort,
-    UploadsService,
+    CredentialStore, FoldersService, SettingsStore, SqliteCatalog, SyncService, ThumbCache,
+    UploadSessionPort, UploadsService,
 };
 use source_jobs::Jobs;
 use tauri::{Emitter, Manager};
 
 #[cfg(not(debug_assertions))]
 use crate::credentials::KeyringCredentialStore;
-use crate::state::{App, AppState, LocalMedia};
+use crate::state::{App, AppState, JOBS_PAUSED_KEY, LocalMedia};
 
 /// How many jobs run at once, over every kind of work.
 ///
@@ -40,6 +40,8 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
 
     let core: Arc<App> = Arc::new(tauri::async_runtime::block_on(async {
         let catalog = SqliteCatalog::open(app_data.join("catalog.sqlite3")).await?;
+        let paused = catalog.get_setting(JOBS_PAUSED_KEY).await?.as_deref() == Some("1");
+        let settings: Arc<dyn SettingsStore> = Arc::new(catalog.clone());
         let sessions: Arc<dyn UploadSessionPort> = Arc::new(catalog.clone());
         let cred_store: Arc<dyn CredentialStore> = {
             #[cfg(debug_assertions)]
@@ -55,6 +57,9 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
         let local = LocalMedia::new();
         let jobs = Jobs::new(JOB_CONCURRENCY);
+        if paused {
+            jobs.pause();
+        }
         let uploads = UploadsService::new(
             cloud.clone(),
             catalog.clone(),
@@ -84,6 +89,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             )),
             uploads,
             jobs,
+            settings,
         })
     })?);
     let _ = tauri::async_runtime::block_on(core.account.bootstrap());
@@ -129,7 +135,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             loop {
                 let live = {
                     let jobs = board.borrow_and_update();
-                    jobs.iter().any(|job| job.state.is_live())
+                    jobs.iter().any(|job| job.state.is_in_flight())
                 };
                 if held != Some(live) {
                     held = Some(live);
