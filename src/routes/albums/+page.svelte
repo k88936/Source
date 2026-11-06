@@ -144,13 +144,11 @@
     <EmptyState icon={Images} title={t.empty} actionLabel={t.addAlbum} onAction={() => (pickerOpen = true)} />
 {:else}
     <div class="px-4 pb-24 pt-2">
-        <p class="mb-2 px-1 text-xs text-muted">
-            {#if indexing && run}
+        {#if indexing && run}
+            <p class="mb-2 px-1 text-xs text-muted">
                 {t.progress(run.done + run.failed, run.total)}
-            {:else}
-                {t.hint}
-            {/if}
-        </p>
+            </p>
+        {/if}
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 sidebar:grid-cols-4">
             {#each albums as album (album.id)}
                 <AlbumCard {album} />

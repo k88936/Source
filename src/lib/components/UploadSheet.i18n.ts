@@ -3,7 +3,6 @@ import {bundle} from '#lib/i18n/bundle';
 export const upload = bundle(
     {
         title: 'Upload to album',
-        subtitle: 'Pick photos from this device - uploaded in full quality',
         enqueuing: 'Adding to queue...',
         needAlbum: 'Pick an album first',
         uploadLabel: (count: number, album: string) => `Upload ${count} items to ${album}`,
@@ -15,7 +14,6 @@ export const upload = bundle(
     },
     {
         title: '上传到相册',
-        subtitle: '选择本机照片 - 原图上传',
         enqueuing: '正在加入队列...',
         needAlbum: '先选择一个相册',
         uploadLabel: (count: number, album: string) => `上传 ${count} 项到 ${album}`,

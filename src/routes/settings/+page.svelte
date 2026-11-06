@@ -111,10 +111,7 @@
 
     <section class="mt-3 overflow-hidden rounded-2xl bg-gray">
         <div class="flex items-center justify-between px-4 py-3">
-            <div>
-                <p class="text-sm font-medium">{t.appearance}</p>
-                <p class="text-[11px] text-muted">{t.appearanceHint}</p>
-            </div>
+            <p class="text-sm font-medium">{t.appearance}</p>
             <div class="flex rounded-lg bg-light p-0.5">
                 <button
                     onclick={() => setTheme('dark')}
@@ -138,10 +135,7 @@
 
     <section class="mt-3 overflow-hidden rounded-2xl bg-gray">
         <div class="flex items-center justify-between px-4 py-3">
-            <div>
-                <p class="text-sm font-medium">{t.language}</p>
-                <p class="text-[11px] text-muted">{t.languageHint}</p>
-            </div>
+            <p class="text-sm font-medium">{t.language}</p>
             <div class="flex rounded-lg bg-light p-0.5">
                 {#each LOCALES as locale (locale.value)}
                     <button
@@ -159,10 +153,7 @@
 
     <section class="mt-3 rounded-2xl bg-gray p-4">
         <div class="flex items-center justify-between">
-            <div>
-                <p class="text-sm font-medium">{t.cache}</p>
-                <p class="text-[11px] text-muted">{t.cacheHint}</p>
-            </div>
+            <p class="text-sm font-medium">{t.cache}</p>
             <span class="text-xs font-medium text-muted">{formatBytes(cache?.thumbBytes ?? 0)}</span>
         </div>
         <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-muted/25">
@@ -197,8 +188,6 @@
             <span>{t.platform}</span><span>{info?.platform ?? 'web'}</span>
         </div>
     </section>
-
-    <p class="mt-4 text-center text-[11px] leading-relaxed text-muted">{t.footer}</p>
 </div>
 
 {#if confirmCopy}

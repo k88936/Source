@@ -23,7 +23,6 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
         <div class="w-full max-w-md rounded-3xl bg-light p-5 shadow-2xl">
             <h2 class="text-lg font-medium">{t.title}</h2>
-            <p class="mt-1 text-xs text-muted">{t.hint}</p>
             <textarea bind:value={draft} rows="4" placeholder={t.placeholder} class="field mt-3 resize-none"></textarea>
             <div class="mt-4 flex justify-end gap-2">
                 <button

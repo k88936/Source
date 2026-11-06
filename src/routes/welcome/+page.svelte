@@ -83,7 +83,6 @@
                 <Cloud size={28} />
             </span>
             <h1 class="mt-4 text-xl font-semibold">Source</h1>
-            <p class="mt-1 text-sm text-muted">{t.subtitle}</p>
         </div>
 
         {#if step === 'credentials'}
@@ -179,9 +178,5 @@
                 </button>
             </form>
         {/if}
-
-        <p class="mt-10 text-center text-[11px] leading-relaxed text-muted">
-            {t.footer}
-        </p>
     </div>
 </div>

@@ -69,7 +69,7 @@
 
 <svelte:head><title>{t.title} - Source</title></svelte:head>
 
-<TopBar title={t.title} subtitle={t.subtitle} back>
+<TopBar title={t.title} back>
     {#snippet actions()}
         <button
             onclick={() => (pickerOpen = true)}

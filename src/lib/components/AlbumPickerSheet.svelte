@@ -12,7 +12,6 @@
         open = $bindable(false),
         excludeId = '',
         title,
-        hint,
         onPick,
     }: {
         open?: boolean;
@@ -20,7 +19,6 @@
         excludeId?: string;
         /** The sheet is also used to pick a sync target, where nothing moves. */
         title?: string;
-        hint?: string;
         onPick: (album: AlbumSummary) => void;
     } = $props();
 
@@ -28,7 +26,6 @@
     const c = $derived(i18n.pick(common));
 
     const heading = $derived(title ?? c.moveToAlbum);
-    const note = $derived(hint ?? t.moveHint);
 
     let albums = $state<AlbumSummary[]>([]);
     let loading = $state(false);
@@ -77,7 +74,6 @@
                     <X size={20} />
                 </button>
             </div>
-            <p class="mb-3 text-xs text-muted">{note}</p>
             <input bind:value={filter} type="search" placeholder={t.filter} class="field mb-2 h-9" />
             <div class="min-h-0 flex-1 overflow-y-auto">
                 {#if loading}

@@ -112,8 +112,6 @@
                 <p class="truncate text-xs text-muted">
                     {#if syncing && syncRun}
                         {t.syncing(syncRun.done + syncRun.failed, syncRun.total)}
-                    {:else if localAlbums.length === 0}
-                        {t.syncPrompt}
                     {:else}
                         {t.synced(
                             localAlbums.length,

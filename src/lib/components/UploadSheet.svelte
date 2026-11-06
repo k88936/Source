@@ -116,10 +116,7 @@
     <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/50" role="dialog" aria-modal="true">
         <div class="flex h-[88dvh] w-full max-w-2xl flex-col rounded-t-3xl bg-light">
             <div class="flex items-center justify-between px-4 pb-2 pt-3">
-                <div>
-                    <h2 class="text-base font-semibold">{t.title}</h2>
-                    <p class="text-xs text-muted">{t.subtitle}</p>
-                </div>
+                <h2 class="text-base font-semibold">{t.title}</h2>
                 <button
                     onclick={close}
                     class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"

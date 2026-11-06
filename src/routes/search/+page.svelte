@@ -289,15 +289,9 @@
         <div class="size-7 animate-spin rounded-full border-2 border-line border-t-primary"></div>
     </div>
 {:else if searched && timeline.items.length === 0}
-    <EmptyState
-        icon={Search}
-        title={t.noMatch}
-        description={t.noMatchHint}
-        actionLabel={t.clearFilters}
-        onAction={clearFilters}
-    />
+    <EmptyState icon={Search} title={t.noMatch} actionLabel={t.clearFilters} onAction={clearFilters} />
 {:else if !searched}
-    <EmptyState icon={Search} title={t.idleTitle} description={t.idleHint} />
+    <EmptyState icon={Search} title={t.idleTitle} />
     {#if recent.length > 0}
         <div class="mx-auto max-w-3xl px-4">
             <p class="mb-2 px-1 text-xs font-medium text-muted">{t.recent}</p>

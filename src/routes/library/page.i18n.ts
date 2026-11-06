@@ -4,7 +4,6 @@ export const library = bundle(
     {
         title: 'Library',
         localAlbums: 'Local albums',
-        syncPrompt: 'Sync a local folder to a cloud album',
         sync: 'Sync now',
         stopSync: 'Stop syncing',
         syncing: (visited: number, total: number) => `Syncing ${visited} of ${total}`,
@@ -29,7 +28,6 @@ export const library = bundle(
     {
         title: '资料库',
         localAlbums: '本机相册',
-        syncPrompt: '把一个本机目录同步到云端相册',
         sync: '立即同步',
         stopSync: '停止同步',
         syncing: (visited: number, total: number) => `正在同步 ${visited}/${total}`,

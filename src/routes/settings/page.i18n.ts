@@ -6,13 +6,10 @@ export const settings = bundle(
         refresh: 'Refresh',
         logout: 'Log out',
         appearance: 'Appearance',
-        appearanceHint: 'Manual choice, dark by default',
         dark: 'Dark',
         light: 'Light',
         language: 'Language',
-        languageHint: 'Interface language',
         cache: 'Thumbnail cache',
-        cacheHint: 'Thumbnails only, originals never touch this device',
         files: (count: number) => (count === 1 ? '1 file' : `${count} files`),
         limit: (size: string) => `Limit ${size}`,
         clearing: 'Clearing...',
@@ -21,7 +18,6 @@ export const settings = bundle(
         app: 'App',
         version: 'Version',
         platform: 'Platform',
-        footer: 'Originals stay in Cloudreve - an album is just a cloud folder',
         confirm: {
             clearCache: {
                 title: 'Clear cache',
@@ -40,13 +36,10 @@ export const settings = bundle(
         refresh: '刷新状态',
         logout: '退出登录',
         appearance: '外观',
-        appearanceHint: '跟随手动选择, 默认深色',
         dark: '深色',
         light: '浅色',
         language: '语言',
-        languageHint: '界面语言',
         cache: '缩略图缓存',
-        cacheHint: '仅缓存缩略图, 原图从不写入本机',
         files: (count: number) => `${count} 个文件`,
         limit: (size: string) => `上限 ${size}`,
         clearing: '清除中...',
@@ -55,7 +48,6 @@ export const settings = bundle(
         app: '应用',
         version: '版本',
         platform: '平台',
-        footer: '原图始终留在 Cloudreve - 相册就是云端文件夹',
         confirm: {
             clearCache: {
                 title: '清除缓存',
