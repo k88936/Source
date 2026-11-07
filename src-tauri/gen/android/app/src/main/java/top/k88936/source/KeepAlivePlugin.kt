@@ -51,16 +51,16 @@ internal object Hold {
 }
 
 /**
- * Holds the process open while the queue still has work.
+ * Holds the process open while background work is allowed.
  *
  * Android freezes, then kills, a background process, so work that outlives the
  * window - a pass over the albums, the batch it queued - has to run behind a
  * foreground service, and a partial wake lock keeps the CPU up under it while
  * the screen is off. The notification is what the platform charges for either.
  *
- * The caller reports one fact - whether anything is left to do - and this side
- * only starts or stops the service to match. It owns no work, no set of keys and
- * no line to show: what is running never reaches this class.
+ * The caller reports one fact - whether the process should be held - and this
+ * side only starts or stops the service to match. It owns no work, no set of
+ * keys and no line to show: what is running never reaches this class.
  */
 @TauriPlugin
 class KeepAlivePlugin(private val context: Activity) : Plugin(context) {
@@ -90,7 +90,7 @@ class KeepAlivePlugin(private val context: Activity) : Plugin(context) {
 }
 
 /**
- * The process, held while the queue still has work.
+ * The process, held while background work is allowed.
  *
  * `dataSync` is the platform's word for exactly this: moving bytes for the user
  * with the screen off.
@@ -114,8 +114,8 @@ class KeepAliveService : Service() {
     if (!Hold.wanted) {
       stopSelf()
     }
-    // A restart would come with no caller left to report to, and the work the
-    // process was held for is durable on its own.
+    // A restart would come with no caller left to report to; the switch state is
+    // durable on its own, and the next sync corrects this either way.
     return START_NOT_STICKY
   }
 

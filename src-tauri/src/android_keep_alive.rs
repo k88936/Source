@@ -1,11 +1,10 @@
-//! Android keep-alive adapter: a foreground service while the queue still has
-//! work, through the `KeepAlivePlugin` Kotlin bridge.
+//! Android keep-alive adapter: a foreground service while background work is
+//! allowed, through the `KeepAlivePlugin` Kotlin bridge.
 //!
 //! Android freezes, then kills, a background process, so work that outlives the
 //! window needs a foreground service, and a partial wake lock keeps the CPU up
 //! under it while the screen is off. Nothing reaches this side but one fact -
-//! whether anything is live - so the queue never learns what the platform
-//! charges for holding it.
+//! whether to hold - so the queue never learns what the platform charges for it.
 
 use std::sync::OnceLock;
 
@@ -42,11 +41,11 @@ struct SyncArgs {
     hold: bool,
 }
 
-/// Tell the platform whether anything is still live.
+/// Tell the platform whether to hold the process.
 ///
 /// The caller only reports a state, so the call is idempotent: a lost one is
 /// corrected by the next, and the platform is never left holding a process for
-/// work that has ended.
+/// work that was paused.
 pub(crate) async fn sync(hold: bool) {
     let handle = HANDLE.get().expect("KeepAlive 插件未注册");
     if let Err(error) = handle
