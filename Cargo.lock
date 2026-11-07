@@ -4239,6 +4239,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-keyring",
+ "tauri-plugin-log",
  "tauri-plugin-opener",
  "tauri-plugin-playwright",
  "tauri-plugin-safe-area-insets-css",

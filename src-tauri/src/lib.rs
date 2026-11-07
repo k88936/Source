@@ -22,6 +22,11 @@ pub fn run() {
     dev::isolate_home();
 
     let builder = tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(tauri_plugin_log::log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_keyring::init())
         // WebViews do not reliably report `env(safe-area-inset-*)`; the plugin
