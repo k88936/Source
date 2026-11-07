@@ -32,6 +32,8 @@
     let detail = $state<AssetDetail | null>(null);
     let showInfo = $state(false);
     let swipeX = $state(0);
+    let gesturing = $state(false);
+    let imageElement = $state<HTMLImageElement | null>(null);
     let favoriteBusy = $state(false);
 
     let current = $derived(items[index]);
@@ -43,6 +45,7 @@
         scale = 1;
         translateX = 0;
         translateY = 0;
+        swipeX = 0;
         detail = null;
         showInfo = false;
         src = '';
@@ -98,55 +101,6 @@
         return () => window.removeEventListener('keydown', onKey);
     });
 
-    let touchStartX = 0;
-    let pinching = 0;
-    let startScale = 1;
-    let moved = false;
-
-    function distance(event: TouchEvent): number {
-        return Math.hypot(
-            event.touches[0]!.clientX - event.touches[1]!.clientX,
-            event.touches[0]!.clientY - event.touches[1]!.clientY,
-        );
-    }
-
-    function onTouchStart(event: TouchEvent) {
-        if (event.touches.length === 2) {
-            pinching = distance(event);
-            startScale = scale;
-        } else if (event.touches.length === 1) {
-            touchStartX = event.touches[0]!.clientX;
-            moved = false;
-        }
-    }
-
-    function onTouchMove(event: TouchEvent) {
-        if (event.touches.length === 2 && pinching > 0) {
-            event.preventDefault();
-            scale = Math.min(5, Math.max(1, startScale * (distance(event) / pinching)));
-            if (scale === 1) {
-                translateX = 0;
-                translateY = 0;
-            }
-            return;
-        }
-        if (event.touches.length === 1 && scale === 1) {
-            const dx = event.touches[0]!.clientX - touchStartX;
-            if (Math.abs(dx) > 8) moved = true;
-            swipeX = dx;
-        }
-    }
-
-    function onTouchEnd() {
-        if (scale > 1) return;
-        if (moved && Math.abs(swipeX) > 64) {
-            if (swipeX < 0) next();
-            else previous();
-        }
-        swipeX = 0;
-        moved = false;
-    }
-
     function next() {
         if (index < items.length - 1) index += 1;
     }
@@ -155,12 +109,223 @@
         if (index > 0) index -= 1;
     }
 
-    function toggleZoom() {
-        scale = scale > 1 ? 1 : 2.4;
-        if (scale === 1) {
-            translateX = 0;
-            translateY = 0;
+    const MAX_SCALE = 5;
+    const TAP_SLOP = 8;
+    const TAP_DELAY = 300;
+    const SWIPE_THRESHOLD = 64;
+
+    type Point = {x: number; y: number};
+
+    type Pan = {
+        pointer: number;
+        originX: number;
+        originY: number;
+        translateX: number;
+        translateY: number;
+        paging: boolean;
+        moved: boolean;
+    };
+
+    type Pinch = {
+        distance: number;
+        x: number;
+        y: number;
+        scale: number;
+        translateX: number;
+        translateY: number;
+    };
+
+    function clamp(value: number, limit: number): number {
+        return Math.min(limit, Math.max(-limit, value));
+    }
+
+    function gestures(node: HTMLElement) {
+        const points = new Map<number, Point>();
+        let center: Point = {x: 0, y: 0};
+        let pan: Pan | null = null;
+        let pinch: Pinch | null = null;
+        let lastTap = 0;
+        let lastTapAt: Point = {x: 0, y: 0};
+
+        // How far the scaled image can travel before an edge leaves the frame.
+        function limits(atScale: number): Point {
+            const image = imageElement;
+            if (!image) return {x: 0, y: 0};
+            return {
+                x: Math.max(0, (image.clientWidth * atScale - node.clientWidth) / 2),
+                y: Math.max(0, (image.clientHeight * atScale - node.clientHeight) / 2),
+            };
         }
+
+        function settle() {
+            const limit = limits(scale);
+            translateX = clamp(translateX, limit.x);
+            translateY = clamp(translateY, limit.y);
+        }
+
+        function zoomAt(point: Point) {
+            if (scale > 1) {
+                scale = 1;
+                translateX = 0;
+                translateY = 0;
+                return;
+            }
+            const next = 2.4;
+            const limit = limits(next);
+            // The tapped point stays under the finger while the image grows around it.
+            translateX = clamp(-(next - 1) * point.x, limit.x);
+            translateY = clamp(-(next - 1) * point.y, limit.y);
+            scale = next;
+        }
+
+        function onPointerDown(event: PointerEvent) {
+            if (isVideo) return;
+            if (event.pointerType === 'mouse' && event.button !== 0) return;
+            if ((event.target as Element).closest('button')) return;
+
+            const rect = node.getBoundingClientRect();
+            center = {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2};
+            points.set(event.pointerId, {x: event.clientX, y: event.clientY});
+            gesturing = true;
+            if (event.pointerType === 'mouse') node.setPointerCapture(event.pointerId);
+
+            if (points.size === 1) {
+                pan = {
+                    pointer: event.pointerId,
+                    originX: event.clientX - center.x,
+                    originY: event.clientY - center.y,
+                    translateX,
+                    translateY,
+                    paging: scale === 1,
+                    moved: false,
+                };
+                pinch = null;
+            } else if (points.size === 2) {
+                const first = [...points.values()][0]!;
+                const second = [...points.values()][1]!;
+                swipeX = 0;
+                pinch = {
+                    distance: Math.hypot(first.x - second.x, first.y - second.y),
+                    x: (first.x + second.x) / 2 - center.x,
+                    y: (first.y + second.y) / 2 - center.y,
+                    scale,
+                    translateX,
+                    translateY,
+                };
+                pan = null;
+            }
+        }
+
+        function onPointerMove(event: PointerEvent) {
+            if (!points.has(event.pointerId)) return;
+            points.set(event.pointerId, {x: event.clientX, y: event.clientY});
+
+            if (pinch && points.size >= 2) {
+                const first = [...points.values()][0]!;
+                const second = [...points.values()][1]!;
+                const distance = Math.hypot(first.x - second.x, first.y - second.y);
+                const next = Math.min(MAX_SCALE, Math.max(1, (pinch.scale * distance) / pinch.distance));
+                const ratio = next / pinch.scale;
+                const limit = limits(next);
+                // Anchor the content under the starting midpoint, which also pans with two fingers.
+                translateX = clamp((first.x + second.x) / 2 - center.x - (pinch.x - pinch.translateX) * ratio, limit.x);
+                translateY = clamp((first.y + second.y) / 2 - center.y - (pinch.y - pinch.translateY) * ratio, limit.y);
+                scale = next;
+                if (next === 1) {
+                    translateX = 0;
+                    translateY = 0;
+                }
+                return;
+            }
+
+            if (!pan || pan.pointer !== event.pointerId) return;
+            const dx = event.clientX - center.x - pan.originX;
+            const dy = event.clientY - center.y - pan.originY;
+            if (Math.abs(dx) > TAP_SLOP || Math.abs(dy) > TAP_SLOP) pan.moved = true;
+            if (pan.paging) {
+                swipeX = dx;
+                return;
+            }
+            const limit = limits(scale);
+            translateX = clamp(pan.translateX + dx, limit.x);
+            translateY = clamp(pan.translateY + dy, limit.y);
+        }
+
+        function onPointerUp(event: PointerEvent) {
+            if (!points.delete(event.pointerId)) return;
+
+            if (pinch) {
+                pinch = null;
+                const rest = [...points.entries()][0];
+                if (rest) {
+                    // The finger still down carries on as a pan, so the image does not jump.
+                    const [pointer, point] = rest;
+                    pan = {
+                        pointer,
+                        originX: point.x - center.x,
+                        originY: point.y - center.y,
+                        translateX,
+                        translateY,
+                        paging: false,
+                        moved: true,
+                    };
+                    return;
+                }
+                gesturing = false;
+                settle();
+                return;
+            }
+
+            if (!pan || pan.pointer !== event.pointerId) return;
+            const {paging, moved} = pan;
+            pan = null;
+            gesturing = false;
+
+            if (paging) {
+                const swipe = swipeX;
+                swipeX = 0;
+                if (moved && Math.abs(swipe) > SWIPE_THRESHOLD) {
+                    if (swipe < 0) next();
+                    else previous();
+                    return;
+                }
+            }
+            if (moved) {
+                settle();
+                return;
+            }
+
+            const point = {x: event.clientX - center.x, y: event.clientY - center.y};
+            const now = performance.now();
+            const repeated = now - lastTap < TAP_DELAY && Math.hypot(point.x - lastTapAt.x, point.y - lastTapAt.y) < 24;
+            lastTap = repeated ? 0 : now;
+            lastTapAt = point;
+            if (repeated) zoomAt(point);
+        }
+
+        function onPointerCancel() {
+            points.clear();
+            pan = null;
+            pinch = null;
+            gesturing = false;
+            swipeX = 0;
+            settle();
+        }
+
+        node.addEventListener('pointerdown', onPointerDown);
+        node.addEventListener('pointermove', onPointerMove);
+        node.addEventListener('pointerup', onPointerUp);
+        node.addEventListener('pointercancel', onPointerCancel);
+        window.addEventListener('resize', settle);
+        return {
+            destroy() {
+                node.removeEventListener('pointerdown', onPointerDown);
+                node.removeEventListener('pointermove', onPointerMove);
+                node.removeEventListener('pointerup', onPointerUp);
+                node.removeEventListener('pointercancel', onPointerCancel);
+                window.removeEventListener('resize', settle);
+            },
+        };
     }
 
     async function toggleFavorite() {
@@ -236,13 +401,10 @@
     </div>
 
     <div
-        class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
+        class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden {isVideo ? '' : 'touch-none'}"
         role="group"
         aria-label={t.mediaViewer}
-        ontouchstart={onTouchStart}
-        ontouchmove={onTouchMove}
-        ontouchend={onTouchEnd}
-        ondblclick={toggleZoom}
+        use:gestures
     >
         {#if current}
             {#if isVideo}
@@ -252,9 +414,12 @@
                 {/if}
             {:else if src}
                 <img
+                    bind:this={imageElement}
                     {src}
                     alt={current.name}
-                    class="max-h-full max-w-full select-none object-contain transition-transform duration-200 ease-out"
+                    class="max-h-full max-w-full select-none object-contain {gesturing
+                        ? ''
+                        : 'transition-transform duration-200 ease-out'}"
                     style:transform="translate({translateX + swipeX}px, {translateY}px) scale({scale})"
                     draggable="false"
                 />
