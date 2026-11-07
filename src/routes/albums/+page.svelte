@@ -27,7 +27,8 @@
     const indexing = $derived(
         app.jobs.some(
             (job) =>
-                job.key === 'index' && (job.state === 'queued' || job.state === 'running' || job.state === 'paused'),
+                job.kind === 'index' &&
+                (job.state === 'queued' || job.state === 'running' || job.state === 'paused'),
         ),
     );
 

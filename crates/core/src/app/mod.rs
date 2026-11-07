@@ -16,6 +16,7 @@ pub mod albums;
 pub mod browse;
 mod dto;
 pub mod folders;
+pub mod jobs;
 pub mod sync;
 pub mod uploads;
 
@@ -24,6 +25,7 @@ pub use albums::AlbumsService;
 pub use browse::BrowseService;
 pub use dto::*;
 pub use folders::FoldersService;
+pub use jobs::{Job, JobKind, Jobs};
 pub use sync::SyncService;
 pub use uploads::{UploadOutcome, UploadsService};
 

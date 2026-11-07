@@ -29,6 +29,7 @@ import type {MediaSourceParams} from './bindings/MediaSourceParams';
 import type {MoveAssetsParams} from './bindings/MoveAssetsParams';
 import type {RemoteFolderPage} from './bindings/RemoteFolderPage';
 import type {Job} from './bindings/Job';
+import type {JobKind} from './bindings/JobKind';
 import type {SearchParams} from './bindings/SearchParams';
 import type {AccountState} from './bindings/AccountState';
 import type {SetAlbumCoverParams} from './bindings/SetAlbumCoverParams';
@@ -73,7 +74,7 @@ export const api = {
     refreshAlbum: (params: AlbumParams) => call<AlbumSummary>('album_refresh', params),
     indexStart: () => call<number>('index_start'),
     indexStop: () => call<void>('index_stop'),
-    jobList: () => call<Job[]>('job_list'),
+    jobList: () => call<Job<JobKind>[]>('job_list'),
     jobsPaused: () => call<boolean>('jobs_paused'),
     setJobsPaused: (params: SetJobsPausedParams) => call<void>('set_jobs_paused', params),
     assetDetail: (params: AssetDetailParams) => call<AssetDetail>('asset_detail', params),

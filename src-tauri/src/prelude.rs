@@ -33,6 +33,6 @@ pub(crate) use source_core::store::{
     AlbumSummary, AssetSummary, CatalogError, FolderRef, TimelinePage,
 };
 
-pub(crate) use source_jobs::Job;
+pub(crate) use source_core::app::Job;
 
 pub(crate) use crate::state::AppState;

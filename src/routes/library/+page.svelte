@@ -20,7 +20,7 @@
         Trash,
     } from '@lucide/svelte';
     import TopBar from '#lib/components/TopBar.svelte';
-    import UploadQueueCard from '#lib/components/UploadQueueCard.svelte';
+    import JobQueueCard from '#lib/components/JobQueueCard.svelte';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
@@ -35,7 +35,8 @@
     const syncing = $derived(
         app.jobs.some(
             (job) =>
-                job.key === 'sync' && (job.state === 'queued' || job.state === 'running' || job.state === 'paused'),
+                job.kind === 'sync' &&
+                (job.state === 'queued' || job.state === 'running' || job.state === 'paused'),
         ),
     );
 
@@ -84,7 +85,10 @@
     <CapacityCard />
 
     <div class="flex items-center gap-3 rounded-2xl bg-gray p-4">
-        <a href={resolve('/library/local')} class="flex min-w-0 flex-1 items-center gap-3 transition-opacity hover:opacity-80">
+        <a
+            href={resolve('/library/local')}
+            class="flex min-w-0 flex-1 items-center gap-3 transition-opacity hover:opacity-80"
+        >
             <div class="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                 <Folder size={22} />
             </div>
@@ -114,7 +118,7 @@
         </button>
     </div>
 
-    <UploadQueueCard />
+    <JobQueueCard />
 
     <div>
         <p class="mb-1.5 px-1 text-xs font-medium text-muted">{t.more}</p>

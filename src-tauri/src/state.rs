@@ -3,11 +3,11 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use source_core::app::Jobs;
 use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, FoldersService,
     SettingsStore, SqliteCatalog, SyncService, ThumbCache, UploadsService,
 };
-use source_jobs::Jobs;
 
 /// Where the settings page keeps whether background work is paused.
 pub(crate) const JOBS_PAUSED_KEY: &str = "jobs.paused";

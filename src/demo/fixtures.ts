@@ -7,6 +7,7 @@ import type {CacheStats} from '#lib/api/bindings/CacheStats';
 import type {Capacity} from '#lib/api/bindings/Capacity';
 import type {FolderRef} from '#lib/api/bindings/FolderRef';
 import type {Job} from '#lib/api/bindings/Job';
+import type {JobKind} from '#lib/api/bindings/JobKind';
 import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
 import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
 import type {LocalEntry} from '#lib/api/bindings/LocalEntry';
@@ -337,10 +338,10 @@ export const uploads: UploadTask[] = [
     },
 ];
 
-export const jobs: Job[] = [
+export const jobs: Job<JobKind>[] = [
     {
-        id: 'job-1',
-        key: 'index',
+        id: 'album-1',
+        kind: 'index',
         state: 'done',
         progress: {done: 24, total: 24},
         submittedAt: newest - 2 * HOUR,
@@ -348,12 +349,21 @@ export const jobs: Job[] = [
         finishedAt: newest - 2 * HOUR + 4_000,
     },
     {
-        id: 'job-2',
-        key: 'sync',
+        id: 'local-album-1',
+        kind: 'sync',
         state: 'running',
         progress: {done: 2, total: null},
         submittedAt: newest - HOUR,
         startedAt: newest - HOUR,
+        finishedAt: null,
+    },
+    {
+        id: 'upload-1',
+        kind: 'upload',
+        state: 'running',
+        progress: {done: 1_842_000, total: 3_421_884},
+        submittedAt: newest - HOUR / 2,
+        startedAt: newest - HOUR / 2,
         finishedAt: null,
     },
 ];

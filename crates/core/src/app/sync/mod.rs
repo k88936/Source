@@ -10,7 +10,8 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use source_jobs::{Ctx, JobId, JobKind, JobOutcome, JobPriority, Jobs};
+use crate::app::JobKind;
+use crate::app::jobs::{Ctx, JobId, JobOutcome, JobPriority, Jobs};
 
 use crate::media::{LocalAsset, LocalMediaPort, MediaError};
 use crate::remote::RemoteStorage;
@@ -23,10 +24,6 @@ use super::uploads::{UploadError, UploadsService};
 
 /// How many files one page of a device directory lists.
 const LOCAL_PAGE: u32 = 200;
-
-/// One directory scan is one job. The queue only compares the key, so what a
-/// sync is stays here, and the stop button reaches every directory through it.
-pub const SYNC_JOB: JobKind = JobKind::new("sync");
 
 /// What a scan can fail with.
 ///
@@ -105,7 +102,7 @@ where
             let sync = Arc::clone(self);
             let album = album.clone();
             self.jobs.submit(
-                SYNC_JOB,
+                JobKind::Sync,
                 JobId::from(album.id.clone()),
                 JobPriority::RealTime,
                 move |ctx| {
@@ -119,7 +116,7 @@ where
     }
 
     fn stop_impl(&self) {
-        self.jobs.cancel(SYNC_JOB);
+        self.jobs.cancel(JobKind::Sync);
     }
 
     /// Walk one directory: queue every file the album does not hold yet.
@@ -129,7 +126,7 @@ where
     async fn scan_album(
         &self,
         album: &LocalAlbumRecord,
-        ctx: &Ctx,
+        ctx: &Ctx<JobKind>,
     ) -> Result<JobOutcome, SyncError> {
         let Some(folder) = self
             .catalog

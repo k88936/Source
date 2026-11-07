@@ -7,7 +7,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
-use source_jobs::{Ctx, JobId, JobKind, JobOutcome, JobPriority, Jobs};
+use crate::app::JobKind;
+use crate::app::jobs::{Ctx, JobId, JobOutcome, JobPriority, Jobs};
 use tokio::sync::mpsc;
 
 use serde::{Deserialize, Serialize};
@@ -103,10 +104,6 @@ pub struct UploadOutcome {
     pub task: UploadTask,
     pub asset: Option<AssetSummary>,
 }
-
-/// One file is one job. The queue only compares the key, so what an upload is
-/// stays here, and a row's cancel button reaches its job through it.
-pub const UPLOAD_JOB: JobKind = JobKind::new("upload");
 
 /// Automatic retries after the first failure; the first wait is 3s, then it
 /// doubles.
@@ -209,7 +206,10 @@ where
         self.cancel_impl(task_id).await
     }
 
-    pub async fn retry(self: &Arc<Self>, task_id: &UploadTaskId) -> Result<QueuedUpload, UploadError> {
+    pub async fn retry(
+        self: &Arc<Self>,
+        task_id: &UploadTaskId,
+    ) -> Result<QueuedUpload, UploadError> {
         self.retry_impl(task_id).await
     }
 
@@ -336,7 +336,7 @@ where
             .jobs
             .list()
             .iter()
-            .filter(|job| job.key == UPLOAD_JOB && job.state.is_live())
+            .filter(|job| job.kind == JobKind::Upload && job.state.is_live())
             .count();
         let target = self.target.load(Ordering::Relaxed);
         let free = target.saturating_sub(live);
@@ -390,7 +390,7 @@ where
         let uploads = Arc::clone(self);
         let task_id = task.id;
         self.jobs.submit(
-            UPLOAD_JOB,
+            JobKind::Upload,
             JobId::from(task_id.0.clone()),
             priority,
             move |ctx| {
@@ -455,7 +455,7 @@ where
         }
         self.set_state(&mut task, UploadState::Cancelled).await?;
         self.jobs
-            .cancel_item(UPLOAD_JOB, &JobId::from(task_id.0.clone()));
+            .cancel_item(JobKind::Upload, &JobId::from(task_id.0.clone()));
         Ok(())
     }
 
@@ -530,7 +530,12 @@ where
     ///
     /// It reports its own verdict: stopping and "worth another visit" are
     /// decisions of the work, not of the loop that performs the wait.
-    async fn try_upload(&self, id: &UploadTaskId, ctx: &Ctx, attempt: Try) -> Step<(), UploadError> {
+    async fn try_upload(
+        &self,
+        id: &UploadTaskId,
+        ctx: &Ctx<JobKind>,
+        attempt: Try,
+    ) -> Step<(), UploadError> {
         match self.try_upload_once(id, ctx, attempt).await {
             Ok(()) => Step::Done(()),
             Err(error) if error.is_interrupted() => Step::Stopped,
@@ -542,7 +547,7 @@ where
     async fn try_upload_once(
         &self,
         id: &UploadTaskId,
-        ctx: &Ctx,
+        ctx: &Ctx<JobKind>,
         attempt: Try,
     ) -> Result<(), UploadError> {
         if let Some(task) = self
@@ -629,7 +634,11 @@ where
     }
 
     /// Write the terminal failure, unless the task was cancelled meanwhile.
-    async fn fail(&self, id: &UploadTaskId, error: UploadError) -> Result<QueuedUpload, UploadError> {
+    async fn fail(
+        &self,
+        id: &UploadTaskId,
+        error: UploadError,
+    ) -> Result<QueuedUpload, UploadError> {
         let Some(mut task) = self
             .catalog
             .get_upload_task(&id.0)
@@ -653,7 +662,11 @@ where
     }
 
     /// Execute one queued task, reporting its bytes to its job.
-    async fn run(&self, task_id: &UploadTaskId, ctx: &Ctx) -> Result<UploadOutcome, UploadError> {
+    async fn run(
+        &self,
+        task_id: &UploadTaskId,
+        ctx: &Ctx<JobKind>,
+    ) -> Result<UploadOutcome, UploadError> {
         let mut task = self
             .catalog
             .get_upload_task(&task_id.0)
@@ -838,7 +851,11 @@ where
         }
     }
 
-    async fn set_state(&self, task: &mut UploadTask, state: UploadState) -> Result<(), UploadError> {
+    async fn set_state(
+        &self,
+        task: &mut UploadTask,
+        state: UploadState,
+    ) -> Result<(), UploadError> {
         task.state = state;
         self.catalog
             .update_upload(task)

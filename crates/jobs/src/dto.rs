@@ -1,39 +1,7 @@
 //! What a job is, as the queue and the UI see it.
 
 use serde::Serialize;
-use serde::ser::Serializer;
 use ts_rs::TS;
-
-/// The kind of work a job belongs to, chosen by whoever submits it.
-///
-/// A key is opaque: the queue only compares it, to stop everything of one kind
-/// at once. What a name means stays with the caller, as a constant next to the
-/// work it names, which is what keeps this crate free of the business.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TS)]
-#[ts(export, type = "string")]
-pub struct JobKind(&'static str);
-
-impl JobKind {
-    pub const fn new(value: &'static str) -> Self {
-        Self(value)
-    }
-
-    pub const fn as_str(&self) -> &'static str {
-        self.0
-    }
-}
-
-impl std::fmt::Display for JobKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0)
-    }
-}
-
-impl Serialize for JobKind {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.0)
-    }
-}
 
 /// Which item a job works on: a directory, a file, whatever the caller counts.
 ///
@@ -98,12 +66,19 @@ pub struct Progress {
     pub total: Option<u64>,
 }
 
+/// One row on the board: what the caller submitted, plus what the queue did
+/// with it.
+///
+/// `kind` is the caller's own vocabulary for the work - a tag a UI can pick
+/// words for - and the queue never reads it. What the queue does is compare it,
+/// which is how it stops a whole kind at once and why `K` must be a value, not
+/// a payload.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct Job {
+pub struct Job<K> {
     pub id: JobId,
-    pub key: JobKind,
+    pub kind: K,
     pub state: JobState,
     pub progress: Progress,
     pub submitted_at: i64,
@@ -111,11 +86,11 @@ pub struct Job {
     pub finished_at: Option<i64>,
 }
 
-impl Job {
-    pub(crate) fn new(id: JobId, key: JobKind, state: JobState, submitted_at: i64) -> Self {
+impl<K> Job<K> {
+    pub(crate) fn new(id: JobId, kind: K, state: JobState, submitted_at: i64) -> Self {
         Self {
             id,
-            key,
+            kind,
             state,
             progress: Progress::default(),
             submitted_at,

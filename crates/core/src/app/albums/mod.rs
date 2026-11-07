@@ -9,7 +9,8 @@ mod dto;
 
 use std::sync::Arc;
 
-use source_jobs::{Ctx, JobId, JobKind, JobOutcome, JobPriority, Jobs};
+use crate::app::JobKind;
+use crate::app::jobs::{Ctx, JobId, JobOutcome, JobPriority, Jobs};
 use tokio_util::sync::CancellationToken;
 
 use serde::{Deserialize, Serialize};
@@ -19,11 +20,13 @@ use crate::mapping::{COVER_KEY, DESCRIPTION_KEY, asset_record, entry_media_type}
 use crate::media::{
     LocalAsset, LocalAssetPage, LocalAssetPageParams, LocalBrowsePage, LocalMediaPort, MediaError,
 };
-use crate::remote::{ListError, MediaFetchError, MetadataError, MoveError, RemoteError, RemoteStorage};
+use crate::remote::{
+    ListError, MediaFetchError, MetadataError, MoveError, RemoteError, RemoteStorage,
+};
 use crate::store::{
-    AlbumId, AlbumStore, AlbumSummary, AssetRecord, AssetStore, AssetSummary, CatalogError, FolderId,
-    FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, SYNC_DONE, SYNC_FAILED,
-    TimelinePage, TimelineStore,
+    AlbumId, AlbumStore, AlbumSummary, AssetRecord, AssetStore, AssetSummary, CatalogError,
+    FolderId, FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, SYNC_DONE,
+    SYNC_FAILED, TimelinePage, TimelineStore,
 };
 use crate::task::{Attempt, Retry, Step, attempt};
 use crate::time::now_ms;
@@ -62,7 +65,10 @@ pub enum AlbumError {
     /// The device library failed.
     LocalMedia { cause: MediaError },
     /// Reading one album's asset left the index.
-    Thumb { asset: String, cause: MediaFetchError },
+    Thumb {
+        asset: String,
+        cause: MediaFetchError,
+    },
 }
 
 impl AlbumError {
@@ -123,10 +129,6 @@ impl<R, C, M> AlbumsService<R, C, M> {
     }
 }
 
-/// One album listing is one job. The queue only compares the key, so what a
-/// refresh is stays here, and the stop button reaches every album through it.
-pub const INDEX_JOB: JobKind = JobKind::new("index");
-
 impl<R, C, M> AlbumsService<R, C, M>
 where
     R: RemoteStorage + 'static,
@@ -141,7 +143,10 @@ where
         self.get_album_impl(album_id).await
     }
 
-    pub async fn get_album_page(&self, params: AlbumPageParams) -> Result<TimelinePage, AlbumError> {
+    pub async fn get_album_page(
+        &self,
+        params: AlbumPageParams,
+    ) -> Result<TimelinePage, AlbumError> {
         self.get_album_page_impl(params).await
     }
 
@@ -279,7 +284,10 @@ where
             .map_err(AlbumError::catalog)
     }
 
-    async fn get_album_page_impl(&self, params: AlbumPageParams) -> Result<TimelinePage, AlbumError> {
+    async fn get_album_page_impl(
+        &self,
+        params: AlbumPageParams,
+    ) -> Result<TimelinePage, AlbumError> {
         self.catalog
             .get_album_page(
                 &params.album_id.0,
@@ -322,33 +330,30 @@ where
     }
 
     async fn refresh_all_impl(self: &Arc<Self>) -> Result<usize, AlbumError> {
-        let ids = self
+        let albums = self
             .catalog
             .list_albums()
             .await
-            .map_err(AlbumError::catalog)?
-            .into_iter()
-            .map(|album| album.id.0)
-            .collect::<Vec<_>>();
-        for id in &ids {
-            let albums = Arc::clone(self);
-            let album_id = id.clone();
+            .map_err(AlbumError::catalog)?;
+        for album in &albums {
+            let service = Arc::clone(self);
+            let album_id = album.id.0.clone();
             self.jobs.submit(
-                INDEX_JOB,
-                JobId::from(id.clone()),
+                JobKind::Index,
+                JobId::from(album_id.clone()),
                 JobPriority::RealTime,
                 move |ctx| {
-                    let albums = Arc::clone(&albums);
+                    let albums = Arc::clone(&service);
                     let album_id = album_id.clone();
                     async move { albums.refresh_listing(&album_id, &ctx).await }
                 },
             );
         }
-        Ok(ids.len())
+        Ok(albums.len())
     }
 
     fn stop_refresh_impl(&self) {
-        self.jobs.cancel(INDEX_JOB);
+        self.jobs.cancel(JobKind::Index);
     }
 
     async fn set_album_cover_impl(
@@ -575,7 +580,11 @@ where
     }
 
     /// One album as a job: list it page by page, one step per page.
-    async fn refresh_listing(&self, album_id: &str, ctx: &Ctx) -> Result<JobOutcome, AlbumError> {
+    async fn refresh_listing(
+        &self,
+        album_id: &str,
+        ctx: &Ctx<JobKind>,
+    ) -> Result<JobOutcome, AlbumError> {
         let ran = ctx
             .run_paused(|| {
                 attempt(Retry::default(), ctx.cancel(), |_| async {
@@ -603,7 +612,7 @@ where
         &self,
         album_id: &str,
         cancel: &CancellationToken,
-        ctx: Option<&Ctx>,
+        ctx: Option<&Ctx<JobKind>>,
     ) -> Result<AlbumSummary, AlbumError> {
         let album = self
             .catalog
@@ -636,7 +645,7 @@ where
         &self,
         album: &FolderRecord,
         cancel: &CancellationToken,
-        ctx: Option<&Ctx>,
+        ctx: Option<&Ctx<JobKind>>,
     ) -> Result<Listing, AlbumError> {
         let folder_id = FolderId::new(album.id.clone());
         // Every id the listing returned, for the prune below. The rows
@@ -689,12 +698,7 @@ where
             .await
             .map_err(AlbumError::catalog)?;
         self.catalog
-            .mark_folder(
-                &album.id,
-                SYNC_DONE,
-                Some(remote_updated_at),
-                now_ms(),
-            )
+            .mark_folder(&album.id, SYNC_DONE, Some(remote_updated_at), now_ms())
             .await
             .map_err(AlbumError::catalog)?;
         Ok(Listing::Complete)

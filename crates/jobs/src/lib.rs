@@ -18,6 +18,7 @@
 
 use std::collections::HashMap;
 use std::future::Future;
+use std::hash::Hash;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -99,15 +100,18 @@ impl PartialOrd for JobPriority {
 type BoxTask = Pin<Box<dyn Future<Output = Result<JobOutcome, String>> + Send + 'static>>;
 
 /// A task factory: the queue can run the same item again after a pause.
-type TaskFactory = Arc<dyn Fn(Ctx) -> BoxTask + Send + Sync + 'static>;
+type TaskFactory<K> = Arc<dyn Fn(Ctx<K>) -> BoxTask + Send + Sync + 'static>;
 
-type LiveKey = (JobKind, JobId);
+type LiveKey<K> = (K, JobId);
 
 /// A handle on the queue, cheap to clone and shared by every caller.
+///
+/// `K` is whatever the caller says its jobs are: the queue carries it to the
+/// board untouched and never inspects it.
 #[derive(Clone)]
-pub struct Jobs(Arc<Book>);
+pub struct Jobs<K: Clone + Eq + Hash + Send + Sync + 'static>(Arc<Book<K>>);
 
-impl Jobs {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static> Jobs<K> {
     /// At most `concurrency` tasks run at once, over every kind of work.
     pub fn new(concurrency: usize) -> Self {
         Self(Arc::new(Book {
@@ -130,14 +134,14 @@ impl Jobs {
     /// reloaded or a pass offering the same file again is one job, not two.
     /// Submitting it with a higher priority upgrades the waiting entry instead
     /// of being dropped by that check.
-    pub fn submit<F, Fut, E>(&self, key: JobKind, id: JobId, priority: JobPriority, task: F)
+    pub fn submit<F, Fut, E>(&self, kind: K, id: JobId, priority: JobPriority, task: F)
     where
-        F: Fn(Ctx) -> Fut + Send + Sync + 'static,
+        F: Fn(Ctx<K>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<JobOutcome, E>> + Send + 'static,
         E: std::fmt::Debug + Send + 'static,
     {
         let task = Arc::new(task);
-        let factory: TaskFactory = Arc::new(move |ctx| {
+        let factory: TaskFactory<K> = Arc::new(move |ctx| {
             let task = Arc::clone(&task);
             Box::pin(async move { task(ctx).await.map_err(|error| format!("{error:?}")) })
         });
@@ -146,13 +150,13 @@ impl Jobs {
             if state
                 .board
                 .iter()
-                .any(|job| job.key == key && job.id == id && job.state.is_live())
+                .any(|job| job.kind == kind && job.id == id && job.state.is_live())
             {
                 let mut upgraded = false;
                 if let Some(pending) = state
                     .queue
                     .iter_mut()
-                    .find(|pending| pending.key == key && pending.id == id)
+                    .find(|pending| pending.kind == kind && pending.id == id)
                     && priority < pending.priority
                 {
                     pending.priority = priority;
@@ -166,7 +170,7 @@ impl Jobs {
                     && let Some(job) = state
                         .board
                         .iter_mut()
-                        .find(|job| job.key == key && job.id == id)
+                        .find(|job| job.kind == kind && job.id == id)
                     && job.state == JobState::Paused
                 {
                     job.state = JobState::Queued;
@@ -176,9 +180,9 @@ impl Jobs {
                 let job_state = self.0.job_state(priority);
                 state
                     .board
-                    .insert(0, Job::new(id.clone(), key, job_state, now_ms()));
+                    .insert(0, Job::new(id.clone(), kind.clone(), job_state, now_ms()));
                 state.queue.push(Pending {
-                    key,
+                    kind,
                     id,
                     priority,
                     user_cancel: CancellationToken::new(),
@@ -238,7 +242,7 @@ impl Jobs {
                 if let Some(job) = book
                     .board
                     .iter_mut()
-                    .find(|job| job.key == pending.key && job.id == pending.id)
+                    .find(|job| job.kind == pending.kind && job.id == pending.id)
                 {
                     job.state = JobState::Paused;
                 }
@@ -265,7 +269,7 @@ impl Jobs {
                 if let Some(job) = book
                     .board
                     .iter_mut()
-                    .find(|job| job.key == pending.key && job.id == pending.id)
+                    .find(|job| job.kind == pending.kind && job.id == pending.id)
                     && job.state == JobState::Paused
                 {
                     job.state = JobState::Queued;
@@ -284,18 +288,18 @@ impl Jobs {
 
     /// Stop everything of this kind: what is still waiting is dropped, what is
     /// running is asked to stop after the item it is on.
-    pub fn cancel(&self, key: JobKind) {
-        self.0.stop(|candidate, _| candidate == key);
+    pub fn cancel(&self, kind: K) {
+        self.0.stop(|candidate, _| candidate == kind);
     }
 
     /// Stop one item, which is what a row's own cancel button is.
-    pub fn cancel_item(&self, key: JobKind, id: &JobId) {
+    pub fn cancel_item(&self, kind: K, id: &JobId) {
         self.0
-            .stop(|candidate, item| candidate == key && item == id);
+            .stop(|candidate, item| candidate == kind && item == id);
     }
 
     /// Every job this process ran, newest first.
-    pub fn list(&self) -> Vec<Job> {
+    pub fn list(&self) -> Vec<Job<K>> {
         self.0.board.borrow().as_ref().clone()
     }
 
@@ -304,26 +308,26 @@ impl Jobs {
     /// A [`watch`] is the right shape: it is a state, not an event stream, so a
     /// subscriber that wakes late still sees the current board and never a
     /// backlog of stale ones.
-    pub fn watch(&self) -> watch::Receiver<Arc<Vec<Job>>> {
+    pub fn watch(&self) -> watch::Receiver<Arc<Vec<Job<K>>>> {
         self.0.board.subscribe()
     }
 }
 
 /// The queue itself, shared with every [`Ctx`].
-struct Book {
+struct Book<K: Clone + Eq + Hash + Send + Sync + 'static> {
     concurrency: usize,
     paused: AtomicBool,
-    state: Mutex<State>,
-    board: watch::Sender<Arc<Vec<Job>>>,
+    state: Mutex<State<K>>,
+    board: watch::Sender<Arc<Vec<Job<K>>>>,
     tracker: TaskTracker,
 }
 
-impl Book {
-    fn lock(&self) -> MutexGuard<'_, State> {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static> Book<K> {
+    fn lock(&self) -> MutexGuard<'_, State<K>> {
         self.state.lock().unwrap()
     }
 
-    fn publish(&self, board: Vec<Job>) {
+    fn publish(&self, board: Vec<Job<K>>) {
         self.board.send_replace(Arc::new(board));
     }
 
@@ -368,14 +372,14 @@ impl Book {
                 if let Some(job) = state
                     .board
                     .iter_mut()
-                    .find(|job| job.key == pending.key && job.id == pending.id)
+                    .find(|job| job.kind == pending.kind && job.id == pending.id)
                 {
                     job.state = JobState::Running;
                     job.started_at = Some(now);
                 }
                 let run_cancel = CancellationToken::new();
                 state.live.insert(
-                    (pending.key, pending.id.clone()),
+                    (pending.kind.clone(), pending.id.clone()),
                     Live {
                         user_cancel: pending.user_cancel.clone(),
                         run_cancel: run_cancel.clone(),
@@ -389,14 +393,14 @@ impl Book {
 
             let book = Arc::clone(self);
             let Pending {
-                key,
+                kind,
                 id,
                 priority,
                 user_cancel,
                 factory,
             } = pending;
             let ctx = Ctx {
-                key,
+                kind: kind.clone(),
                 id: id.clone(),
                 priority,
                 user_cancel: user_cancel.clone(),
@@ -407,7 +411,7 @@ impl Book {
             self.tracker.spawn(async move {
                 let run = JobRun {
                     book: Arc::clone(&book),
-                    key,
+                    kind,
                     id: id.clone(),
                     priority,
                     user_cancel,
@@ -422,15 +426,15 @@ impl Book {
 
     fn complete(
         self: &Arc<Self>,
-        key: JobKind,
+        kind: K,
         id: &JobId,
         priority: JobPriority,
         user_cancel: &CancellationToken,
-        factory: &TaskFactory,
+        factory: &TaskFactory<K>,
         outcome: Result<JobOutcome, String>,
     ) {
         if matches!(&outcome, Ok(JobOutcome::Paused)) && !user_cancel.is_cancelled() {
-            self.park(key, id, priority, user_cancel, factory);
+            self.park(kind, id, priority, user_cancel, factory);
             return;
         }
         let state = if user_cancel.is_cancelled() {
@@ -441,21 +445,21 @@ impl Book {
             JobState::Done
         };
         if let Err(error) = &outcome {
-            eprintln!("job {key} {id:?} failed: {error}");
+            eprintln!("job {id:?} failed: {error}");
         }
         let board = {
             let mut book = self.lock();
-            book.live.remove(&(key, id.clone()));
+            book.live.remove(&(kind.clone(), id.clone()));
             let now = now_ms();
             if let Some(job) = book
                 .board
                 .iter_mut()
-                .find(|job| job.key == key && job.id == *id)
+                .find(|job| job.kind == kind && job.id == *id)
             {
                 job.state = state;
                 job.finished_at = Some(now);
             }
-            prune(&mut book, key);
+            prune(&mut book, kind);
             book.snapshot()
         };
         self.publish(board);
@@ -465,26 +469,26 @@ impl Book {
     /// Put a paused job back in the queue instead of ending it.
     fn park(
         self: &Arc<Self>,
-        key: JobKind,
+        kind: K,
         id: &JobId,
         priority: JobPriority,
         user_cancel: &CancellationToken,
-        factory: &TaskFactory,
+        factory: &TaskFactory<K>,
     ) {
         let board = {
             let mut state = self.lock();
-            state.live.remove(&(key, id.clone()));
+            state.live.remove(&(kind.clone(), id.clone()));
             if let Some(job) = state
                 .board
                 .iter_mut()
-                .find(|job| job.key == key && job.id == *id)
+                .find(|job| job.kind == kind && job.id == *id)
             {
                 job.state = JobState::Paused;
                 job.started_at = None;
                 job.finished_at = None;
             }
             state.queue.push(Pending {
-                key,
+                kind,
                 id: id.clone(),
                 priority,
                 user_cancel: user_cancel.clone(),
@@ -498,31 +502,31 @@ impl Book {
     }
 
     /// Drop the waiting items a predicate picks, and stop the running ones.
-    fn stop(&self, hit: impl Fn(JobKind, &JobId) -> bool) {
+    fn stop(&self, hit: impl Fn(K, &JobId) -> bool) {
         let board = {
             let mut book = self.lock();
             let mut dropped = Vec::new();
             book.queue.retain(|pending| {
-                if hit(pending.key, &pending.id) {
-                    dropped.push((pending.key, pending.id.clone()));
+                if hit(pending.kind.clone(), &pending.id) {
+                    dropped.push((pending.kind.clone(), pending.id.clone()));
                     false
                 } else {
                     true
                 }
             });
             let now = now_ms();
-            for (key, id) in &dropped {
+            for (kind, id) in &dropped {
                 if let Some(job) = book
                     .board
                     .iter_mut()
-                    .find(|job| job.key == *key && job.id == *id)
+                    .find(|job| job.kind == *kind && job.id == *id)
                 {
                     job.state = JobState::Cancelled;
                     job.finished_at = Some(now);
                 }
             }
-            for ((key, id), live) in &book.live {
-                if hit(*key, id) {
+            for ((kind, id), live) in &book.live {
+                if hit(kind.clone(), id) {
                     live.user_cancel.cancel();
                     live.run_cancel.cancel();
                 }
@@ -534,17 +538,17 @@ impl Book {
 }
 
 /// What the queue holds behind one lock.
-struct State {
+struct State<K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The board the UI sees, newest first.
-    board: Vec<Job>,
+    board: Vec<Job<K>>,
     /// Work waiting for a slot, highest priority first.
-    queue: Vec<Pending>,
+    queue: Vec<Pending<K>>,
     /// Work running now, with both tokens that stop it.
-    live: HashMap<LiveKey, Live>,
+    live: HashMap<LiveKey<K>, Live>,
 }
 
-impl State {
-    fn snapshot(&self) -> Vec<Job> {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static> State<K> {
+    fn snapshot(&self) -> Vec<Job<K>> {
         self.board.clone()
     }
 }
@@ -557,19 +561,19 @@ struct Live {
     priority: JobPriority,
 }
 
-struct Pending {
-    key: JobKind,
+struct Pending<K: Clone + Eq + Hash + Send + Sync + 'static> {
+    kind: K,
     id: JobId,
     priority: JobPriority,
     user_cancel: CancellationToken,
-    factory: TaskFactory,
+    factory: TaskFactory<K>,
 }
 
 /// Keeps the last [`KEEP_FINISHED`] finished jobs of a kind on the board.
-fn prune(state: &mut State, key: JobKind) {
+fn prune<K: Clone + Eq + Hash + Send + Sync + 'static>(state: &mut State<K>, kind: K) {
     let mut kept = 0;
     state.board.retain(|job| {
-        if job.key != key || job.state.is_live() {
+        if job.kind != kind || job.state.is_live() {
             return true;
         }
         kept += 1;
@@ -579,21 +583,21 @@ fn prune(state: &mut State, key: JobKind) {
 
 /// Reports the end of one job, whatever ends it - a plain return, an early
 /// return, or a panic - so nothing is left running on the board forever.
-struct JobRun {
-    book: Arc<Book>,
-    key: JobKind,
+struct JobRun<K: Clone + Eq + Hash + Send + Sync + 'static> {
+    book: Arc<Book<K>>,
+    kind: K,
     id: JobId,
     priority: JobPriority,
     user_cancel: CancellationToken,
-    factory: TaskFactory,
+    factory: TaskFactory<K>,
     reported: bool,
 }
 
-impl JobRun {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static> JobRun<K> {
     fn report(mut self, outcome: Result<JobOutcome, String>) {
         self.reported = true;
         self.book.complete(
-            self.key,
+            self.kind.clone(),
             &self.id,
             self.priority,
             &self.user_cancel,
@@ -603,13 +607,13 @@ impl JobRun {
     }
 }
 
-impl Drop for JobRun {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static> Drop for JobRun<K> {
     fn drop(&mut self) {
         if self.reported {
             return;
         }
         self.book.complete(
-            self.key,
+            self.kind.clone(),
             &self.id,
             self.priority,
             &self.user_cancel,
@@ -624,18 +628,18 @@ impl Drop for JobRun {
 /// Cheap to clone: whatever a task runs beside itself keeps reporting to the
 /// same job.
 #[derive(Clone)]
-pub struct Ctx {
-    key: JobKind,
+pub struct Ctx<K: Clone + Eq + Hash + Send + Sync + 'static> {
+    kind: K,
     id: JobId,
     priority: JobPriority,
     user_cancel: CancellationToken,
     cancel: CancellationToken,
-    book: Arc<Book>,
+    book: Arc<Book<K>>,
 }
 
-impl Ctx {
-    pub fn key(&self) -> JobKind {
-        self.key
+impl<K: Clone + Eq + Hash + Send + Sync + 'static> Ctx<K> {
+    pub fn kind(&self) -> &K {
+        &self.kind
     }
 
     pub fn id(&self) -> &JobId {
@@ -656,7 +660,7 @@ impl Ctx {
     }
 
     /// This job's view of the queue's pause flag.
-    pub fn pause_token(&self) -> PauseToken {
+    pub fn pause_token(&self) -> PauseToken<K> {
         PauseToken {
             book: Arc::clone(&self.book),
             pausable: self.priority.is_pausable(),
@@ -725,7 +729,7 @@ impl Ctx {
             let Some(job) = book
                 .board
                 .iter_mut()
-                .find(|job| job.key == self.key && job.id == self.id)
+                .find(|job| job.kind == self.kind && job.id == self.id)
             else {
                 return;
             };
@@ -749,12 +753,12 @@ impl Ctx {
 
 /// A job's view of the queue's pause flag.
 #[derive(Clone)]
-pub struct PauseToken {
-    book: Arc<Book>,
+pub struct PauseToken<K: Clone + Eq + Hash + Send + Sync + 'static> {
+    book: Arc<Book<K>>,
     pausable: bool,
 }
 
-impl PauseToken {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static> PauseToken<K> {
     /// Whether the queue is paused and this job should stop at a safe point.
     pub fn requested(&self) -> bool {
         self.pausable && self.book.is_paused()
@@ -772,13 +776,13 @@ impl PauseToken {
     }
 }
 
-async fn wait_until_paused(book: &Book) {
+async fn wait_until_paused<K: Clone + Eq + Hash + Send + Sync + 'static>(book: &Book<K>) {
     while !book.is_paused() {
         tokio::time::sleep(PAUSE_POLL).await;
     }
 }
 
-async fn wait_until_resumed(book: &Book) {
+async fn wait_until_resumed<K: Clone + Eq + Hash + Send + Sync + 'static>(book: &Book<K>) {
     while book.is_paused() {
         tokio::time::sleep(PAUSE_POLL).await;
     }

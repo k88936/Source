@@ -1,8 +1,8 @@
 import {api, listen} from '#lib/api/client';
 import type {CatalogChangedEvent} from '#lib/api/bindings/CatalogChangedEvent';
 import type {AccountState} from '#lib/api/bindings/AccountState';
-import type {QueuedUpload} from '#lib/api/bindings/QueuedUpload';
 import type {Job} from '#lib/api/bindings/Job';
+import type {JobKind} from '#lib/api/bindings/JobKind';
 import {errorText} from '#lib/errors/i18n';
 import {appMessages} from './app.i18n';
 import {changes} from './changes';
@@ -13,9 +13,8 @@ export type ToastKind = 'success' | 'error' | 'info';
 export class AppState {
     account = $state<AccountState | null>(null);
     ready = $state(false);
-    uploads = $state<QueuedUpload[]>([]);
     /** The queue's board: every job this process ran, newest first. */
-    jobs = $state<Job[]>([]);
+    jobs = $state<Job<JobKind>[]>([]);
     /** Whether background work is paused, persisted by the adapter. */
     jobsPaused = $state(false);
     columns = $state(3);
@@ -49,18 +48,8 @@ export class AppState {
         await listen<CatalogChangedEvent>('catalog://changed', (payload) => {
             changes.emit(payload);
         });
-        await listen<{taskId: string}>('upload://state', () => {
-            void this.refreshUploads();
-        });
-        await listen<Job[]>('job://changed', (payload) => {
+        await listen<Job<JobKind>[]>('job://changed', (payload) => {
             this.jobs = payload;
-        });
-        await listen<{taskId: string; uploaded: number; total: number}>('upload://progress', (payload) => {
-            const task = this.uploads.find((t) => t.id === payload.taskId);
-            if (task) {
-                task.uploaded = payload.uploaded;
-                task.total = payload.total;
-            }
         });
         if (typeof window !== 'undefined') {
             window.addEventListener('online', () => this.showToast(i18n.pick(appMessages).online, 'success'));
@@ -69,7 +58,6 @@ export class AppState {
     }
 
     async afterLogin(): Promise<void> {
-        await this.refreshUploads();
         await this.refreshJobs();
     }
 
@@ -92,23 +80,6 @@ export class AppState {
 
     async refreshAccount(): Promise<void> {
         this.account = await api.accountState();
-    }
-
-    async refreshUploads(): Promise<void> {
-        try {
-            this.uploads = await api.uploadTasks();
-        } catch {
-            // uploads are best-effort on old servers
-        }
-    }
-
-    async retryUpload(taskId: string): Promise<void> {
-        try {
-            await api.retryUpload({taskId});
-            await this.refreshUploads();
-        } catch (err) {
-            this.showToast(this.describeError(err), 'error');
-        }
     }
 
     setColumns(columns: number): void {
@@ -134,7 +105,7 @@ export class AppState {
             await api.logout();
         } finally {
             this.account = null;
-            this.uploads = [];
+            this.jobs = [];
         }
     }
 }
