@@ -1,14 +1,28 @@
 //! Password / OTP login and session restore, built on the raw auth endpoints so
 //! 2FA challenges survive the typed SDK layer.
 
-use cloudreve_sdk_api::ApiError;
+use std::time::Duration;
+
 use cloudreve_sdk_api::api::{SiteApi, UserApi};
 use cloudreve_sdk_api::models::user::Token;
 
-use super::cloudreve::CloudreveAuth;
+use super::cloudreve::{CloudreveAuth, wait, within_deadline};
 use super::raw::{LoginData, raw_post, user_info};
 use super::*;
+use crate::error::ErrorCode;
 use crate::remote::map_api_error;
+use crate::task::Retry;
+
+/// What restoring a session costs before the window settles for the account row
+/// alone.
+///
+/// A port forward can accept the connection while the container behind it is
+/// still coming up, so a request that ran out of time is worth repeating; the
+/// stored identity is only shown once every try is gone.
+const RESTORE_RETRY: Retry = Retry {
+    attempts: 2,
+    base: Duration::from_secs(2),
+};
 
 impl CloudreveAuth {
     pub(crate) async fn authenticate(
@@ -103,20 +117,25 @@ impl CloudreveAuth {
             .set_tokens_with_expiry(&token)
             .await
             .map_err(map_api_error)?;
-        match client.get_user_me().await {
-            Ok(user) => {
-                let user = user_info(&user);
-                let site_name = self.site_name_of(&client).await;
-                self.install(base, client);
-                Ok(Some(SignedIn { user, site_name }))
+        let mut retried = 0;
+        loop {
+            match within_deadline(client.get_user_me()).await {
+                Ok(user) => {
+                    let user = user_info(&user);
+                    let site_name = self.site_name_of(&client).await;
+                    self.install(base, Arc::clone(&client));
+                    return Ok(Some(SignedIn { user, site_name }));
+                }
+                Err(err) if matches!(err.code, ErrorCode::Unauthorized) => {
+                    self.clear_token(base);
+                    return Ok(None);
+                }
+                Err(err) if err.retryable && retried < RESTORE_RETRY.attempts => {
+                    retried += 1;
+                    wait(RESTORE_RETRY.delay(retried)).await;
+                }
+                Err(err) => return Err(err),
             }
-            Err(ApiError::LoginRequired(_))
-            | Err(ApiError::AccessTokenExpired)
-            | Err(ApiError::RefreshTokenExpired) => {
-                self.clear_token(base);
-                Ok(None)
-            }
-            Err(err) => Err(map_api_error(err)),
         }
     }
 
@@ -139,12 +158,8 @@ impl CloudreveAuth {
 impl RemoteAuth for CloudreveAuth {
     async fn site_info(&self, base_url: &str) -> Result<SiteInfo, AppError> {
         let client = self.client_for(base_url.trim_end_matches('/'));
-        let cfg = client
-            .get_site_config("basic")
-            .await
-            .map_err(map_api_error)?;
-        let thumbnail_size = client
-            .get_site_config("thumb")
+        let cfg = within_deadline(client.get_site_config("basic")).await?;
+        let thumbnail_size = within_deadline(client.get_site_config("thumb"))
             .await
             .ok()
             .and_then(|c| c.thumbnail_width)
