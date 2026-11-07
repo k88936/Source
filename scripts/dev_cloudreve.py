@@ -37,7 +37,7 @@ CONFIG_PATH = TMP / "cloudreve.json"
 EXAMPLE_DIR = TMP / "example" / "example-dir"
 
 CONTAINER = "source-dev-cloudreve"
-DEFAULT_IMAGE = "docker.io/cloudreve/cloudreve:4.19.1"
+CONTAINER_IMAGE = "docker.io/cloudreve/cloudreve:4.19.1"
 CONTAINER_DATA = "/cloudreve/data"
 CONTAINER_PORT = 5212
 
@@ -45,7 +45,7 @@ EMAIL = "dev@source.local"
 PASSWORD = "source-dev"
 REMOTE_DIR = "cloudreve://my/example-dir"
 
-IMAGE_COUNT = 6
+IMAGE_COUNT = 128
 IMAGE_SIZE = 64
 
 # Set once this process adopts or creates the container; from then on it owns the
@@ -379,17 +379,6 @@ def main() -> None:
         action="store_true",
         help="remove the container and its data directory before starting",
     )
-    parser.add_argument(
-        "--image",
-        default=DEFAULT_IMAGE,
-        help=f"Cloudreve image to run (default: {DEFAULT_IMAGE})",
-    )
-    parser.add_argument(
-        "--count",
-        type=int,
-        default=IMAGE_COUNT,
-        help=f"how many example images to upload (default: {IMAGE_COUNT})",
-    )
     args = parser.parse_args()
 
     for command in ("podman",):
@@ -399,12 +388,13 @@ def main() -> None:
     ensure_data_dir_not_shared()
     if args.clean:
         clean()
+        return
 
-    endpoint = start_container(args.image)
+    endpoint = start_container(CONTAINER_IMAGE)
     with http_client(endpoint) as client:
         token = ensure_admin(client)
         ensure_remote_dir(client, token)
-        images = example_images(args.count)
+        images = example_images(IMAGE_COUNT)
         for path in images:
             try:
                 log(f"Uploading {upload_file(client, token, path)}")
