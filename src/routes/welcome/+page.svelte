@@ -69,7 +69,7 @@
     }
 
     async function finish(account: AccountState) {
-        app.account = account;
+        app.applySession({account, setup: 'live'});
         await app.afterLogin();
         await goto(resolve('/photos'));
     }

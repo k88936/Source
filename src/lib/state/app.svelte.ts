@@ -3,6 +3,7 @@ import type {CatalogChangedEvent} from '#lib/api/bindings/CatalogChangedEvent';
 import type {AccountState} from '#lib/api/bindings/AccountState';
 import type {Job} from '#lib/api/bindings/Job';
 import type {JobKind} from '#lib/api/bindings/JobKind';
+import type {SessionState} from '#lib/api/bindings/SessionState';
 import {errorText} from '#lib/errors/i18n';
 import {appMessages} from './app.i18n';
 import {changes} from './changes';
@@ -12,6 +13,8 @@ export type ToastKind = 'success' | 'error' | 'info';
 
 export class AppState {
     account = $state<AccountState | null>(null);
+    /** What the client behind the account can do right now. */
+    setup = $state<SessionState['setup']>('restoring');
     ready = $state(false);
     /** The queue's board: every job this process ran, newest first. */
     jobs = $state<Job<JobKind>[]>([]);
@@ -34,23 +37,26 @@ export class AppState {
         } catch (err) {
             this.showToast(this.describeError(err), 'error');
         }
-        try {
-            this.account = await api.accountState();
-            if (this.account) {
-                await this.afterLogin();
-            }
-        } catch (err) {
-            this.describeError(err);
-        } finally {
-            this.ready = true;
-        }
-
+        // The listeners come before the first poll: the stored session is
+        // checked in the background and its verdict arrives as an event, which
+        // a poll taken before subscribing would miss.
+        await listen<SessionState>('session://setup', (payload) => {
+            this.applySession(payload);
+            if (payload.setup === 'live') void this.afterLogin();
+        });
         await listen<CatalogChangedEvent>('catalog://changed', (payload) => {
             changes.emit(payload);
         });
         await listen<Job<JobKind>[]>('job://changed', (payload) => {
             this.jobs = payload;
         });
+        try {
+            await this.syncSession();
+        } catch (err) {
+            this.describeError(err);
+        } finally {
+            this.ready = true;
+        }
         if (typeof window !== 'undefined') {
             window.addEventListener('online', () => this.showToast(i18n.pick(appMessages).online, 'success'));
             window.addEventListener('offline', () => this.showToast(i18n.pick(appMessages).offline, 'info'));
@@ -78,8 +84,20 @@ export class AppState {
         }
     }
 
+    /** Read the row on disk and what the client behind it can do. */
+    async syncSession(): Promise<void> {
+        const state = await api.sessionState();
+        this.applySession(state);
+        if (state.account) await this.afterLogin();
+    }
+
+    applySession(state: SessionState): void {
+        this.account = state.account;
+        this.setup = state.setup;
+    }
+
     async refreshAccount(): Promise<void> {
-        this.account = await api.accountState();
+        await this.syncSession();
     }
 
     setColumns(columns: number): void {

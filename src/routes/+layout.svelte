@@ -31,7 +31,7 @@
         // here inspects an error kind.
         let unlisten: (() => void) | undefined;
         void listen('session://lost', () => {
-            app.account = null;
+            app.applySession({account: null, setup: 'offline'});
             app.showToast(t.sessionExpired, 'error');
             void goto(resolve('/welcome'));
         }).then((remove) => {

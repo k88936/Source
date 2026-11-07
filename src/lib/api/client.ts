@@ -37,6 +37,7 @@ import type {SetAlbumDescriptionParams} from './bindings/SetAlbumDescriptionPara
 import type {SetFavoriteParams} from './bindings/SetFavoriteParams';
 import type {SetJobsPausedParams} from './bindings/SetJobsPausedParams';
 import type {SetServerParams} from './bindings/SetServerParams';
+import type {SessionState} from './bindings/SessionState';
 import type {SiteInfo} from './bindings/SiteInfo';
 import type {TimelinePage} from './bindings/TimelinePage';
 import type {TimelinePageParams} from './bindings/TimelinePageParams';
@@ -59,7 +60,7 @@ export const api = {
     login: (params: LoginParams) => call<LoginOutcome>('login', params),
     login2fa: (params: Login2faParams) => call<AccountState>('login_2fa', params),
     logout: () => call<void>('logout'),
-    accountState: () => call<AccountState | null>('account_state'),
+    sessionState: () => call<SessionState>('session_state'),
     capacity: () => call<Capacity>('capacity'),
 
     listRemoteFolders: (params: ListRemoteFoldersParams) => call<RemoteFolderPage>('list_remote_folders', params),

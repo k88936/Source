@@ -61,8 +61,8 @@ function run(command: string, params: Record<string, unknown>): unknown {
         case 'logout':
             return undefined;
 
-        case 'account_state':
-            return demo.account;
+        case 'session_state':
+            return {account: demo.account, setup: 'live'};
 
         case 'capacity':
             return demo.capacity;
