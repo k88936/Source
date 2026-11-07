@@ -2,6 +2,7 @@
     import type {Snippet} from 'svelte';
     import {ChevronLeft} from '@lucide/svelte';
     import {resolve} from '$app/paths';
+    import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
     import {common} from '#lib/i18n/common.i18n';
 
@@ -32,6 +33,13 @@
         ? 'bg-transparent'
         : 'border-b border-line bg-light/90 backdrop-blur-xl'}"
 >
+    <!-- Edge on a phone marks the same state this way: one thin grey line at
+    the top, not a toast, gone the moment the client answers again. -->
+    {#if app.setup === 'offline' && app.account}
+        <p class="flex h-6 items-center justify-center bg-gray text-[11px] text-muted">
+            {t.offline}
+        </p>
+    {/if}
     <div class="flex h-(--navbar-height) w-full items-center gap-2 px-2 sidebar:px-6">
         {#if back}
             <button
