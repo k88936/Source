@@ -1,6 +1,7 @@
 <script lang="ts">
     import type {Snippet} from 'svelte';
     import {ChevronLeft} from '@lucide/svelte';
+    import {resolve} from '$app/paths';
     import {i18n} from '#lib/state/i18n.svelte';
     import {common} from '#lib/i18n/common.i18n';
 
@@ -22,7 +23,7 @@
 
     function goBack() {
         if (history.length > 1) history.back();
-        else location.href = '/photos';
+        else location.href = resolve('/photos');
     }
 </script>
 

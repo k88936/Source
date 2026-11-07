@@ -1,5 +1,6 @@
 <script lang="ts">
     import {goto} from '$app/navigation';
+    import {resolve} from '$app/paths';
     import {page} from '$app/state';
     import {api} from '#lib/api/client';
     import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
@@ -115,7 +116,7 @@
         try {
             await api.removeLocalAlbum({id: album.id});
             app.showToast(t.unlinked, 'success');
-            await goto('/library/local');
+            await goto(resolve('/library/local'));
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         }

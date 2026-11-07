@@ -1,5 +1,6 @@
 <script lang="ts">
     import {onMount} from 'svelte';
+    import {resolve} from '$app/paths';
     import {api} from '#lib/api/client';
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
@@ -100,7 +101,7 @@
         {#each albums as album (album.id)}
             <li>
                 <a
-                    href="/library/{encodeURIComponent(album.id)}"
+                    href={resolve('/library/[id]', {id: album.id})}
                     class="flex items-center gap-3 rounded-2xl bg-gray p-3 transition-colors hover:bg-line/40"
                 >
                     <div class="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">

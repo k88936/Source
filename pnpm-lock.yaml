@@ -45,6 +45,9 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      devices.css:
+        specifier: ^0.2.0
+        version: 0.2.0
       prettier:
         specifier: ^3.6.2
         version: 3.9.10
@@ -487,6 +490,9 @@ packages:
 
   devalue@5.9.4:
     resolution: {integrity: sha512-sPAT4pztbu6586/hrhOnMKS17IJrvg12mXiSPSS3W5qDeN2RGgvZ0diZCm31dBbnevfVmujNO3IM2wrS4Y2Rhg==}
+
+  devices.css@0.2.0:
+    resolution: {integrity: sha512-CE59M+4PuH87+A4clpC1xA/lkfCSGFWfeFx5sNadDdy1kXUqJ28SdTp+tBlwkHfI7G+h/Wf4Ddt9QGPLLlky3Q==}
 
   enhanced-resolve@5.26.0:
     resolution: {integrity: sha512-9vhedylFonb2YGogzUKX6+Ja72gOJbN1QHAqdrvqLwhdl/QWbKopzoUC9EbQNVsAns/bx/4uyqalrQAoy1IByw==}
@@ -1223,6 +1229,8 @@ snapshots:
   detect-libc@2.1.2: {}
 
   devalue@5.9.4: {}
+
+  devices.css@0.2.0: {}
 
   enhanced-resolve@5.26.0:
     dependencies:

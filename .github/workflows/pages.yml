@@ -1,0 +1,84 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The demo points <img> straight at bing.com, so the manifest is the only
+      # thing that has to be fetched ahead of time. Today's eight images plus the
+      # three pages behind them give the timeline its days.
+      - name: Fetch the Bing daily images
+        run: |
+          node <<'JS'
+          const {writeFileSync} = require('node:fs');
+
+          async function main() {
+              const images = [];
+              for (const idx of [0, 8, 16, 24]) {
+                  const url = `https://www.bing.com/HPImageArchive.aspx?format=js&idx=${idx}&n=8&mkt=zh-CN`;
+                  const body = await (await fetch(url)).json();
+                  for (const image of body.images) {
+                      images.push({date: image.startdate, url: image.url, copyright: image.copyright});
+                  }
+              }
+              writeFileSync('src/demo/bing.json', `${JSON.stringify(images, null, 4)}\n`);
+              console.log(`demo images: ${images.length}`);
+          }
+
+          main().catch((error) => {
+              console.error(error);
+              process.exit(1);
+          });
+          JS
+
+      - run: pnpm demo:build
+
+      - run: pnpm site:build
+
+      # The demo lives under the site so the iframe stays same-origin, and
+      # index.html doubles as the 404 page so a deep link still boots the app.
+      - name: Assemble the site
+        run: |
+          mkdir -p site/dist/app
+          cp -r dist-demo/. site/dist/app/
+          cp site/dist/app/index.html site/dist/404.html
+          touch site/dist/.nojekyll
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

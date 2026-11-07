@@ -1,6 +1,6 @@
 import type {Bundle, Locale} from '#lib/i18n/bundle';
 
-const KEY = 'album-locale';
+const KEY = 'source-locale';
 
 const TAGS: Record<Locale, string> = {zh: 'zh-CN', en: 'en-US'};
 

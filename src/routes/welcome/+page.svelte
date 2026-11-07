@@ -1,5 +1,6 @@
 <script lang="ts">
     import {goto} from '$app/navigation';
+    import {resolve} from '$app/paths';
     import {api} from '#lib/api/client';
     import type {AccountState} from '#lib/api/bindings/AccountState';
     import {Cloud} from '@lucide/svelte';
@@ -8,7 +9,7 @@
     import {common} from '#lib/i18n/common.i18n';
     import {welcome} from './page.i18n';
 
-    let server = $state((typeof localStorage !== 'undefined' && localStorage.getItem('album-server')) || '');
+    let server = $state((typeof localStorage !== 'undefined' && localStorage.getItem('source-server')) || '');
     let email = $state('');
     let password = $state('');
     let otp = $state('');
@@ -34,7 +35,7 @@
         try {
             const baseUrl = server.trim().replace(/\/+$/, '');
             await api.setServer({baseUrl});
-            if (typeof localStorage !== 'undefined') localStorage.setItem('album-server', baseUrl);
+            if (typeof localStorage !== 'undefined') localStorage.setItem('source-server', baseUrl);
             const outcome = await api.login({email: email.trim(), password});
             if (outcome.kind === 'twoFactorRequired') {
                 sessionId = outcome.sessionId;
@@ -70,7 +71,7 @@
     async function finish(account: AccountState) {
         app.account = account;
         await app.afterLogin();
-        await goto('/photos');
+        await goto(resolve('/photos'));
     }
 </script>
 

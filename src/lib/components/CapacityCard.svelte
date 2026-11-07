@@ -1,4 +1,5 @@
 <script lang="ts">
+    import {resolve} from '$app/paths';
     import {onMount} from 'svelte';
     import {api} from '#lib/api/client';
     import type {Capacity} from '#lib/api/bindings/Capacity';
@@ -28,7 +29,7 @@
     });
 </script>
 
-<a href="/settings" class="block rounded-2xl bg-gray p-4 transition-colors hover:bg-line/40">
+<a href={resolve('/settings')} class="block rounded-2xl bg-gray p-4 transition-colors hover:bg-line/40">
     <div class="flex items-center gap-3">
         <div
             class="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-lg font-semibold text-on-primary"

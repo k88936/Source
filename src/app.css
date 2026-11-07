@@ -51,6 +51,35 @@
         overscroll-behavior: none;
     }
 
+    /* Android shows a transient bar while scrolling; a permanent desktop bar
+       reads as a floating pill over the app. */
+    html {
+        scrollbar-width: none;
+    }
+
+    ::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* The app is touch-driven: a mouse drag would paint a text selection over
+       the interface. Fields opt back in explicitly. */
+    html {
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    input,
+    textarea,
+    [contenteditable='true'] {
+        -webkit-user-select: text;
+        user-select: text;
+    }
+
+    img,
+    a {
+        -webkit-user-drag: none;
+    }
+
     /* `light` / `dark` / `gray` / `muted` flip by themselves through the theme's `.dark` block. */
     body {
         @apply bg-light text-dark;

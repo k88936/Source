@@ -24,7 +24,7 @@ export class AppState {
     async init(): Promise<void> {
         if (this.started) return;
         this.started = true;
-        const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('album-columns') : null;
+        const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('source-columns') : null;
         if (stored) {
             const n = Number(stored);
             if (n >= 2 && n <= 6) this.columns = n;
@@ -113,7 +113,7 @@ export class AppState {
     setColumns(columns: number): void {
         this.columns = Math.min(6, Math.max(2, columns));
         if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('album-columns', String(this.columns));
+            localStorage.setItem('source-columns', String(this.columns));
         }
     }
 

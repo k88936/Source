@@ -1,5 +1,6 @@
+import {resolve} from '$app/paths';
 import {redirect} from '@sveltejs/kit';
 
 export const load = () => {
-    redirect(307, '/photos');
+    redirect(307, resolve('/photos'));
 };

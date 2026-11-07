@@ -1,5 +1,6 @@
 <script lang="ts">
     import {goto} from '$app/navigation';
+    import {resolve} from '$app/paths';
     import {page} from '$app/state';
     import {api} from '#lib/api/client';
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
@@ -119,7 +120,7 @@
         try {
             await api.removeAlbum({albumId: album.id});
             app.showToast(t.removed, 'success');
-            await goto('/albums');
+            await goto(resolve('/albums'));
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
         }
@@ -292,7 +293,7 @@
         title={t.empty}
         description={t.emptyHint}
         actionLabel={t.uploadPhotos}
-        onAction={() => void goto('/library?upload=1')}
+        onAction={() => void goto(resolve('/library?upload=1'))}
     />
 {:else}
     <AssetGrid

@@ -1,6 +1,6 @@
 <script lang="ts">
     import {onMount} from 'svelte';
-    import {page} from '$app/state';
+    import {resolve} from '$app/paths';
     import {api} from '#lib/api/client';
     import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
     import CapacityCard from '#lib/components/CapacityCard.svelte';
@@ -84,7 +84,7 @@
     <CapacityCard />
 
     <div class="flex items-center gap-3 rounded-2xl bg-gray p-4">
-        <a href="/library/local" class="flex min-w-0 flex-1 items-center gap-3 transition-opacity hover:opacity-80">
+        <a href={resolve('/library/local')} class="flex min-w-0 flex-1 items-center gap-3 transition-opacity hover:opacity-80">
             <div class="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                 <Folder size={22} />
             </div>

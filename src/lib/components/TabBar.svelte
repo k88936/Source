@@ -1,5 +1,6 @@
 <script lang="ts">
     import {Image, Images, LibraryBig, Search} from '@lucide/svelte';
+    import {resolve} from '$app/paths';
     import {page} from '$app/state';
     import {i18n} from '#lib/state/i18n.svelte';
     import {nav} from '#lib/i18n/nav.i18n';
@@ -7,10 +8,10 @@
     const t = $derived(i18n.pick(nav));
 
     const tabs = $derived([
-        {href: '/photos', label: t.photos, icon: Image},
-        {href: '/search', label: t.search, icon: Search},
-        {href: '/albums', label: t.albums, icon: Images},
-        {href: '/library', label: t.library, icon: LibraryBig},
+        {href: resolve('/photos'), label: t.photos, icon: Image},
+        {href: resolve('/search'), label: t.search, icon: Search},
+        {href: resolve('/albums'), label: t.albums, icon: Images},
+        {href: resolve('/library'), label: t.library, icon: LibraryBig},
     ]);
 
     function active(href: string): boolean {

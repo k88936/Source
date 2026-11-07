@@ -1,6 +1,7 @@
 <script lang="ts">
     import {onMount} from 'svelte';
     import {goto} from '$app/navigation';
+    import {resolve} from '$app/paths';
     import {api} from '#lib/api/client';
     import type {AppInfo} from '#lib/api/bindings/AppInfo';
     import type {CacheStats} from '#lib/api/bindings/CacheStats';
@@ -65,7 +66,7 @@
 
     async function logout() {
         await app.logout();
-        await goto('/welcome');
+        await goto(resolve('/welcome'));
     }
 
     async function runConfirm() {

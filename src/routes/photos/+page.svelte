@@ -1,6 +1,7 @@
 <script lang="ts">
     import {onMount} from 'svelte';
     import {goto} from '$app/navigation';
+    import {resolve} from '$app/paths';
     import {api} from '#lib/api/client';
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
@@ -136,7 +137,7 @@
         title={timeline.error ? t.failed : t.empty}
         description={timeline.error}
         actionLabel={timeline.error ? c.retry : t.addAlbum}
-        onAction={() => (timeline.error ? void timeline.reload() : void goto('/albums'))}
+        onAction={() => (timeline.error ? void timeline.reload() : void goto(resolve('/albums')))}
     />
 {:else}
     <AssetGrid

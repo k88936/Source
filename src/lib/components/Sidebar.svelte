@@ -1,4 +1,5 @@
 <script lang="ts">
+    import {resolve} from '$app/paths';
     import {page} from '$app/state';
     import {i18n} from '#lib/state/i18n.svelte';
     import {nav} from '#lib/i18n/nav.i18n';
@@ -7,11 +8,11 @@
     const t = $derived(i18n.pick(nav));
 
     const items = $derived([
-        {href: '/photos', label: t.photos, icon: Image},
-        {href: '/search', label: t.search, icon: Search},
-        {href: '/albums', label: t.albums, icon: Images},
-        {href: '/library', label: t.library, icon: LibraryBig},
-        {href: '/settings', label: t.settings, icon: Settings},
+        {href: resolve('/photos'), label: t.photos, icon: Image},
+        {href: resolve('/search'), label: t.search, icon: Search},
+        {href: resolve('/albums'), label: t.albums, icon: Images},
+        {href: resolve('/library'), label: t.library, icon: LibraryBig},
+        {href: resolve('/settings'), label: t.settings, icon: Settings},
     ]);
 
     function active(href: string): boolean {
@@ -21,7 +22,7 @@
 
 <!-- Desktop shell: the phone bottom bar would read as a stretched phone. -->
 <aside class="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-e border-line bg-light px-3 py-4 sidebar:flex">
-    <a href="/photos" class="mb-6 flex items-center gap-3 px-2 py-1">
+    <a href={resolve('/photos')} class="mb-6 flex items-center gap-3 px-2 py-1">
         <span class="grid size-9 place-items-center rounded-xl bg-primary text-on-primary">
             <Cloud size={20} />
         </span>

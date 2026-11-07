@@ -5,6 +5,7 @@
     import '@saurl/tauri-plugin-safe-area-insets-css-api';
     import {onMount} from 'svelte';
     import {goto} from '$app/navigation';
+    import {resolve} from '$app/paths';
     import {page} from '$app/state';
     import {Cloud} from '@lucide/svelte';
     import Sidebar from '#lib/components/Sidebar.svelte';
@@ -20,26 +21,26 @@
 
     // The shell (sidebar gutter + tab bar) belongs to the signed-in pages only:
     // the login screen is a standalone card, so it must not reserve the sidebar.
-    const shell = $derived(app.ready && !!app.account && page.url.pathname !== '/welcome');
+    const shell = $derived(app.ready && !!app.account && page.route.id !== '/welcome');
 
     onMount(() => {
         void app.init();
         const onUnauthorized = () => {
             app.account = null;
             app.showToast(t.sessionExpired, 'error');
-            void goto('/welcome');
+            void goto(resolve('/welcome'));
         };
-        window.addEventListener('album:unauthorized', onUnauthorized);
-        return () => window.removeEventListener('album:unauthorized', onUnauthorized);
+        window.addEventListener('source:unauthorized', onUnauthorized);
+        return () => window.removeEventListener('source:unauthorized', onUnauthorized);
     });
 
     $effect(() => {
         if (!app.ready) return;
-        const path = page.url.pathname;
-        if (!app.account && path !== '/welcome') {
-            void goto('/welcome');
-        } else if (app.account && path === '/welcome') {
-            void goto('/photos');
+        const route = page.route.id;
+        if (!app.account && route !== '/welcome') {
+            void goto(resolve('/welcome'));
+        } else if (app.account && route === '/welcome') {
+            void goto(resolve('/photos'));
         }
     });
 </script>

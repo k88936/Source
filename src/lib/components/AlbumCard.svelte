@@ -1,4 +1,5 @@
 <script lang="ts">
+    import {resolve} from '$app/paths';
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import {Images} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
@@ -19,7 +20,7 @@
 </script>
 
 <a
-    href="/albums/{album.id}"
+    href={resolve('/albums/[id]', {id: album.id})}
     class="group block rounded-2xl border border-transparent p-4 transition-colors hover:border-line hover:bg-gray sidebar:p-5"
 >
     <div class="relative aspect-square overflow-hidden rounded-xl bg-gray">

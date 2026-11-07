@@ -41,7 +41,7 @@ import type {TimelinePage} from './bindings/TimelinePage';
 import type {TimelinePageParams} from './bindings/TimelinePageParams';
 import type {UploadTask} from './bindings/UploadTask';
 import type {UploadTaskParams} from './bindings/UploadTaskParams';
-import {transport} from './transport';
+import {transport} from '#lib/api/transport';
 
 async function call<T>(command: string, params?: unknown): Promise<T> {
     try {
@@ -54,7 +54,7 @@ async function call<T>(command: string, params?: unknown): Promise<T> {
             'code' in err &&
             (err as {code?: string}).code === 'unauthorized'
         ) {
-            window.dispatchEvent(new Event('album:unauthorized'));
+            window.dispatchEvent(new Event('source:unauthorized'));
         }
         throw err;
     }
