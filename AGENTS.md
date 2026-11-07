@@ -1,8 +1,8 @@
 # Dev
 
-the tauri desktop build is only for dev purpose.
+* the tauri desktop build is only for dev purpose.
 
-all feature must consider android compatibility
+* all feature must consider android compatibility
 
 ```shell
 # start podman for a cloudreve server for dev.
@@ -14,6 +14,8 @@ pnpm dev
 xvfb-run -a -s "-screen 0 1400x1000x24" ./target/debug/source --debug-cdp-port {CDP_PORT}
 
 ```
+
+* NEVER use android vm to debug or test unless required.
 
 ## Observability
 
