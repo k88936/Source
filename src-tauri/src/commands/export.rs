@@ -10,7 +10,7 @@ pub(crate) fn cache_stats(state: State<'_, AppState>) -> CacheStats {
 }
 
 #[tauri::command]
-pub(crate) fn clear_cache(state: State<'_, AppState>) -> Result<(), AppError> {
+pub(crate) fn clear_cache(state: State<'_, AppState>) -> Result<(), MediaError> {
     state.cache.clear()
 }
 
@@ -19,22 +19,35 @@ pub(crate) async fn export_assets(
     app: AppHandle,
     state: State<'_, AppState>,
     params: ExportAssetsParams,
-) -> Result<ExportResult, AppError> {
+) -> Result<ExportResult, ExportError> {
     let directory = app
         .path()
         .download_dir()
         .unwrap_or_else(|_| state.app_data.join("exports"))
         .join("Source");
-    std::fs::create_dir_all(&directory)
-        .map_err(|e| AppError::internal(format!("创建导出目录失败: {e}")))?;
+    std::fs::create_dir_all(&directory).map_err(|cause| ExportError::DirectoryUnwritable {
+        cause: format!("创建导出目录失败: {cause}"),
+    })?;
     let mut exported = 0u32;
     for id in params.asset_ids {
-        let detail = state.core.browse.get_asset_detail(&id.0).await?;
-        let bytes = state.core.browse.get_media_bytes(&id.0).await?;
+        let detail = state
+            .core
+            .browse
+            .get_asset_detail(&id.0)
+            .await
+            .map_err(|cause| ExportError::Asset { cause })?;
+        let bytes = state
+            .core
+            .browse
+            .get_media_bytes(&id.0)
+            .await
+            .map_err(|cause| ExportError::Asset { cause })?;
         let name = sanitize_filename(&detail.download_name);
         let path = unique_path(&directory, &name);
-        std::fs::write(&path, bytes)
-            .map_err(|e| AppError::internal(format!("写入导出文件失败: {e}")))?;
+        std::fs::write(&path, bytes).map_err(|cause| ExportError::WriteFailed {
+            path: path.to_string_lossy().to_string(),
+            cause: cause.to_string(),
+        })?;
         exported += 1;
     }
     Ok(ExportResult {

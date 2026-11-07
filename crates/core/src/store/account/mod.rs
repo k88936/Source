@@ -31,20 +31,20 @@ pub(crate) const CURRENT_ACCOUNT: &str = "current_account";
 pub trait AccountStore: Send + Sync {
     /// The account `current_account` points at, so `None` means "no library
     /// chosen yet".
-    async fn get_current_account(&self) -> Result<Option<Account>, AppError>;
+    async fn get_current_account(&self) -> Result<Option<Account>, CatalogError>;
     /// The account remembered for `base_url`, if that server was used before.
-    async fn get_account(&self, base_url: &str) -> Result<Option<Account>, AppError>;
+    async fn get_account(&self, base_url: &str) -> Result<Option<Account>, CatalogError>;
     /// Insert or update the row and make it the current account.
-    async fn save_account(&self, value: &Account) -> Result<(), AppError>;
+    async fn save_account(&self, value: &Account) -> Result<(), CatalogError>;
     /// Drop everything that belongs to the previous server.
     ///
     /// The catalog is single-account: albums, their assets, the local album
     /// registry and its mapping all point at folders of the server the current
     /// account lives on, so they cannot survive a different one.
-    async fn reset_catalog(&self) -> Result<(), AppError>;
+    async fn reset_catalog(&self) -> Result<(), CatalogError>;
 }
 
-pub(crate) async fn get_current_account(cat: &SqliteCatalog) -> Result<Option<Account>, AppError> {
+pub(crate) async fn get_current_account(cat: &SqliteCatalog) -> Result<Option<Account>, CatalogError> {
     let mut conn = cat.conn().await?;
     let base_url = app_state::table
         .filter(app_state::key.eq(CURRENT_ACCOUNT))
@@ -63,13 +63,13 @@ pub(crate) async fn get_current_account(cat: &SqliteCatalog) -> Result<Option<Ac
 pub(crate) async fn get_account(
     cat: &SqliteCatalog,
     base_url: &str,
-) -> Result<Option<Account>, AppError> {
+) -> Result<Option<Account>, CatalogError> {
     let mut conn = cat.conn().await?;
     let row = account_row(&mut conn, base_url).await?;
     row.map(AccountRow::into_account).transpose()
 }
 
-async fn account_row(conn: &mut Conn, base_url: &str) -> Result<Option<AccountRow>, AppError> {
+async fn account_row(conn: &mut Conn, base_url: &str) -> Result<Option<AccountRow>, CatalogError> {
     account::table
         .filter(account::base_url.eq(base_url))
         .select((account::base_url, account::user, account::site_name))
@@ -79,7 +79,7 @@ async fn account_row(conn: &mut Conn, base_url: &str) -> Result<Option<AccountRo
         .map_err(db_err)
 }
 
-pub(crate) async fn save_account(cat: &SqliteCatalog, value: &Account) -> Result<(), AppError> {
+pub(crate) async fn save_account(cat: &SqliteCatalog, value: &Account) -> Result<(), CatalogError> {
     let user = rows::encode(&value.user)?;
     let mut conn = cat.conn().await?;
     conn.transaction::<(), TxError, _>(async |conn| {
@@ -115,7 +115,7 @@ pub(crate) async fn save_account(cat: &SqliteCatalog, value: &Account) -> Result
     Ok(())
 }
 
-pub(crate) async fn reset_catalog(cat: &SqliteCatalog) -> Result<(), AppError> {
+pub(crate) async fn reset_catalog(cat: &SqliteCatalog) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     conn.transaction::<(), TxError, _>(async |conn| {
         diesel::delete(upload_sessions::table)
@@ -144,19 +144,19 @@ pub(crate) async fn reset_catalog(cat: &SqliteCatalog) -> Result<(), AppError> {
 
 #[async_trait]
 impl AccountStore for SqliteCatalog {
-    async fn get_current_account(&self) -> Result<Option<Account>, AppError> {
+    async fn get_current_account(&self) -> Result<Option<Account>, CatalogError> {
         get_current_account(self).await
     }
 
-    async fn get_account(&self, base_url: &str) -> Result<Option<Account>, AppError> {
+    async fn get_account(&self, base_url: &str) -> Result<Option<Account>, CatalogError> {
         get_account(self, base_url).await
     }
 
-    async fn save_account(&self, value: &Account) -> Result<(), AppError> {
+    async fn save_account(&self, value: &Account) -> Result<(), CatalogError> {
         save_account(self, value).await
     }
 
-    async fn reset_catalog(&self) -> Result<(), AppError> {
+    async fn reset_catalog(&self) -> Result<(), CatalogError> {
         reset_catalog(self).await
     }
 }

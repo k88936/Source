@@ -45,7 +45,6 @@ pub struct FolderSyncState {
     pub status: String,
     pub remote_updated_at: Option<i64>,
     pub last_listed_at: Option<i64>,
-    pub last_error: Option<String>,
 }
 
 impl FolderSyncState {

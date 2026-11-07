@@ -7,7 +7,7 @@ use crate::protocols::media_address;
 pub(crate) async fn timeline_page(
     state: State<'_, AppState>,
     params: TimelinePageParams,
-) -> Result<TimelinePage, AppError> {
+) -> Result<TimelinePage, BrowseError> {
     state.core.browse.get_timeline_page(params).await
 }
 
@@ -15,7 +15,7 @@ pub(crate) async fn timeline_page(
 pub(crate) async fn asset_detail(
     state: State<'_, AppState>,
     params: AssetDetailParams,
-) -> Result<AssetDetail, AppError> {
+) -> Result<AssetDetail, BrowseError> {
     state.core.browse.get_asset_detail(&params.asset_id.0).await
 }
 
@@ -23,7 +23,7 @@ pub(crate) async fn asset_detail(
 pub(crate) async fn search_assets(
     state: State<'_, AppState>,
     params: SearchParams,
-) -> Result<TimelinePage, AppError> {
+) -> Result<TimelinePage, BrowseError> {
     state.core.browse.search(params).await
 }
 
@@ -32,7 +32,7 @@ pub(crate) async fn set_favorite(
     app: AppHandle,
     state: State<'_, AppState>,
     params: SetFavoriteParams,
-) -> Result<AssetSummary, AppError> {
+) -> Result<AssetSummary, BrowseError> {
     let asset = state
         .core
         .browse
@@ -43,7 +43,7 @@ pub(crate) async fn set_favorite(
 }
 
 #[tauri::command]
-pub(crate) async fn album_list(state: State<'_, AppState>) -> Result<Vec<AlbumSummary>, AppError> {
+pub(crate) async fn album_list(state: State<'_, AppState>) -> Result<Vec<AlbumSummary>, AlbumError> {
     state.core.albums.list_albums().await
 }
 
@@ -51,7 +51,7 @@ pub(crate) async fn album_list(state: State<'_, AppState>) -> Result<Vec<AlbumSu
 pub(crate) async fn album_get(
     state: State<'_, AppState>,
     params: AlbumParams,
-) -> Result<Option<AlbumSummary>, AppError> {
+) -> Result<Option<AlbumSummary>, AlbumError> {
     state.core.albums.get_album(&params.album_id.0).await
 }
 
@@ -59,7 +59,7 @@ pub(crate) async fn album_get(
 pub(crate) async fn album_page(
     state: State<'_, AppState>,
     params: AlbumPageParams,
-) -> Result<TimelinePage, AppError> {
+) -> Result<TimelinePage, AlbumError> {
     state.core.albums.get_album_page(params).await
 }
 
@@ -69,7 +69,7 @@ pub(crate) async fn album_page(
 pub(crate) async fn album_add(
     state: State<'_, AppState>,
     params: AddAlbumParams,
-) -> Result<AlbumSummary, AppError> {
+) -> Result<AlbumSummary, AlbumError> {
     state.core.albums.add_album(params).await
 }
 
@@ -78,7 +78,7 @@ pub(crate) async fn album_add(
 pub(crate) async fn album_remove(
     state: State<'_, AppState>,
     params: AlbumParams,
-) -> Result<(), AppError> {
+) -> Result<(), AlbumError> {
     state.core.albums.remove_album(&params.album_id.0).await
 }
 
@@ -86,21 +86,21 @@ pub(crate) async fn album_remove(
 pub(crate) async fn album_refresh(
     state: State<'_, AppState>,
     params: AlbumParams,
-) -> Result<AlbumSummary, AppError> {
+) -> Result<AlbumSummary, AlbumError> {
     state.core.albums.refresh_album(&params.album_id.0).await
 }
 
 /// Queue one listing job per album and return how many. The board reports the
 /// jobs, and every refreshed album is visible on its own row.
 #[tauri::command]
-pub(crate) async fn index_start(state: State<'_, AppState>) -> Result<usize, AppError> {
+pub(crate) async fn index_start(state: State<'_, AppState>) -> Result<usize, AlbumError> {
     state.core.albums.refresh_all().await
 }
 
 /// Stop the refresh: what is still waiting is dropped, what is listing ends
 /// after the page it is on.
 #[tauri::command]
-pub(crate) async fn index_stop(state: State<'_, AppState>) -> Result<(), AppError> {
+pub(crate) async fn index_stop(state: State<'_, AppState>) -> Result<(), AlbumError> {
     state.core.albums.stop_refresh();
     Ok(())
 }
@@ -110,7 +110,7 @@ pub(crate) async fn set_album_cover(
     app: AppHandle,
     state: State<'_, AppState>,
     params: SetAlbumCoverParams,
-) -> Result<AlbumSummary, AppError> {
+) -> Result<AlbumSummary, AlbumError> {
     let album = state
         .core
         .albums
@@ -125,7 +125,7 @@ pub(crate) async fn set_album_description(
     app: AppHandle,
     state: State<'_, AppState>,
     params: SetAlbumDescriptionParams,
-) -> Result<AlbumSummary, AppError> {
+) -> Result<AlbumSummary, AlbumError> {
     let album = state
         .core
         .albums
@@ -142,7 +142,7 @@ pub(crate) async fn move_assets_to_album(
     app: AppHandle,
     state: State<'_, AppState>,
     params: MoveAssetsParams,
-) -> Result<Vec<AssetSummary>, AppError> {
+) -> Result<Vec<AssetSummary>, AlbumError> {
     let ids = params
         .asset_ids
         .into_iter()
@@ -196,7 +196,7 @@ fn emit_albums(app: &AppHandle, albums: Vec<AlbumSummary>) {
 pub(crate) async fn media_source(
     state: State<'_, AppState>,
     params: MediaSourceParams,
-) -> Result<String, AppError> {
+) -> Result<String, BrowseError> {
     match params {
         MediaSourceParams::Thumb { asset_id } => Ok(media_address("thumb", &asset_id.0)),
         MediaSourceParams::Original { asset_id } => Ok(media_address("original", &asset_id.0)),
@@ -208,13 +208,13 @@ pub(crate) async fn media_source(
 /// WebKitGTK's media player only accepts `http(s)://`, so desktop plays the
 /// file from a signed server URL.
 #[cfg(desktop)]
-async fn video_address(state: &AppState, asset_id: &str) -> Result<String, AppError> {
+async fn video_address(state: &AppState, asset_id: &str) -> Result<String, BrowseError> {
     state.core.browse.get_media_url(asset_id).await
 }
 
 /// Android's player is fine with the custom scheme, which the webview
 /// intercepts before it reaches the network stack.
 #[cfg(mobile)]
-async fn video_address(_state: &AppState, asset_id: &str) -> Result<String, AppError> {
+async fn video_address(_state: &AppState, asset_id: &str) -> Result<String, BrowseError> {
     Ok(media_address("original", asset_id))
 }

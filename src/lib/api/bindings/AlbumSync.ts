@@ -7,4 +7,4 @@
  * going anywhere, so the row keeps its assets and reports the failure instead:
  * the album stays visible and the user can point it at another folder.
  */
-export type AlbumSync = {failed: boolean; error: string | null; listedAt: number | null};
+export type AlbumSync = { failed: boolean, listedAt: number | null, };

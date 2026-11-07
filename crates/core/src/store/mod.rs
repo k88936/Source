@@ -12,12 +12,12 @@ use diesel::sqlite::Sqlite;
 use diesel::upsert::excluded;
 use diesel_async::{AsyncConnection, RunQueryDsl};
 
-use crate::error::AppError;
 use crate::media::LocalAsset;
 
 mod account;
 mod album;
 mod asset;
+mod error;
 mod folder;
 mod id;
 mod local;
@@ -42,6 +42,7 @@ pub(crate) fn display_path(path: &str) -> String {
 
 pub use account::*;
 pub use album::*;
+pub use error::CatalogError;
 pub use asset::*;
 pub use folder::*;
 pub(crate) use id::id_type;

@@ -14,7 +14,8 @@ pub async fn sign_in(settings: &Settings) -> Result<CloudreveAuth> {
     let auth = CloudreveAuth::new(Arc::new(MemoryCredentials::default()));
     let outcome = auth
         .sign_in(&settings.server, &settings.email, &settings.password)
-        .await?;
+        .await
+        .map_err(|cause| anyhow!("登录失败: {cause:?}"))?;
     match outcome {
         SignInOutcome::SignedIn(_) => Ok(auth),
         SignInOutcome::TwoFactorRequired { .. } => {

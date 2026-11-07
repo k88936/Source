@@ -7,7 +7,6 @@
 
 use std::time::Duration;
 
-use crate::error::AppError;
 use crate::mapping::{COVER_KEY, DESCRIPTION_KEY};
 use crate::remote::RemoteEntry;
 use crate::store::{FolderRecord, FolderRef, display_path};
@@ -59,20 +58,28 @@ pub(crate) fn clamp_limit(limit: u32) -> u32 {
     limit.clamp(1, 200)
 }
 
-pub(crate) fn normalize_base_url(raw: &str) -> Result<String, AppError> {
+/// Why a typed-in server address is not usable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum UrlError {
+    Empty,
+    Invalid,
+}
+
+pub(crate) fn normalize_base_url(raw: &str) -> Result<String, UrlError> {
     let raw = raw.trim();
     if raw.is_empty() {
-        return Err(AppError::internal("服务器地址不能为空"));
+        return Err(UrlError::Empty);
     }
     let candidate = if raw.contains("://") {
         raw.to_string()
     } else {
         format!("https://{raw}")
     };
-    let invalid = || AppError::internal("服务器地址格式不正确");
-    let parsed = url::Url::parse(&candidate).map_err(|_| invalid())?;
+    let parsed = url::Url::parse(&candidate).map_err(|_| UrlError::Invalid)?;
     if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
-        return Err(invalid());
+        return Err(UrlError::Invalid);
     }
     Ok(parsed.as_str().trim_end_matches('/').to_string())
 }

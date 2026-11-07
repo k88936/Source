@@ -15,7 +15,7 @@ pub(crate) fn app_info() -> AppInfo {
 pub(crate) async fn set_server(
     state: State<'_, AppState>,
     params: SetServerParams,
-) -> Result<SiteInfo, AppError> {
+) -> Result<SiteInfo, AccountError> {
     state.core.account.set_server(&params.base_url).await
 }
 
@@ -23,7 +23,7 @@ pub(crate) async fn set_server(
 pub(crate) async fn login(
     state: State<'_, AppState>,
     params: LoginParams,
-) -> Result<LoginOutcome, AppError> {
+) -> Result<LoginOutcome, AccountError> {
     state
         .core
         .account
@@ -35,7 +35,7 @@ pub(crate) async fn login(
 pub(crate) async fn login_2fa(
     state: State<'_, AppState>,
     params: Login2faParams,
-) -> Result<AccountState, AppError> {
+) -> Result<AccountState, AccountError> {
     state
         .core
         .account
@@ -44,19 +44,19 @@ pub(crate) async fn login_2fa(
 }
 
 #[tauri::command]
-pub(crate) async fn logout(state: State<'_, AppState>) -> Result<(), AppError> {
+pub(crate) async fn logout(state: State<'_, AppState>) -> Result<(), AccountError> {
     state.core.account.logout().await
 }
 
 #[tauri::command]
 pub(crate) async fn account_state(
     state: State<'_, AppState>,
-) -> Result<Option<AccountState>, AppError> {
+) -> Result<Option<AccountState>, AccountError> {
     state.core.account.get_account_state().await
 }
 
 #[tauri::command]
-pub(crate) async fn capacity(state: State<'_, AppState>) -> Result<Capacity, AppError> {
+pub(crate) async fn capacity(state: State<'_, AppState>) -> Result<Capacity, AccountError> {
     state.core.account.get_capacity().await
 }
 
@@ -64,7 +64,7 @@ pub(crate) async fn capacity(state: State<'_, AppState>) -> Result<Capacity, App
 pub(crate) async fn list_remote_folders(
     state: State<'_, AppState>,
     params: ListRemoteFoldersParams,
-) -> Result<RemoteFolderPage, AppError> {
+) -> Result<RemoteFolderPage, FolderError> {
     state
         .core
         .folders
@@ -77,7 +77,7 @@ pub(crate) async fn list_remote_folders(
 pub(crate) async fn create_folder(
     state: State<'_, AppState>,
     params: CreateFolderParams,
-) -> Result<FolderRef, AppError> {
+) -> Result<FolderRef, FolderError> {
     state
         .core
         .folders

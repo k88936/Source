@@ -20,30 +20,29 @@ const PRUNE_CHUNK: usize = 500;
 
 #[async_trait]
 pub trait FolderStore: Send + Sync {
-    async fn upsert_folder(&self, folder: &FolderRecord) -> Result<(), AppError>;
-    async fn get_folder(&self, id: &str) -> Result<Option<FolderRecord>, AppError>;
-    async fn get_folder_by_uri(&self, uri: &str) -> Result<Option<FolderRecord>, AppError>;
-    async fn get_folder_state(&self, id: &str) -> Result<Option<FolderSyncState>, AppError>;
+    async fn upsert_folder(&self, folder: &FolderRecord) -> Result<(), CatalogError>;
+    async fn get_folder(&self, id: &str) -> Result<Option<FolderRecord>, CatalogError>;
+    async fn get_folder_by_uri(&self, uri: &str) -> Result<Option<FolderRecord>, CatalogError>;
+    async fn get_folder_state(&self, id: &str) -> Result<Option<FolderSyncState>, CatalogError>;
     async fn mark_folder(
         &self,
         id: &str,
         status: &str,
-        error: Option<&str>,
         remote_updated_at: Option<i64>,
         now: i64,
-    ) -> Result<(), AppError>;
+    ) -> Result<(), CatalogError>;
     /// Write one listing page, keeping the rows the album already has.
-    async fn upsert_album_assets(&self, assets: &[AssetRecord]) -> Result<(), AppError>;
+    async fn upsert_album_assets(&self, assets: &[AssetRecord]) -> Result<(), CatalogError>;
     /// Drop the assets a complete listing no longer holds, given every id it listed.
-    async fn prune_album_assets(&self, folder_id: &str, listed: &[String]) -> Result<(), AppError>;
+    async fn prune_album_assets(&self, folder_id: &str, listed: &[String]) -> Result<(), CatalogError>;
     /// The names of the media files the album currently holds.
-    async fn list_album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError>;
+    async fn list_album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, CatalogError>;
 }
 
 pub(crate) async fn upsert_folder(
     cat: &SqliteCatalog,
     folder: &FolderRecord,
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     // Curation fields are owned by the UI: only replace them when the
     // incoming record actually carries a value.
@@ -91,7 +90,7 @@ pub(crate) async fn upsert_folder(
 pub(crate) async fn get_folder(
     cat: &SqliteCatalog,
     id: &str,
-) -> Result<Option<FolderRecord>, AppError> {
+) -> Result<Option<FolderRecord>, CatalogError> {
     let mut conn = cat.conn().await?;
     folders::table
         .filter(folders::id.eq(id))
@@ -106,7 +105,7 @@ pub(crate) async fn get_folder(
 pub(crate) async fn get_folder_by_uri(
     cat: &SqliteCatalog,
     uri: &str,
-) -> Result<Option<FolderRecord>, AppError> {
+) -> Result<Option<FolderRecord>, CatalogError> {
     let mut conn = cat.conn().await?;
     // Several folders can share a URI after a remote rename; the deepest path
     // wins. Diesel has no `length()` helper and the candidate set is tiny.
@@ -125,7 +124,7 @@ pub(crate) async fn get_folder_by_uri(
 pub(crate) async fn get_folder_state(
     cat: &SqliteCatalog,
     id: &str,
-) -> Result<Option<FolderSyncState>, AppError> {
+) -> Result<Option<FolderSyncState>, CatalogError> {
     let mut conn = cat.conn().await?;
     sync_state::table
         .filter(sync_state::folder_id.eq(id))
@@ -141,10 +140,9 @@ pub(crate) async fn mark_folder(
     cat: &SqliteCatalog,
     id: &str,
     status: &str,
-    error: Option<&str>,
     remote_updated_at: Option<i64>,
     now: i64,
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     let previous = sync_state::table
         .filter(sync_state::folder_id.eq(id))
@@ -162,7 +160,6 @@ pub(crate) async fn mark_folder(
             sync_state::last_listed_at.eq(now),
             sync_state::remote_updated_at.eq(remote_updated_at),
             sync_state::status.eq(status),
-            sync_state::last_error.eq(error),
         ))
         .on_conflict(sync_state::folder_id)
         .do_update()
@@ -170,7 +167,6 @@ pub(crate) async fn mark_folder(
             sync_state::last_listed_at.eq(excluded(sync_state::last_listed_at)),
             sync_state::remote_updated_at.eq(excluded(sync_state::remote_updated_at)),
             sync_state::status.eq(excluded(sync_state::status)),
-            sync_state::last_error.eq(excluded(sync_state::last_error)),
         ))
         .execute(&mut conn)
         .await
@@ -189,7 +185,7 @@ pub(crate) async fn mark_folder(
 pub(crate) async fn list_album_asset_names(
     cat: &SqliteCatalog,
     folder_id: &str,
-) -> Result<Vec<String>, AppError> {
+) -> Result<Vec<String>, CatalogError> {
     let mut conn = cat.conn().await?;
     assets::table
         .filter(assets::folder_id.eq(folder_id))
@@ -207,7 +203,7 @@ pub(crate) async fn list_album_asset_names(
 pub(crate) async fn upsert_album_assets(
     cat: &SqliteCatalog,
     asset_records: &[AssetRecord],
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     if asset_records.is_empty() {
         return Ok(());
     }
@@ -230,7 +226,7 @@ pub(crate) async fn prune_album_assets(
     cat: &SqliteCatalog,
     folder_id: &str,
     listed: &[String],
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     let existing = assets::table
         .filter(assets::folder_id.eq(folder_id))
@@ -254,19 +250,19 @@ pub(crate) async fn prune_album_assets(
 
 #[async_trait]
 impl FolderStore for SqliteCatalog {
-    async fn upsert_folder(&self, folder_record: &FolderRecord) -> Result<(), AppError> {
+    async fn upsert_folder(&self, folder_record: &FolderRecord) -> Result<(), CatalogError> {
         upsert_folder(self, folder_record).await
     }
 
-    async fn get_folder(&self, id: &str) -> Result<Option<FolderRecord>, AppError> {
+    async fn get_folder(&self, id: &str) -> Result<Option<FolderRecord>, CatalogError> {
         get_folder(self, id).await
     }
 
-    async fn get_folder_by_uri(&self, uri: &str) -> Result<Option<FolderRecord>, AppError> {
+    async fn get_folder_by_uri(&self, uri: &str) -> Result<Option<FolderRecord>, CatalogError> {
         get_folder_by_uri(self, uri).await
     }
 
-    async fn get_folder_state(&self, id: &str) -> Result<Option<FolderSyncState>, AppError> {
+    async fn get_folder_state(&self, id: &str) -> Result<Option<FolderSyncState>, CatalogError> {
         get_folder_state(self, id).await
     }
 
@@ -274,22 +270,21 @@ impl FolderStore for SqliteCatalog {
         &self,
         id: &str,
         status: &str,
-        error: Option<&str>,
         remote_updated_at: Option<i64>,
         now: i64,
-    ) -> Result<(), AppError> {
-        mark_folder(self, id, status, error, remote_updated_at, now).await
+    ) -> Result<(), CatalogError> {
+        mark_folder(self, id, status, remote_updated_at, now).await
     }
 
-    async fn upsert_album_assets(&self, asset_records: &[AssetRecord]) -> Result<(), AppError> {
+    async fn upsert_album_assets(&self, asset_records: &[AssetRecord]) -> Result<(), CatalogError> {
         upsert_album_assets(self, asset_records).await
     }
 
-    async fn prune_album_assets(&self, folder_id: &str, listed: &[String]) -> Result<(), AppError> {
+    async fn prune_album_assets(&self, folder_id: &str, listed: &[String]) -> Result<(), CatalogError> {
         prune_album_assets(self, folder_id, listed).await
     }
 
-    async fn list_album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, AppError> {
+    async fn list_album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, CatalogError> {
         list_album_asset_names(self, folder_id).await
     }
 }

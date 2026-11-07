@@ -16,13 +16,13 @@ pub(crate) mod uploads;
 /// One list for every kind of work, so a page picks the rows it cares about by
 /// key instead of subscribing to an event per kind.
 #[tauri::command]
-pub(crate) async fn job_list(state: State<'_, AppState>) -> Result<Vec<Job>, AppError> {
+pub(crate) async fn job_list(state: State<'_, AppState>) -> Result<Vec<Job>, CatalogError> {
     Ok(state.core.jobs.list())
 }
 
 /// Whether background work is paused, for the settings page to restore.
 #[tauri::command]
-pub(crate) async fn jobs_paused(state: State<'_, AppState>) -> Result<bool, AppError> {
+pub(crate) async fn jobs_paused(state: State<'_, AppState>) -> Result<bool, CatalogError> {
     Ok(state.core.jobs.is_paused())
 }
 
@@ -31,7 +31,7 @@ pub(crate) async fn jobs_paused(state: State<'_, AppState>) -> Result<bool, AppE
 pub(crate) async fn set_jobs_paused(
     state: State<'_, AppState>,
     params: SetJobsPausedParams,
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     state
         .core
         .settings

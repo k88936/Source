@@ -23,20 +23,20 @@ const QUEUE_PAGE: i64 = 200;
 
 #[async_trait]
 pub trait UploadQueueStore: Send + Sync {
-    async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), AppError>;
-    async fn update_upload(&self, task: &UploadTask) -> Result<(), AppError>;
-    async fn get_upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError>;
+    async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), CatalogError>;
+    async fn update_upload(&self, task: &UploadTask) -> Result<(), CatalogError>;
+    async fn get_upload_task(&self, id: &str) -> Result<Option<UploadTask>, CatalogError>;
     /// The unfinished part of the queue, newest first.
-    async fn list_upload_tasks(&self) -> Result<Vec<UploadTask>, AppError>;
+    async fn list_upload_tasks(&self) -> Result<Vec<UploadTask>, CatalogError>;
     /// Put in-flight rows back in the queue and report what is waiting.
-    async fn recover_uploads(&self) -> Result<Vec<UploadTask>, AppError>;
+    async fn recover_uploads(&self) -> Result<Vec<UploadTask>, CatalogError>;
     /// The local files already waiting for a slot in one destination folder.
-    async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError>;
+    async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, CatalogError>;
     /// The oldest rows still waiting for a slot, oldest first.
-    async fn next_queued(&self, limit: i64) -> Result<Vec<UploadTask>, AppError>;
+    async fn next_queued(&self, limit: i64) -> Result<Vec<UploadTask>, CatalogError>;
 }
 
-pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), AppError> {
+pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     let error = serialize_error(task.error.as_ref())?;
     let now = now_ms();
@@ -63,7 +63,7 @@ pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Re
     Ok(())
 }
 
-pub(crate) async fn update_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), AppError> {
+pub(crate) async fn update_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     let error = serialize_error(task.error.as_ref())?;
     diesel::update(queue::table.filter(queue::id.eq(task.id.0.clone())))
@@ -86,7 +86,7 @@ pub(crate) async fn update_upload(cat: &SqliteCatalog, task: &UploadTask) -> Res
 pub(crate) async fn get_upload_task(
     cat: &SqliteCatalog,
     id: &str,
-) -> Result<Option<UploadTask>, AppError> {
+) -> Result<Option<UploadTask>, CatalogError> {
     let mut conn = cat.conn().await?;
     queue::table
         .filter(queue::id.eq(id))
@@ -103,7 +103,7 @@ pub(crate) async fn get_upload_task(
 /// A first sync can enqueue tens of thousands of files; the queue card shows
 /// what is left, not every row ever written, so this never grows with the
 /// history and never hands the UI a payload it cannot render.
-pub(crate) async fn list_upload_tasks(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, AppError> {
+pub(crate) async fn list_upload_tasks(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, CatalogError> {
     let mut conn = cat.conn().await?;
     let rows = queue::table
         .filter(queue::state.ne(upload_state_to_str(UploadState::Done)))
@@ -117,7 +117,7 @@ pub(crate) async fn list_upload_tasks(cat: &SqliteCatalog) -> Result<Vec<UploadT
     Ok(rows.into_iter().map(UploadTask::from).collect())
 }
 
-pub(crate) async fn recover_uploads(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, AppError> {
+pub(crate) async fn recover_uploads(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, CatalogError> {
     let mut conn = cat.conn().await?;
     // A previous process may have died mid-upload. Requeue in-flight rows
     // so startup actually loads the durable session snapshot and resumes.
@@ -150,7 +150,7 @@ pub(crate) async fn recover_uploads(cat: &SqliteCatalog) -> Result<Vec<UploadTas
 pub(crate) async fn list_queued_local_ids(
     cat: &SqliteCatalog,
     dest_uri: &str,
-) -> Result<Vec<LocalAssetId>, AppError> {
+) -> Result<Vec<LocalAssetId>, CatalogError> {
     let mut conn = cat.conn().await?;
     queue::table
         .filter(queue::dest_uri.eq(dest_uri))
@@ -169,7 +169,7 @@ pub(crate) async fn list_queued_local_ids(
 pub(crate) async fn next_queued(
     cat: &SqliteCatalog,
     limit: i64,
-) -> Result<Vec<UploadTask>, AppError> {
+) -> Result<Vec<UploadTask>, CatalogError> {
     let mut conn = cat.conn().await?;
     let rows = queue::table
         .filter(queue::state.eq(upload_state_to_str(UploadState::Queued)))
@@ -182,40 +182,37 @@ pub(crate) async fn next_queued(
     Ok(rows.into_iter().map(UploadTask::from).collect())
 }
 
-fn serialize_error(error: Option<&AppError>) -> Result<Option<String>, AppError> {
-    error
-        .map(serde_json::to_string)
-        .transpose()
-        .map_err(|e| AppError::internal(e.to_string()))
+fn serialize_error(error: Option<&String>) -> Result<Option<String>, CatalogError> {
+    error.cloned().map(Ok).transpose()
 }
 
 #[async_trait]
 impl UploadQueueStore for SqliteCatalog {
-    async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), AppError> {
+    async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), CatalogError> {
         enqueue_upload(self, task).await
     }
 
-    async fn update_upload(&self, task: &UploadTask) -> Result<(), AppError> {
+    async fn update_upload(&self, task: &UploadTask) -> Result<(), CatalogError> {
         update_upload(self, task).await
     }
 
-    async fn get_upload_task(&self, id: &str) -> Result<Option<UploadTask>, AppError> {
+    async fn get_upload_task(&self, id: &str) -> Result<Option<UploadTask>, CatalogError> {
         get_upload_task(self, id).await
     }
 
-    async fn list_upload_tasks(&self) -> Result<Vec<UploadTask>, AppError> {
+    async fn list_upload_tasks(&self) -> Result<Vec<UploadTask>, CatalogError> {
         list_upload_tasks(self).await
     }
 
-    async fn recover_uploads(&self) -> Result<Vec<UploadTask>, AppError> {
+    async fn recover_uploads(&self) -> Result<Vec<UploadTask>, CatalogError> {
         recover_uploads(self).await
     }
 
-    async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, AppError> {
+    async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, CatalogError> {
         list_queued_local_ids(self, dest_uri).await
     }
 
-    async fn next_queued(&self, limit: i64) -> Result<Vec<UploadTask>, AppError> {
+    async fn next_queued(&self, limit: i64) -> Result<Vec<UploadTask>, CatalogError> {
         next_queued(self, limit).await
     }
 }

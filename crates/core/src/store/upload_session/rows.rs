@@ -10,7 +10,7 @@ use diesel::sqlite::Sqlite;
 
 use super::schema;
 use super::values::policy_type_from_str;
-use crate::error::AppError;
+use crate::store::CatalogError;
 
 /// The stored session, flattened into columns.
 ///
@@ -41,7 +41,7 @@ pub(crate) struct UploadSessionRow {
 
 impl UploadSessionRow {
     /// Rebuild the session, with `upload_urls` in chunk order.
-    pub(crate) fn into_session(self, upload_urls: Vec<String>) -> Result<UploadSession, AppError> {
+    pub(crate) fn into_session(self, upload_urls: Vec<String>) -> Result<UploadSession, CatalogError> {
         let encrypt_metadata = self.encrypt_metadata()?;
         let storage_policy = self
             .policy_type
@@ -74,7 +74,7 @@ impl UploadSessionRow {
         Ok(UploadSession::new(self.file_size as u64, credential))
     }
 
-    fn encrypt_metadata(&self) -> Result<Option<EncryptMetadata>, AppError> {
+    fn encrypt_metadata(&self) -> Result<Option<EncryptMetadata>, CatalogError> {
         match (&self.encrypt_key_plain_text, &self.encrypt_iv) {
             (Some(key_plain_text), Some(iv)) => Ok(Some(EncryptMetadata {
                 algorithm: EncryptionCipher::Aes256Ctr,
@@ -82,7 +82,9 @@ impl UploadSessionRow {
                 iv: iv.clone(),
             })),
             (None, None) => Ok(None),
-            _ => Err(AppError::internal("上传会话的加密元数据不完整".to_string())),
+            _ => Err(CatalogError::DecodeFailed {
+                cause: "上传会话的加密元数据不完整".to_string(),
+            }),
         }
     }
 }

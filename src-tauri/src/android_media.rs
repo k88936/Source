@@ -13,9 +13,9 @@ use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
-use source_core::error::AppError;
 use source_core::media::{
-    LocalAsset, LocalAssetPage, LocalBrowsePage, LocalEntry, LocalMediaPort, MediaPermissionState,
+    LocalAsset, LocalAssetPage, LocalBrowsePage, LocalEntry, LocalMediaPort, MediaError,
+    MediaPermissionState,
 };
 use tauri::Wry;
 use tauri::plugin::PluginHandle;
@@ -58,13 +58,13 @@ impl AndroidMedia {
         Self
     }
 
-    async fn call<T>(&self, command: &str, payload: impl Serialize) -> Result<T, AppError>
+    async fn call<T>(&self, command: &str, payload: impl Serialize) -> Result<T, MediaError>
     where
         T: serde::de::DeserializeOwned,
     {
-        let handle = HANDLE
-            .get()
-            .ok_or_else(|| AppError::internal("MediaStore 插件未注册"))?;
+        let handle = HANDLE.get().ok_or_else(|| MediaError::Platform {
+            cause: "MediaStore 插件未注册".to_string(),
+        })?;
         handle
             .run_mobile_plugin_async(command, payload)
             .await
@@ -74,17 +74,17 @@ impl AndroidMedia {
 
 #[async_trait]
 impl LocalMediaPort for AndroidMedia {
-    async fn get_permission_state(&self) -> Result<MediaPermissionState, AppError> {
+    async fn get_permission_state(&self) -> Result<MediaPermissionState, MediaError> {
         self.call("permissionState", ()).await
     }
 
-    async fn request_permission(&self) -> Result<MediaPermissionState, AppError> {
+    async fn request_permission(&self) -> Result<MediaPermissionState, MediaError> {
         self.call("requestPermission", ()).await
     }
 
     /// MediaStore is flat: there is no parent to walk and no current directory,
     /// so the whole library comes back as one list of buckets.
-    async fn browse(&self, _parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
+    async fn browse(&self, _parent: Option<&str>) -> Result<LocalBrowsePage, MediaError> {
         let buckets: Buckets = self.call("browse", ()).await?;
         Ok(LocalBrowsePage {
             current: None,
@@ -98,7 +98,7 @@ impl LocalMediaPort for AndroidMedia {
         album_uri: &str,
         cursor: Option<&str>,
         limit: u32,
-    ) -> Result<LocalAssetPage, AppError> {
+    ) -> Result<LocalAssetPage, MediaError> {
         self.call(
             "assets",
             AssetPageArgs {
@@ -110,19 +110,21 @@ impl LocalMediaPort for AndroidMedia {
         .await
     }
 
-    async fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+    async fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, MediaError> {
         self.call("asset", AssetArgs { id }).await
     }
 
-    async fn count_assets(&self, album_uri: &str) -> Result<u32, AppError> {
+    async fn count_assets(&self, album_uri: &str) -> Result<u32, MediaError> {
         self.call("count", UriArgs { uri: album_uri }).await
     }
 
-    async fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
+    async fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, MediaError> {
         let encoded: String = self.call("thumb", ThumbArgs { id, edge }).await?;
         STANDARD
             .decode(encoded)
-            .map_err(|error| AppError::internal(format!("无法解码缩略图: {error}")))
+            .map_err(|error| MediaError::Platform {
+                cause: format!("无法解码缩略图: {error}"),
+            })
     }
 }
 
@@ -159,17 +161,19 @@ struct ThumbArgs<'a> {
 
 /// A rejection carries the message the user should see, and a permission one
 /// is a different situation from a query that blew up, so its code survives.
-fn rejected(error: PluginInvokeError) -> AppError {
+fn rejected(error: PluginInvokeError) -> MediaError {
     match error {
         PluginInvokeError::InvokeRejected(response) => {
             let message = response
                 .message
                 .unwrap_or_else(|| "无法访问系统相册".to_string());
             match response.code.as_deref() {
-                Some("permission" | "denied") => AppError::permission(message),
-                _ => AppError::internal(message),
+                Some("permission" | "denied") => MediaError::PermissionDenied,
+                _ => MediaError::Platform { cause: message },
             }
         }
-        other => AppError::internal(format!("无法访问系统相册: {other}")),
+        other => MediaError::Platform {
+            cause: format!("无法访问系统相册: {other}"),
+        },
     }
 }

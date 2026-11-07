@@ -17,7 +17,7 @@ use diesel_async::pooled_connection::{
 use diesel_async::sync_connection_wrapper::SyncConnectionWrapper;
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 
-use crate::error::AppError;
+use crate::store::CatalogError;
 
 /// Connections handed out by the pool.
 pub(crate) type Conn = Object<SyncConnectionWrapper<SqliteConnection>>;
@@ -41,16 +41,16 @@ pub struct SqliteCatalog {
 
 impl SqliteCatalog {
     /// Open (or create) the catalog at `path`, applying pending migrations.
-    pub async fn open(path: impl AsRef<Path>) -> Result<Self, AppError> {
+    pub async fn open(path: impl AsRef<Path>) -> Result<Self, CatalogError> {
         let url = path.as_ref().to_string_lossy().into_owned();
         let migrate_url = url.clone();
         tokio::task::spawn_blocking(move || migrate(&migrate_url))
             .await
-            .map_err(|e| AppError::internal(format!("catalog migrate: {e}")))??;
+            .map_err(|e| CatalogError::Unavailable { cause: format!("catalog migrate: {e}") })??;
         Self::from_url(url)
     }
 
-    fn from_url(url: String) -> Result<Self, AppError> {
+    fn from_url(url: String) -> Result<Self, CatalogError> {
         let mut config = ManagerConfig::<SyncConnectionWrapper<SqliteConnection>>::default();
         config.recycling_method = RecyclingMethod::Fast;
         config.custom_setup = Box::new(|url: &str| {
@@ -67,39 +67,39 @@ impl SqliteCatalog {
         let pool = Pool::builder(manager)
             .max_size(POOL_SIZE)
             .build()
-            .map_err(|e| AppError::internal(format!("catalog pool: {e}")))?;
+            .map_err(|e| CatalogError::Unavailable { cause: format!("catalog pool: {e}") })?;
         Ok(Self { pool })
     }
 
-    pub(crate) async fn conn(&self) -> Result<Conn, AppError> {
+    pub(crate) async fn conn(&self) -> Result<Conn, CatalogError> {
         self.pool
             .get()
             .await
-            .map_err(|e| AppError::internal(format!("catalog: {e}")))
+            .map_err(|e| CatalogError::Unavailable { cause: format!("catalog: {e}") })
     }
 }
 
-fn migrate(url: &str) -> Result<(), AppError> {
+fn migrate(url: &str) -> Result<(), CatalogError> {
     use diesel::connection::SimpleConnection;
 
     let mut conn = SqliteConnection::establish(url).map_err(conn_err)?;
     conn.batch_execute(PRAGMAS).map_err(db_err)?;
     conn.run_pending_migrations(MIGRATIONS)
-        .map_err(|e| AppError::internal(format!("catalog: {e}")))?;
+        .map_err(|e| CatalogError::Unavailable { cause: format!("catalog: {e}") })?;
     Ok(())
 }
 
-pub(crate) fn db_err(err: diesel::result::Error) -> AppError {
-    AppError::internal(format!("catalog: {err}"))
+pub(crate) fn db_err(err: diesel::result::Error) -> CatalogError {
+    CatalogError::QueryFailed { cause: format!("catalog: {err}") }
 }
 
-fn conn_err(err: diesel::result::ConnectionError) -> AppError {
-    AppError::internal(format!("catalog: {err}"))
+fn conn_err(err: diesel::result::ConnectionError) -> CatalogError {
+    CatalogError::Unavailable { cause: format!("catalog: {err}") }
 }
 
 /// Transaction bodies must fail with an error diesel can convert into a
-/// rollback, which `AppError` cannot express on its own.
-pub(crate) struct TxError(pub(crate) AppError);
+/// rollback, which `CatalogError` cannot express on its own.
+pub(crate) struct TxError(pub(crate) CatalogError);
 
 impl From<diesel::result::Error> for TxError {
     fn from(err: diesel::result::Error) -> Self {
@@ -107,8 +107,8 @@ impl From<diesel::result::Error> for TxError {
     }
 }
 
-impl From<AppError> for TxError {
-    fn from(err: AppError) -> Self {
+impl From<CatalogError> for TxError {
+    fn from(err: CatalogError) -> Self {
         Self(err)
     }
 }

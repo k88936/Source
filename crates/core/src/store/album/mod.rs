@@ -19,30 +19,30 @@ pub use dto::*;
 #[async_trait]
 pub trait AlbumStore: Send + Sync {
     /// Store the folder a user added, or refresh its name and URI.
-    async fn save_album(&self, album: &FolderRecord) -> Result<(), AppError>;
+    async fn save_album(&self, album: &FolderRecord) -> Result<(), CatalogError>;
     /// Forget an album, its assets and every local album syncing into it.
-    async fn delete_album(&self, id: &str) -> Result<(), AppError>;
-    async fn list_albums(&self) -> Result<Vec<AlbumSummary>, AppError>;
-    async fn get_album(&self, id: &str) -> Result<Option<AlbumSummary>, AppError>;
+    async fn delete_album(&self, id: &str) -> Result<(), CatalogError>;
+    async fn list_albums(&self) -> Result<Vec<AlbumSummary>, CatalogError>;
+    async fn get_album(&self, id: &str) -> Result<Option<AlbumSummary>, CatalogError>;
     async fn get_album_page(
         &self,
         album_id: &str,
         cursor: Option<&TimelineCursor>,
         limit: u32,
-    ) -> Result<TimelinePage, AppError>;
-    async fn set_album_cover(&self, album_id: &str, cover: Option<&str>) -> Result<(), AppError>;
+    ) -> Result<TimelinePage, CatalogError>;
+    async fn set_album_cover(&self, album_id: &str, cover: Option<&str>) -> Result<(), CatalogError>;
     async fn set_album_description(
         &self,
         album_id: &str,
         description: Option<&str>,
-    ) -> Result<(), AppError>;
+    ) -> Result<(), CatalogError>;
 }
 
 /// How many covers the album mosaic shows.
 const MOSAIC_COVERS: i64 = 4;
 
 /// Add or refresh the album a user picked, keeping cover and description.
-pub(crate) async fn save_album(cat: &SqliteCatalog, album: &FolderRecord) -> Result<(), AppError> {
+pub(crate) async fn save_album(cat: &SqliteCatalog, album: &FolderRecord) -> Result<(), CatalogError> {
     upsert_folder(cat, album).await
 }
 
@@ -51,7 +51,7 @@ pub(crate) async fn save_album(cat: &SqliteCatalog, album: &FolderRecord) -> Res
 ///
 /// The remote folder is never touched; only the catalog forgets it, so the
 /// same folder can be added again later.
-pub(crate) async fn delete_album(cat: &SqliteCatalog, id: &str) -> Result<(), AppError> {
+pub(crate) async fn delete_album(cat: &SqliteCatalog, id: &str) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     let locals = local_album_mapping::table
         .filter(local_album_mapping::album_id.eq(id))
@@ -85,26 +85,24 @@ pub(crate) async fn delete_album(cat: &SqliteCatalog, id: &str) -> Result<(), Ap
 async fn sync_states(
     conn: &mut Conn,
     ids: &[String],
-) -> Result<HashMap<String, AlbumSync>, AppError> {
+) -> Result<HashMap<String, AlbumSync>, CatalogError> {
     let rows = sync_state::table
         .filter(sync_state::folder_id.eq_any(ids))
         .select((
             sync_state::folder_id,
             sync_state::status,
-            sync_state::last_error,
             sync_state::last_listed_at,
         ))
-        .load::<(String, String, Option<String>, Option<i64>)>(conn)
+        .load::<(String, String, Option<i64>)>(conn)
         .await
         .map_err(db_err)?;
     Ok(rows
         .into_iter()
-        .map(|(id, status, error, listed_at)| {
+        .map(|(id, status, listed_at)| {
             (
                 id,
                 AlbumSync {
                     failed: status != SYNC_DONE,
-                    error,
                     listed_at,
                 },
             )
@@ -112,7 +110,7 @@ async fn sync_states(
         .collect())
 }
 
-pub(crate) async fn list_albums(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>, AppError> {
+pub(crate) async fn list_albums(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>, CatalogError> {
     let mut conn = cat.conn().await?;
     let mut albums = folders::table
         .select(FolderRow::as_select())
@@ -205,7 +203,7 @@ pub(crate) async fn list_albums(cat: &SqliteCatalog) -> Result<Vec<AlbumSummary>
 pub(crate) async fn get_album(
     cat: &SqliteCatalog,
     id: &str,
-) -> Result<Option<AlbumSummary>, AppError> {
+) -> Result<Option<AlbumSummary>, CatalogError> {
     let mut conn = cat.conn().await?;
     let Some(folder) = folders::table
         .filter(folders::id.eq(id))
@@ -262,7 +260,7 @@ pub(crate) async fn get_album_page(
     album_id: &str,
     cursor: Option<&TimelineCursor>,
     limit: u32,
-) -> Result<TimelinePage, AppError> {
+) -> Result<TimelinePage, CatalogError> {
     let mut conn = cat.conn().await?;
     timeline(&mut conn, Some(album_id), cursor, limit).await
 }
@@ -271,7 +269,7 @@ pub(crate) async fn set_album_cover(
     cat: &SqliteCatalog,
     album_id: &str,
     cover: Option<&str>,
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     diesel::update(folders::table.filter(folders::id.eq(album_id)))
         .set(folders::cover_asset_id.eq(cover))
@@ -285,7 +283,7 @@ pub(crate) async fn set_album_description(
     cat: &SqliteCatalog,
     album_id: &str,
     description: Option<&str>,
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     diesel::update(folders::table.filter(folders::id.eq(album_id)))
         .set(folders::description.eq(description))
@@ -297,19 +295,19 @@ pub(crate) async fn set_album_description(
 
 #[async_trait]
 impl AlbumStore for SqliteCatalog {
-    async fn save_album(&self, album: &FolderRecord) -> Result<(), AppError> {
+    async fn save_album(&self, album: &FolderRecord) -> Result<(), CatalogError> {
         save_album(self, album).await
     }
 
-    async fn delete_album(&self, id: &str) -> Result<(), AppError> {
+    async fn delete_album(&self, id: &str) -> Result<(), CatalogError> {
         delete_album(self, id).await
     }
 
-    async fn list_albums(&self) -> Result<Vec<AlbumSummary>, AppError> {
+    async fn list_albums(&self) -> Result<Vec<AlbumSummary>, CatalogError> {
         list_albums(self).await
     }
 
-    async fn get_album(&self, id: &str) -> Result<Option<AlbumSummary>, AppError> {
+    async fn get_album(&self, id: &str) -> Result<Option<AlbumSummary>, CatalogError> {
         get_album(self, id).await
     }
 
@@ -318,11 +316,11 @@ impl AlbumStore for SqliteCatalog {
         album_id: &str,
         cursor: Option<&TimelineCursor>,
         limit: u32,
-    ) -> Result<TimelinePage, AppError> {
+    ) -> Result<TimelinePage, CatalogError> {
         get_album_page(self, album_id, cursor, limit).await
     }
 
-    async fn set_album_cover(&self, album_id: &str, cover: Option<&str>) -> Result<(), AppError> {
+    async fn set_album_cover(&self, album_id: &str, cover: Option<&str>) -> Result<(), CatalogError> {
         set_album_cover(self, album_id, cover).await
     }
 
@@ -330,7 +328,7 @@ impl AlbumStore for SqliteCatalog {
         &self,
         album_id: &str,
         description: Option<&str>,
-    ) -> Result<(), AppError> {
+    ) -> Result<(), CatalogError> {
         set_album_description(self, album_id, description).await
     }
 }

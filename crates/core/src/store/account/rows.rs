@@ -15,7 +15,7 @@ pub(crate) struct AccountRow {
 }
 
 impl AccountRow {
-    pub(crate) fn into_account(self) -> Result<Account, AppError> {
+    pub(crate) fn into_account(self) -> Result<Account, CatalogError> {
         Ok(Account {
             base_url: self.base_url,
             user: decode(self.user, "用户")?,
@@ -26,20 +26,24 @@ impl AccountRow {
 
 /// The user is a single value, so it is one JSON column instead of a set of
 /// columns that could disagree with each other.
-pub(crate) fn encode<T: Serialize>(value: &Option<T>) -> Result<Option<String>, AppError> {
+pub(crate) fn encode<T: Serialize>(value: &Option<T>) -> Result<Option<String>, CatalogError> {
     value
         .as_ref()
         .map(|value| {
             serde_json::to_string(value)
-                .map_err(|error| AppError::internal(format!("无法序列化账号字段: {error}")))
+                .map_err(|error| CatalogError::EncodeFailed {
+                    cause: format!("无法序列化账号字段: {error}"),
+                })
         })
         .transpose()
 }
 
-fn decode<T: DeserializeOwned>(raw: Option<String>, what: &str) -> Result<Option<T>, AppError> {
+fn decode<T: DeserializeOwned>(raw: Option<String>, what: &str) -> Result<Option<T>, CatalogError> {
     raw.map(|raw| {
         serde_json::from_str(&raw)
-            .map_err(|error| AppError::internal(format!("无法解析账号{what}: {error}")))
+            .map_err(|error| CatalogError::DecodeFailed {
+                cause: format!("无法解析账号{what}: {error}"),
+            })
     })
     .transpose()
 }

@@ -29,7 +29,6 @@ pub(crate) struct SyncStateRow {
     pub(crate) status: String,
     pub(crate) remote_updated_at: Option<i64>,
     pub(crate) last_listed_at: Option<i64>,
-    pub(crate) last_error: Option<String>,
 }
 
 impl From<FolderRow> for FolderRecord {
@@ -53,7 +52,6 @@ impl From<SyncStateRow> for FolderSyncState {
             status: row.status,
             remote_updated_at: row.remote_updated_at,
             last_listed_at: row.last_listed_at,
-            last_error: row.last_error,
         }
     }
 }

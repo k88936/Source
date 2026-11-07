@@ -5,29 +5,32 @@ pub(crate) use std::path::PathBuf;
 pub(crate) use tauri::{AppHandle, Emitter, State};
 
 pub(crate) use source_core::app::account::{
-    AccountState, Login2faParams, LoginOutcome, LoginParams, SetServerParams,
+    AccountError, AccountState, Login2faParams, LoginOutcome, LoginParams, SetServerParams,
 };
 pub(crate) use source_core::app::albums::{
-    AddAlbumParams, AddLocalAlbumParams, AlbumPageParams, AlbumParams, LocalAlbumParams,
-    LocalAlbumSummary, LocalBrowseParams, MoveAssetsParams, SetAlbumCoverParams,
+    AddAlbumParams, AddLocalAlbumParams, AlbumError, AlbumPageParams, AlbumParams,
+    LocalAlbumParams, LocalAlbumSummary, LocalBrowseParams, MoveAssetsParams, SetAlbumCoverParams,
     SetAlbumDescriptionParams,
 };
 pub(crate) use source_core::app::browse::{
-    AssetDetail, AssetDetailParams, ExportAssetsParams, ExportResult, MediaSourceParams,
-    SearchParams, SetFavoriteParams, TimelinePageParams,
+    AssetDetail, AssetDetailParams, BrowseError, ExportAssetsParams, ExportError, ExportResult,
+    MediaSourceParams, SearchParams, SetFavoriteParams, TimelinePageParams,
 };
 pub(crate) use source_core::app::folders::{
-    CreateFolderParams, ListRemoteFoldersParams, RemoteFolderPage,
+    CreateFolderParams, FolderError, ListRemoteFoldersParams, RemoteFolderPage,
 };
-pub(crate) use source_core::app::uploads::{EnqueueUploadsParams, UploadTaskParams};
+pub(crate) use source_core::app::sync::SyncError;
+pub(crate) use source_core::app::uploads::{
+    EnqueueUploadsParams, QueuedUpload, UploadError, UploadTaskParams,
+};
 pub(crate) use source_core::app::{AppInfo, CatalogChangeKind, CatalogChangedEvent};
-pub(crate) use source_core::error::AppError;
 pub(crate) use source_core::media::{
-    CacheStats, LocalAssetPage, LocalAssetPageParams, LocalBrowsePage, MediaPermissionState,
+    CacheStats, LocalAssetPage, LocalAssetPageParams, LocalBrowsePage, MediaError,
+    MediaPermissionState,
 };
 pub(crate) use source_core::remote::{Capacity, SiteInfo};
 pub(crate) use source_core::store::{
-    AlbumSummary, AssetSummary, FolderRef, TimelinePage, UploadTask,
+    AlbumSummary, AssetSummary, CatalogError, FolderRef, TimelinePage,
 };
 
 pub(crate) use source_jobs::Job;

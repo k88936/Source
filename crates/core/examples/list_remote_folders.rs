@@ -19,14 +19,19 @@ use example_utils::login::sign_in;
 async fn main() -> Result<()> {
     let settings = Settings::from_env()?;
 
-    let catalog = SqliteCatalog::open(&settings.catalog).await?;
+    let catalog = SqliteCatalog::open(&settings.catalog)
+        .await
+        .map_err(|cause| anyhow::anyhow!("打开索引失败: {cause:?}"))?;
     let sessions: Arc<dyn UploadSessionPort> = Arc::new(catalog.clone());
     let auth = sign_in(&settings).await?;
     let uri = std::env::args().nth(1).unwrap_or(settings.root);
     let cloud = CloudreveStorage::new(Arc::new(auth), sessions);
     let folders = FoldersService::new(cloud, catalog);
 
-    let page: RemoteFolderPage = folders.list_remote_folders(&uri, None).await?;
+    let page: RemoteFolderPage = folders
+        .list_remote_folders(&uri, None)
+        .await
+        .map_err(|cause| anyhow::anyhow!("列目录失败: {cause:?}"))?;
     println!("{}", serde_json::to_string(&page)?);
     Ok(())
 }

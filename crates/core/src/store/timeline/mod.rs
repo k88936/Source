@@ -19,15 +19,15 @@ pub trait TimelineStore: Send + Sync {
         &self,
         cursor: Option<&TimelineCursor>,
         limit: u32,
-    ) -> Result<TimelinePage, AppError>;
-    async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, AppError>;
+    ) -> Result<TimelinePage, CatalogError>;
+    async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, CatalogError>;
 }
 
 pub(crate) async fn get_timeline_page(
     cat: &SqliteCatalog,
     cursor: Option<&TimelineCursor>,
     limit: u32,
-) -> Result<TimelinePage, AppError> {
+) -> Result<TimelinePage, CatalogError> {
     let mut conn = cat.conn().await?;
     timeline(&mut conn, None, cursor, limit).await
 }
@@ -35,7 +35,7 @@ pub(crate) async fn get_timeline_page(
 pub(crate) async fn search(
     cat: &SqliteCatalog,
     query: &SearchQuery,
-) -> Result<TimelinePage, AppError> {
+) -> Result<TimelinePage, CatalogError> {
     let mut conn = cat.conn().await?;
     let limit = i64::from(query.limit.clamp(1, 200));
     let mut statement = assets::table
@@ -84,11 +84,11 @@ impl TimelineStore for SqliteCatalog {
         &self,
         cursor: Option<&TimelineCursor>,
         limit: u32,
-    ) -> Result<TimelinePage, AppError> {
+    ) -> Result<TimelinePage, CatalogError> {
         get_timeline_page(self, cursor, limit).await
     }
 
-    async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, AppError> {
+    async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, CatalogError> {
         search(self, query).await
     }
 }

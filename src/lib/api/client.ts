@@ -39,25 +39,12 @@ import type {SetServerParams} from './bindings/SetServerParams';
 import type {SiteInfo} from './bindings/SiteInfo';
 import type {TimelinePage} from './bindings/TimelinePage';
 import type {TimelinePageParams} from './bindings/TimelinePageParams';
-import type {UploadTask} from './bindings/UploadTask';
+import type {QueuedUpload} from './bindings/QueuedUpload';
 import type {UploadTaskParams} from './bindings/UploadTaskParams';
 import {transport} from '#lib/api/transport';
 
 async function call<T>(command: string, params?: unknown): Promise<T> {
-    try {
-        return await transport.invoke<T>(command, params as Record<string, unknown> | undefined);
-    } catch (err) {
-        if (
-            typeof window !== 'undefined' &&
-            err &&
-            typeof err === 'object' &&
-            'code' in err &&
-            (err as {code?: string}).code === 'unauthorized'
-        ) {
-            window.dispatchEvent(new Event('source:unauthorized'));
-        }
-        throw err;
-    }
+    return transport.invoke<T>(command, params as Record<string, unknown> | undefined);
 }
 
 export function listen<T>(event: string, handler: (payload: T) => void) {
@@ -107,10 +94,10 @@ export const api = {
     syncStart: () => call<number>('sync_start'),
     syncStop: () => call<void>('sync_stop'),
 
-    enqueueUploads: (params: EnqueueUploadsParams) => call<UploadTask[]>('enqueue_uploads', params),
-    uploadTasks: () => call<UploadTask[]>('upload_tasks'),
+    enqueueUploads: (params: EnqueueUploadsParams) => call<QueuedUpload[]>('enqueue_uploads', params),
+    uploadTasks: () => call<QueuedUpload[]>('upload_tasks'),
     cancelUpload: (params: UploadTaskParams) => call<void>('cancel_upload', params),
-    retryUpload: (params: UploadTaskParams) => call<UploadTask>('retry_upload', params),
+    retryUpload: (params: UploadTaskParams) => call<QueuedUpload>('retry_upload', params),
 
     cacheStats: () => call<CacheStats>('cache_stats'),
     clearCache: () => call<void>('clear_cache'),

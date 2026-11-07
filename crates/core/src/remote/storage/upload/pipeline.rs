@@ -5,8 +5,7 @@ use std::sync::Arc;
 use cloudreve_sdk_api::Client;
 use cloudreve_sdk_api::api::ExplorerApi;
 
-use crate::error::ErrorCode;
-use crate::remote::map_api_error;
+use crate::remote::UploadUriError;
 
 use super::*;
 
@@ -14,9 +13,11 @@ impl CloudreveStorage {
     pub(crate) async fn upload_asset(
         &self,
         request: UploadRequest,
-    ) -> Result<RemoteEntry, AppError> {
+    ) -> Result<RemoteEntry, UploadUriError> {
         let source = build_upload_source(&request.source_uri, request.size)?;
-        let client = self.client()?;
+        let client = self
+            .client()
+            .map_err(UploadUriError::from_remote)?;
         let remote_uri = join_uri(&request.dest_uri, &request.name);
         let uploader = Uploader::new(Arc::clone(&client), UploaderConfig::default());
         let params = UploadParams {
@@ -53,11 +54,7 @@ impl CloudreveStorage {
         // asset locally for a file the user gave up on; the session is already
         // gone at that point, so this only skips the local bookkeeping.
         if request.cancel.is_cancelled() {
-            return Err(AppError::new(
-                ErrorCode::Cancelled,
-                "上传已取消".to_string(),
-                false,
-            ));
+            return Err(UploadUriError::Interrupted);
         }
 
         read_back_entry(&client, &remote_uri).await
@@ -66,7 +63,7 @@ impl CloudreveStorage {
 
 /// Metadata extraction may lag behind the upload, so retry briefly until the
 /// new asset can be read back with its id and timestamps.
-async fn read_back_entry(client: &Client, remote_uri: &str) -> Result<RemoteEntry, AppError> {
+async fn read_back_entry(client: &Client, remote_uri: &str) -> Result<RemoteEntry, UploadUriError> {
     for attempt in 0..5 {
         match client
             .get_file_info(&GetFileInfoService {
@@ -81,8 +78,10 @@ async fn read_back_entry(client: &Client, remote_uri: &str) -> Result<RemoteEntr
             Err(_) if attempt < 4 => {
                 tokio::time::sleep(std::time::Duration::from_millis(250 * (attempt + 1))).await;
             }
-            Err(err) => return Err(map_api_error(err)),
+            Err(err) => return Err(UploadUriError::from_api(err)),
         }
     }
-    Err(AppError::internal("上传完成但无法读取文件信息"))
+    Err(UploadUriError::ChunkFailed {
+        cause: "上传完成但无法读取文件信息".to_string(),
+    })
 }

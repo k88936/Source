@@ -49,8 +49,7 @@ CREATE TABLE sync_state (
   last_listed_at INTEGER,
   last_page_token TEXT,
   remote_updated_at INTEGER,
-  status TEXT NOT NULL,
-  last_error TEXT
+  status TEXT NOT NULL
 );
 
 CREATE TABLE local_albums (

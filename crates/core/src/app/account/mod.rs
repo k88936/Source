@@ -7,13 +7,46 @@
 
 mod dto;
 
-use crate::error::{AppError, ErrorCode};
-use crate::remote::{Capacity, RemoteAuth, RemoteStorage, SignInOutcome, SignedIn, SiteInfo};
-use crate::store::{Account, AccountStore};
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+use crate::remote::{
+    Capacity, CapacityError, ProbeError, RemoteAuth, RemoteStorage, SessionError, SignInError,
+    SignInOutcome, SignedIn, SiteInfo,
+};
+use crate::store::{Account, AccountStore, CatalogError};
 
 use super::normalize_base_url;
 
 pub use dto::*;
+
+/// What can go wrong while establishing or reading the account.
+///
+/// Each variant names the step that failed; the remote causes stay typed so the
+/// shell can tell "the server refused the password" from "the address is not a
+/// Cloudreve server" without reading a sentence.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[ts(export)]
+pub enum AccountError {
+    /// The address typed in was empty or not a URL.
+    ServerAddressInvalid { cause: super::UrlError },
+    ProbeFailed { cause: ProbeError },
+    SignInFailed { cause: SignInError },
+    SessionFailed { cause: SessionError },
+    CapacityFailed { cause: CapacityError },
+    Catalog { cause: CatalogError },
+    /// Signing in without a server chosen first.
+    ServerMissing,
+    /// A 2FA step whose original sign-in is gone.
+    SignInMissing,
+}
+
+impl AccountError {
+    fn catalog(cause: CatalogError) -> Self {
+        AccountError::Catalog { cause }
+    }
+}
 
 pub struct AccountService<A, S, C> {
     auth: A,
@@ -52,27 +85,27 @@ where
     /// Switching to a different server drops the catalog: albums, their assets
     /// and the local album mapping all point at folders of the server the
     /// current account lives on.
-    pub async fn set_server(&self, base_url: &str) -> Result<SiteInfo, AppError> {
+    pub async fn set_server(&self, base_url: &str) -> Result<SiteInfo, AccountError> {
         self.set_server_impl(base_url).await
     }
 
-    pub async fn login(&self, email: &str, password: &str) -> Result<LoginOutcome, AppError> {
+    pub async fn login(&self, email: &str, password: &str) -> Result<LoginOutcome, AccountError> {
         self.login_impl(email, password).await
     }
 
-    pub async fn login_2fa(&self, session_id: &str, otp: &str) -> Result<AccountState, AppError> {
+    pub async fn login_2fa(&self, session_id: &str, otp: &str) -> Result<AccountState, AccountError> {
         self.login_2fa_impl(session_id, otp).await
     }
 
-    pub async fn logout(&self) -> Result<(), AppError> {
+    pub async fn logout(&self) -> Result<(), AccountError> {
         self.logout_impl().await
     }
 
-    pub async fn get_account_state(&self) -> Result<Option<AccountState>, AppError> {
+    pub async fn get_account_state(&self) -> Result<Option<AccountState>, AccountError> {
         self.get_account_state_impl().await
     }
 
-    pub async fn get_capacity(&self) -> Result<Capacity, AppError> {
+    pub async fn get_capacity(&self) -> Result<Capacity, AccountError> {
         self.get_capacity_impl().await
     }
 }
@@ -100,7 +133,10 @@ where
                 self.forget_user(account).await.ok()?;
                 None
             }
-            Err(err) if matches!(err.code, ErrorCode::Network | ErrorCode::Server) => {
+            // The token was not refused - `restore` reports that as `Ok(None)`
+            // - so the identity on disk is still the best answer this start
+            // can give, and an offline library stays browsable.
+            Err(_) => {
                 let user = account.user?;
                 Some(AccountState {
                     server: account.base_url,
@@ -108,18 +144,33 @@ where
                     user,
                 })
             }
-            Err(_) => None,
         }
     }
 
-    async fn set_server_impl(&self, base_url: &str) -> Result<SiteInfo, AppError> {
-        let base = normalize_base_url(base_url)?;
-        let info = self.auth.site_info(&base).await?;
-        let known = self.account_store.get_account(&base).await?;
-        if let Some(previous) = self.account_store.get_current_account().await?
+    async fn set_server_impl(&self, base_url: &str) -> Result<SiteInfo, AccountError> {
+        let base = normalize_base_url(base_url)
+            .map_err(|cause| AccountError::ServerAddressInvalid { cause })?;
+        let info = self
+            .auth
+            .site_info(&base)
+            .await
+            .map_err(|cause| AccountError::ProbeFailed { cause })?;
+        let known = self
+            .account_store
+            .get_account(&base)
+            .await
+            .map_err(AccountError::catalog)?;
+        if let Some(previous) = self
+            .account_store
+            .get_current_account()
+            .await
+            .map_err(AccountError::catalog)?
             && previous.base_url != base
         {
-            self.account_store.reset_catalog().await?;
+            self.account_store
+                .reset_catalog()
+                .await
+                .map_err(AccountError::catalog)?;
         }
         self.account_store
             .save_account(&Account {
@@ -127,16 +178,18 @@ where
                 user: known.as_ref().and_then(|account| account.user.clone()),
                 site_name: Some(info.name.clone()),
             })
-            .await?;
+            .await
+            .map_err(AccountError::catalog)?;
         Ok(info)
     }
 
-    async fn login_impl(&self, email: &str, password: &str) -> Result<LoginOutcome, AppError> {
-        let account = self.require_account("请先填写服务器地址").await?;
+    async fn login_impl(&self, email: &str, password: &str) -> Result<LoginOutcome, AccountError> {
+        let account = self.require_server().await?;
         match self
             .auth
             .sign_in(&account.base_url, email, password)
-            .await?
+            .await
+            .map_err(|cause| AccountError::SignInFailed { cause })?
         {
             SignInOutcome::SignedIn(signed_in) => Ok(LoginOutcome::Authenticated {
                 account: self.remember(&account, signed_in).await?,
@@ -147,19 +200,23 @@ where
         }
     }
 
-    async fn login_2fa_impl(&self, session_id: &str, otp: &str) -> Result<AccountState, AppError> {
-        let account = self
-            .require_account("登录会话已过期, 请重新输入密码")
-            .await?;
+    async fn login_2fa_impl(&self, session_id: &str, otp: &str) -> Result<AccountState, AccountError> {
+        let account = self.require_session().await?;
         let signed_in = self
             .auth
             .sign_in_2fa(&account.base_url, session_id, otp)
-            .await?;
+            .await
+            .map_err(|cause| AccountError::SignInFailed { cause })?;
         self.remember(&account, signed_in).await
     }
 
-    async fn logout_impl(&self) -> Result<(), AppError> {
-        let Some(account) = self.account_store.get_current_account().await? else {
+    async fn logout_impl(&self) -> Result<(), AccountError> {
+        let Some(account) = self
+            .account_store
+            .get_current_account()
+            .await
+            .map_err(AccountError::catalog)?
+        else {
             return Ok(());
         };
         let _ = self.auth.sign_out(&account.base_url).await;
@@ -169,8 +226,13 @@ where
         Ok(())
     }
 
-    async fn get_account_state_impl(&self) -> Result<Option<AccountState>, AppError> {
-        let Some(account) = self.account_store.get_current_account().await? else {
+    async fn get_account_state_impl(&self) -> Result<Option<AccountState>, AccountError> {
+        let Some(account) = self
+            .account_store
+            .get_current_account()
+            .await
+            .map_err(AccountError::catalog)?
+        else {
             return Ok(None);
         };
         Ok(account.user.map(|user| AccountState {
@@ -180,28 +242,46 @@ where
         }))
     }
 
-    async fn get_capacity_impl(&self) -> Result<Capacity, AppError> {
-        self.storage.get_capacity().await
+    async fn get_capacity_impl(&self) -> Result<Capacity, AccountError> {
+        self.storage
+            .get_capacity()
+            .await
+            .map_err(|cause| AccountError::CapacityFailed { cause })
     }
 
-    async fn require_account(&self, missing: &str) -> Result<Account, AppError> {
+    async fn require_server(&self) -> Result<Account, AccountError> {
+        self.current_account()
+            .await?
+            .ok_or(AccountError::ServerMissing)
+    }
+
+    async fn require_session(&self) -> Result<Account, AccountError> {
+        self.current_account()
+            .await?
+            .ok_or(AccountError::SignInMissing)
+    }
+
+    async fn current_account(&self) -> Result<Option<Account>, AccountError> {
         self.account_store
             .get_current_account()
-            .await?
-            .ok_or_else(|| AppError::internal(missing))
+            .await
+            .map_err(AccountError::catalog)
     }
 
     async fn remember(
         &self,
         account: &Account,
         signed_in: SignedIn,
-    ) -> Result<AccountState, AppError> {
+    ) -> Result<AccountState, AccountError> {
         let saved = Account {
             base_url: account.base_url.clone(),
             user: Some(signed_in.user.clone()),
             site_name: signed_in.site_name.or_else(|| account.site_name.clone()),
         };
-        self.account_store.save_account(&saved).await?;
+        self.account_store
+            .save_account(&saved)
+            .await
+            .map_err(AccountError::catalog)?;
         Ok(AccountState {
             server: saved.base_url,
             site_name: saved.site_name,
@@ -209,13 +289,16 @@ where
         })
     }
 
-    async fn forget_user(&self, account: Account) -> Result<Account, AppError> {
+    async fn forget_user(&self, account: Account) -> Result<Account, AccountError> {
         let cleared = Account {
             base_url: account.base_url,
             user: None,
             site_name: account.site_name,
         };
-        self.account_store.save_account(&cleared).await?;
+        self.account_store
+            .save_account(&cleared)
+            .await
+            .map_err(AccountError::catalog)?;
         Ok(cleared)
     }
 }

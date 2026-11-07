@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha2::{Digest, Sha256};
 
 use super::CacheStats;
-use crate::error::AppError;
+use crate::media::MediaError;
 
 pub const THUMB_BUDGET_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -20,9 +20,10 @@ pub struct ThumbCache {
 }
 
 impl ThumbCache {
-    pub fn new(dir: PathBuf, budget: u64) -> Result<Self, AppError> {
-        fs::create_dir_all(&dir)
-            .map_err(|e| AppError::internal(format!("create thumb cache: {e}")))?;
+    pub fn new(dir: PathBuf, budget: u64) -> Result<Self, MediaError> {
+        fs::create_dir_all(&dir).map_err(|cause| MediaError::Platform {
+            cause: format!("create thumb cache: {cause}"),
+        })?;
         Ok(Self {
             dir,
             budget,
@@ -30,7 +31,7 @@ impl ThumbCache {
         })
     }
 
-    pub fn default_cache(app_data: &Path) -> Result<Self, AppError> {
+    pub fn default_cache(app_data: &Path) -> Result<Self, MediaError> {
         Self::new(app_data.join("thumbs"), THUMB_BUDGET_BYTES)
     }
 
@@ -50,17 +51,22 @@ impl ThumbCache {
         Some(bytes)
     }
 
-    pub fn put(&self, key: &str, bytes: &[u8]) -> Result<(), AppError> {
+    pub fn put(&self, key: &str, bytes: &[u8]) -> Result<(), MediaError> {
         let _guard = self.lock.lock().ok();
         let path = self.path_for(key);
         let tmp = path.with_extension("tmp");
         {
-            let mut file = fs::File::create(&tmp)
-                .map_err(|e| AppError::internal(format!("write thumb: {e}")))?;
+            let mut file = fs::File::create(&tmp).map_err(|cause| MediaError::Platform {
+                cause: format!("write thumb: {cause}"),
+            })?;
             file.write_all(bytes)
-                .map_err(|e| AppError::internal(format!("write thumb: {e}")))?;
+                .map_err(|cause| MediaError::Platform {
+                    cause: format!("write thumb: {cause}"),
+                })?;
         }
-        fs::rename(&tmp, &path).map_err(|e| AppError::internal(format!("commit thumb: {e}")))?;
+        fs::rename(&tmp, &path).map_err(|cause| MediaError::Platform {
+            cause: format!("commit thumb: {cause}"),
+        })?;
         self.evict_if_needed();
         Ok(())
     }
@@ -115,7 +121,7 @@ impl ThumbCache {
         }
     }
 
-    pub fn clear(&self) -> Result<(), AppError> {
+    pub fn clear(&self) -> Result<(), MediaError> {
         let files = self.scan();
         for (path, _, _) in files {
             let _ = fs::remove_file(path);

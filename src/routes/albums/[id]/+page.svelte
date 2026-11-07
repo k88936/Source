@@ -249,9 +249,6 @@
 {#if album?.sync?.failed && !coverMode}
     <div class="mx-4 mt-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
         <p class="text-xs font-medium text-amber-600">{t.syncFailed}</p>
-        <p class="mt-0.5 text-[11px] text-muted">
-            {t.syncNote(album.sync?.error ?? '')}
-        </p>
         <div class="mt-2 flex gap-2">
             <button
                 onclick={() => void refresh()}

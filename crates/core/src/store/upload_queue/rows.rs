@@ -40,7 +40,7 @@ impl From<UploadRow> for UploadTask {
             speed: row.speed,
             eta_seconds: row.eta_seconds.map(|value| value.max(0) as u32),
             attempts: row.attempts.max(0) as u32,
-            error: row.error.and_then(|raw| serde_json::from_str(&raw).ok()),
+            error: row.error,
         }
     }
 }

@@ -5,13 +5,13 @@ use std::time::Duration;
 
 use cloudreve_sdk_api::api::{SiteApi, UserApi};
 use cloudreve_sdk_api::models::user::Token;
+use tokio_util::sync::CancellationToken;
 
-use super::cloudreve::{CloudreveAuth, wait, within_deadline};
+use super::cloudreve::{CloudreveAuth, within_deadline};
 use super::raw::{LoginData, raw_post, user_info};
 use super::*;
-use crate::error::ErrorCode;
 use crate::remote::map_api_error;
-use crate::task::Retry;
+use crate::task::{Attempt, Retry, Step, attempt};
 
 /// What restoring a session costs before the window settles for the account row
 /// alone.
@@ -24,13 +24,71 @@ const RESTORE_RETRY: Retry = Retry {
     base: Duration::from_secs(2),
 };
 
+/// The credential step of a password sign-in.
+fn sign_in_error(cause: RemoteError) -> SignInError {
+    match cause {
+        RemoteError::Unreachable { cause } => SignInError::Unreachable { cause },
+        RemoteError::SessionExpired { message } => SignInError::CredentialsRejected { message },
+        RemoteError::NotSignedIn => SignInError::CredentialsRejected { message: None },
+        RemoteError::Rejected { status, .. } if matches!(status, 401 | 403 | 40020) => {
+            SignInError::CredentialsRejected { message: None }
+        }
+        RemoteError::Rejected { status, message } => SignInError::Rejected { status, message },
+        RemoteError::Protocol { cause } => SignInError::Protocol { cause },
+    }
+}
+
+/// The one-time-code step of a sign-in.
+fn code_error(cause: RemoteError) -> SignInError {
+    match cause {
+        RemoteError::Unreachable { cause } => SignInError::Unreachable { cause },
+        RemoteError::SessionExpired { message } => SignInError::CodeRejected { message },
+        RemoteError::NotSignedIn => SignInError::CodeRejected { message: None },
+        RemoteError::Rejected { status, .. } if matches!(status, 401 | 403 | 40020) => {
+            SignInError::CodeRejected { message: None }
+        }
+        RemoteError::Rejected { status, message } => SignInError::Rejected { status, message },
+        RemoteError::Protocol { cause } => SignInError::Protocol { cause },
+    }
+}
+
+/// Restoring: a transport failure is worth one more visit, a refusal is not.
+fn session_error(cause: RemoteError) -> SessionError {
+    match cause {
+        RemoteError::Unreachable { cause } => SessionError::Unreachable { cause },
+        RemoteError::SessionExpired { message } => SessionError::Rejected {
+            status: 401,
+            message: message.unwrap_or_default(),
+        },
+        RemoteError::NotSignedIn => SessionError::Rejected {
+            status: 401,
+            message: String::new(),
+        },
+        RemoteError::Rejected { status, message } => SessionError::Rejected { status, message },
+        RemoteError::Protocol { cause } => SessionError::Protocol { cause },
+    }
+}
+
+/// Whether the stored credential is dead rather than temporarily unusable.
+fn session_is_gone(cause: &RemoteError) -> bool {
+    matches!(
+        cause,
+        RemoteError::NotSignedIn
+            | RemoteError::SessionExpired { .. }
+            | RemoteError::Rejected {
+                status: 401 | 403,
+                ..
+            }
+    )
+}
+
 impl CloudreveAuth {
     pub(crate) async fn authenticate(
         &self,
         base_url: &str,
         email: &str,
         password: &str,
-    ) -> Result<SignInOutcome, AppError> {
+    ) -> Result<SignInOutcome, SignInError> {
         let base = base_url.trim_end_matches('/');
         let url = format!("{base}/api/v4/session/token");
         let envelope = raw_post::<LoginData>(
@@ -38,7 +96,8 @@ impl CloudreveAuth {
             &url,
             &serde_json::json!({ "email": email, "password": password }),
         )
-        .await?;
+        .await
+        .map_err(sign_in_error)?;
 
         if envelope.code != 0 {
             if (envelope.code == 203
@@ -48,20 +107,18 @@ impl CloudreveAuth {
             {
                 return Ok(SignInOutcome::TwoFactorRequired { session_id });
             }
-            return Err(AppError::unauthorized(if envelope.msg.is_empty() {
-                "登录失败".to_string()
-            } else {
-                envelope.msg
-            }));
+            return Err(SignInError::CredentialsRejected {
+                message: (!envelope.msg.is_empty()).then_some(envelope.msg),
+            });
         }
 
-        let data = envelope
-            .data
-            .ok_or_else(|| AppError::internal("登录响应缺少数据"))?;
+        let data = envelope.data.ok_or(SignInError::Protocol {
+            cause: "登录响应缺少数据".to_string(),
+        })?;
         if data.requires_2fa.unwrap_or(false) || data.two_fa.unwrap_or(false) {
-            let session_id = data
-                .session_id
-                .ok_or_else(|| AppError::internal("服务器要求 2FA, 但没有返回会话 ID"))?;
+            let session_id = data.session_id.ok_or(SignInError::Protocol {
+                cause: "服务器要求 2FA, 但没有返回会话 ID".to_string(),
+            })?;
             return Ok(SignInOutcome::TwoFactorRequired { session_id });
         }
         Ok(SignInOutcome::SignedIn(
@@ -74,7 +131,7 @@ impl CloudreveAuth {
         base_url: &str,
         session_id: &str,
         otp: &str,
-    ) -> Result<SignedIn, AppError> {
+    ) -> Result<SignedIn, SignInError> {
         let base = base_url.trim_end_matches('/');
         let url = format!("{base}/api/v4/session/token/2fa");
         let envelope = raw_post::<LoginData>(
@@ -82,24 +139,23 @@ impl CloudreveAuth {
             &url,
             &serde_json::json!({ "otp": otp, "session_id": session_id }),
         )
-        .await?;
+        .await
+        .map_err(code_error)?;
         if envelope.code != 0 {
-            return Err(AppError::unauthorized(if envelope.msg.is_empty() {
-                "验证码不正确".to_string()
-            } else {
-                envelope.msg
-            }));
+            return Err(SignInError::CodeRejected {
+                message: (!envelope.msg.is_empty()).then_some(envelope.msg),
+            });
         }
-        let data = envelope
-            .data
-            .ok_or_else(|| AppError::internal("2FA 响应缺少数据"))?;
+        let data = envelope.data.ok_or(SignInError::Protocol {
+            cause: "2FA 响应缺少数据".to_string(),
+        })?;
         self.adopt_tokens(base, data).await
     }
 
     pub(crate) async fn restore_session(
         &self,
         base_url: &str,
-    ) -> Result<Option<SignedIn>, AppError> {
+    ) -> Result<Option<SignedIn>, SessionError> {
         let base = base_url.trim_end_matches('/');
         let Some(raw) = self.read_token(base) else {
             return Ok(None);
@@ -116,39 +172,47 @@ impl CloudreveAuth {
         client
             .set_tokens_with_expiry(&token)
             .await
-            .map_err(map_api_error)?;
-        let mut retried = 0;
-        loop {
+            .map_err(map_api_error)
+            .map_err(session_error)?;
+        let cancel = CancellationToken::new();
+        let ran = attempt(RESTORE_RETRY, &cancel, |_| async {
             match within_deadline(client.get_user_me()).await {
                 Ok(user) => {
                     let user = user_info(&user);
                     let site_name = self.site_name_of(&client).await;
                     self.install(base, Arc::clone(&client));
-                    return Ok(Some(SignedIn { user, site_name }));
+                    Step::Done(Some(SignedIn { user, site_name }))
                 }
-                Err(err) if matches!(err.code, ErrorCode::Unauthorized) => {
+                Err(cause) if session_is_gone(&cause) => {
                     self.clear_token(base);
-                    return Ok(None);
+                    Step::Done(None)
                 }
-                Err(err) if err.retryable && retried < RESTORE_RETRY.attempts => {
-                    retried += 1;
-                    wait(RESTORE_RETRY.delay(retried)).await;
+                Err(RemoteError::Unreachable { cause }) => {
+                    Step::Retry(SessionError::Unreachable { cause })
                 }
-                Err(err) => return Err(err),
+                Err(cause) => Step::Failed(session_error(cause)),
             }
+        })
+        .await;
+        match ran {
+            Attempt::Done(signed_in) => Ok(signed_in),
+            Attempt::Failed(error) => Err(error),
+            // Not restored: the credential stays on disk for the next start.
+            Attempt::Stopped => Ok(None),
         }
     }
 
     /// Store the token on `client` and make it the live account.
-    async fn adopt_tokens(&self, base: &str, data: LoginData) -> Result<SignedIn, AppError> {
+    async fn adopt_tokens(&self, base: &str, data: LoginData) -> Result<SignedIn, SignInError> {
         let client = self.client_for(base);
         client
             .set_tokens_with_expiry(&data.token)
             .await
-            .map_err(map_api_error)?;
+            .map_err(map_api_error)
+            .map_err(sign_in_error)?;
         let user = user_info(&data.user);
         let site_name = self.site_name_of(&client).await;
-        self.persist(base, &data.token)?;
+        self.persist(base, &data.token).map_err(sign_in_error)?;
         self.install(base, client);
         Ok(SignedIn { user, site_name })
     }
@@ -156,9 +220,11 @@ impl CloudreveAuth {
 
 #[async_trait]
 impl RemoteAuth for CloudreveAuth {
-    async fn site_info(&self, base_url: &str) -> Result<SiteInfo, AppError> {
+    async fn site_info(&self, base_url: &str) -> Result<SiteInfo, ProbeError> {
         let client = self.client_for(base_url.trim_end_matches('/'));
-        let cfg = within_deadline(client.get_site_config("basic")).await?;
+        let cfg = within_deadline(client.get_site_config("basic"))
+            .await
+            .map_err(probe_error)?;
         let thumbnail_size = within_deadline(client.get_site_config("thumb"))
             .await
             .ok()
@@ -176,7 +242,7 @@ impl RemoteAuth for CloudreveAuth {
         base_url: &str,
         email: &str,
         password: &str,
-    ) -> Result<SignInOutcome, AppError> {
+    ) -> Result<SignInOutcome, SignInError> {
         self.authenticate(base_url, email, password).await
     }
 
@@ -185,20 +251,36 @@ impl RemoteAuth for CloudreveAuth {
         base_url: &str,
         session_id: &str,
         otp: &str,
-    ) -> Result<SignedIn, AppError> {
+    ) -> Result<SignedIn, SignInError> {
         self.authenticate_otp(base_url, session_id, otp).await
     }
 
-    async fn restore(&self, base_url: &str) -> Result<Option<SignedIn>, AppError> {
+    async fn restore(&self, base_url: &str) -> Result<Option<SignedIn>, SessionError> {
         self.restore_session(base_url).await
     }
 
-    async fn sign_out(&self, base_url: &str) -> Result<(), AppError> {
+    async fn sign_out(&self, base_url: &str) -> Result<(), SessionError> {
         if let Ok(active) = self.current() {
             active.client.clear_tokens().await;
         }
         *self.live().lock().unwrap() = None;
         self.clear_token(base_url.trim_end_matches('/'));
         Ok(())
+    }
+}
+
+/// Probing a server: an answer we cannot parse means the address is not a
+/// Cloudreve server, which is a different sentence than "unreachable".
+fn probe_error(cause: RemoteError) -> ProbeError {
+    match cause {
+        RemoteError::Unreachable { cause } => ProbeError::Unreachable { cause },
+        RemoteError::Protocol { cause } => ProbeError::NotCloudreve { detail: cause },
+        RemoteError::Rejected { status, message } => ProbeError::Rejected { status, message },
+        RemoteError::SessionExpired { message } => ProbeError::NotCloudreve {
+            detail: message.unwrap_or_default(),
+        },
+        RemoteError::NotSignedIn => ProbeError::NotCloudreve {
+            detail: "服务器要求登录".to_string(),
+        },
     }
 }

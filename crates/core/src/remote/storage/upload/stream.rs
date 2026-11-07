@@ -3,35 +3,38 @@
 use tokio_util::sync::CancellationToken;
 
 use super::*;
-use crate::error::ErrorCode;
+use crate::remote::UploadUriError;
 use crate::store::UploadSessionPort;
 
 /// Map an app-side URI (`file://`, `content://`) onto an SDK upload source.
-pub(crate) fn build_upload_source(source_uri: &str, _size: i64) -> Result<UploadSource, AppError> {
+pub(crate) fn build_upload_source(
+    source_uri: &str,
+    _size: i64,
+) -> Result<UploadSource, UploadUriError> {
     if let Some(path) = source_uri.strip_prefix("file://") {
-        return UploadSource::from_path(path)
-            .map_err(|e| AppError::internal(format!("读取本机文件失败: {e}")));
+        return UploadSource::from_path(path).map_err(|error| UploadUriError::SourceUnreadable {
+            cause: format!("读取本机文件失败: {error}"),
+        });
     }
     if source_uri.starts_with("content://") {
         #[cfg(target_os = "android")]
         {
-            return UploadSource::from_content_uri(source_uri, _size.max(0) as u64)
-                .map_err(|e| AppError::internal(format!("读取 content URI 失败: {e}")));
+            return UploadSource::from_content_uri(source_uri, _size.max(0) as u64).map_err(
+                |error| UploadUriError::SourceUnreadable {
+                    cause: format!("读取 content URI 失败: {error}"),
+                },
+            );
         }
         #[cfg(not(target_os = "android"))]
         {
-            return Err(AppError::internal(
-                "当前平台不支持 content:// 上传; 请在 Android 上运行",
-            ));
+            return Err(UploadUriError::SourceUnreadable {
+                cause: "当前平台不支持 content:// 上传; 请在 Android 上运行".to_string(),
+            });
         }
     }
-    Err(AppError::internal(format!(
-        "不支持的本机文件 URI: {source_uri}"
-    )))
-}
-
-fn cancelled() -> AppError {
-    AppError::new(ErrorCode::Cancelled, "上传已取消".to_string(), false)
+    Err(UploadUriError::SourceUnreadable {
+        cause: format!("不支持的本机文件 URI: {source_uri}"),
+    })
 }
 
 /// Consume the event stream, recording every finished chunk as it arrives, and
@@ -48,7 +51,7 @@ pub(crate) async fn drive_upload(
     key: &str,
     cancel: &CancellationToken,
     progress: &ProgressSink,
-) -> Result<(), AppError> {
+) -> Result<(), UploadUriError> {
     let UploadStream {
         session,
         mut events,
@@ -66,9 +69,12 @@ pub(crate) async fn drive_upload(
             UploadEvent::ChunkDone(record) => {
                 // Record first, then stop: a cancelled attempt keeps every
                 // chunk the server has already accepted.
-                sessions.append_chunk(key, &record).await?;
+                sessions
+                    .append_chunk(key, &record)
+                    .await
+                    .map_err(|cause| UploadUriError::Store { cause })?;
                 if cancel.is_cancelled() {
-                    return Err(cancelled());
+                    return Err(UploadUriError::Interrupted);
                 }
             }
             UploadEvent::Completed => {
@@ -83,12 +89,14 @@ pub(crate) async fn drive_upload(
                 if matches!(error, UploadError::SessionExpired) {
                     let _ = sessions.remove_session(key).await;
                 }
-                return Err(map_upload_error(error.into()));
+                return Err(UploadUriError::from_upload(error));
             }
         }
     }
 
-    Err(AppError::internal("上传意外中断"))
+    Err(UploadUriError::ChunkFailed {
+        cause: "上传意外中断".to_string(),
+    })
 }
 
 /// Open the stream for `params`, resuming the session under `key` when the
@@ -100,8 +108,12 @@ pub(crate) async fn open_upload(
     sessions: &dyn UploadSessionPort,
     key: &str,
     params: UploadParams,
-) -> Result<(UploadStream, Vec<ChunkProgress>), AppError> {
-    if let Some((session, records)) = sessions.load_session(key).await? {
+) -> Result<(UploadStream, Vec<ChunkProgress>), UploadUriError> {
+    if let Some((session, records)) = sessions
+        .load_session(key)
+        .await
+        .map_err(|cause| UploadUriError::Store { cause })?
+    {
         match uploader
             .try_resume(session, params.source.clone(), records.clone())
             .await
@@ -118,13 +130,33 @@ pub(crate) async fn open_upload(
             {
                 let _ = sessions.remove_session(key).await;
             }
-            Err(error) => return Err(map_upload_error(error)),
+            Err(error) => return Err(from_upload_rejection(error)),
         }
     }
 
-    let stream = uploader.upload(params).await.map_err(map_upload_error)?;
-    sessions.create_session(key, &stream.session).await?;
+    let stream = uploader
+        .upload(params)
+        .await
+        .map_err(from_upload_rejection)?;
+    sessions
+        .create_session(key, &stream.session)
+        .await
+        .map_err(|cause| UploadUriError::Store { cause })?;
     Ok((stream, Vec::new()))
+}
+
+/// The uploader hands back `anyhow`, and only two shapes ever reach this layer:
+/// its own error, or the server's answer wrapped with context.
+fn from_upload_rejection(error: anyhow::Error) -> UploadUriError {
+    match error.downcast::<UploadError>() {
+        Ok(error) => UploadUriError::from_upload(error),
+        Err(error) => match error.downcast::<cloudreve_sdk_api::ApiError>() {
+            Ok(error) => UploadUriError::from_api(error),
+            Err(error) => UploadUriError::ChunkFailed {
+                cause: error.to_string(),
+            },
+        },
+    }
 }
 
 pub(crate) fn upload_progress(update: ProgressUpdate) -> UploadProgress {
@@ -134,40 +166,4 @@ pub(crate) fn upload_progress(update: ProgressUpdate) -> UploadProgress {
         speed: update.speed_bytes_per_sec as i64,
         eta_seconds: update.eta_seconds.map(|v| v as u32),
     }
-}
-
-pub(crate) fn map_upload_error(error: anyhow::Error) -> AppError {
-    match error.downcast::<UploadError>() {
-        Ok(error) => map_upload_failure(&error),
-        Err(error) => {
-            let message = error.to_string();
-            AppError::new(
-                ErrorCode::Server,
-                format!("上传失败: {message}"),
-                is_transient(&message),
-            )
-        }
-    }
-}
-
-pub(crate) fn map_upload_failure(error: &UploadError) -> AppError {
-    // The uploader reports a session the server no longer knows as expired, and
-    // the session was dropped, so a retry starts a fresh session from zero.
-    if matches!(error, UploadError::SessionExpired) {
-        return AppError::new(
-            ErrorCode::Server,
-            "上传会话已在服务器端失效, 请重试".to_string(),
-            true,
-        );
-    }
-    let message = error.to_string();
-    AppError::new(
-        ErrorCode::Server,
-        format!("上传失败: {message}"),
-        is_transient(&message),
-    )
-}
-
-pub(crate) fn is_transient(message: &str) -> bool {
-    message.contains("timeout") || message.contains("connection") || message.contains("429")
 }

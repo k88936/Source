@@ -1,9 +1,10 @@
 <script lang="ts">
     import {api} from '#lib/api/client';
-    import type {UploadTask} from '#lib/api/bindings/UploadTask';
+    import type {QueuedUpload} from '#lib/api/bindings/QueuedUpload';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
+    import {errorText} from '#lib/errors/i18n';
     import {queue} from './UploadQueueCard.i18n';
 
     const t = $derived(i18n.pick(queue));
@@ -12,12 +13,12 @@
     const active = $derived(app.uploads.filter((task) => !['done', 'cancelled'].includes(task.state)));
     const failed = $derived(active.filter((task) => task.state === 'failed'));
 
-    function percent(task: UploadTask): number {
+    function percent(task: QueuedUpload): number {
         if (task.total <= 0) return 0;
         return Math.min(100, Math.round((task.uploaded / task.total) * 100));
     }
 
-    function label(task: UploadTask): string {
+    function label(task: QueuedUpload): string {
         switch (task.state) {
             case 'queued':
                 return task.attempts > 0 ? t.waitingAttempt(task.attempts + 1) : t.waiting;
@@ -78,7 +79,7 @@
                             </div>
                         {:else if task.error}
                             <p class="mt-0.5 truncate text-[10px] text-red-500">
-                                {task.error.message}
+                                {errorText(task.error)}
                             </p>
                         {/if}
                     </div>

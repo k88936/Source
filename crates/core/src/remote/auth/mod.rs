@@ -10,7 +10,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use cloudreve_sdk_api::Client;
 
-use crate::error::AppError;
+use crate::remote::{ProbeError, RemoteError, SessionError, SignInError};
 
 mod cloudreve;
 mod dto;
@@ -25,26 +25,26 @@ pub use dto::{SignInOutcome, SignedIn, SiteInfo};
 #[async_trait]
 pub trait RemoteAuth: Send + Sync {
     /// Probe a server before signing in: its name and thumbnail edge.
-    async fn site_info(&self, base_url: &str) -> Result<SiteInfo, AppError>;
+    async fn site_info(&self, base_url: &str) -> Result<SiteInfo, ProbeError>;
 
     async fn sign_in(
         &self,
         base_url: &str,
         email: &str,
         password: &str,
-    ) -> Result<SignInOutcome, AppError>;
+    ) -> Result<SignInOutcome, SignInError>;
 
     async fn sign_in_2fa(
         &self,
         base_url: &str,
         session_id: &str,
         otp: &str,
-    ) -> Result<SignedIn, AppError>;
+    ) -> Result<SignedIn, SignInError>;
 
     /// Restore the stored token of `base_url`, validating it against `/user/me`.
-    async fn restore(&self, base_url: &str) -> Result<Option<SignedIn>, AppError>;
+    async fn restore(&self, base_url: &str) -> Result<Option<SignedIn>, SessionError>;
 
-    async fn sign_out(&self, base_url: &str) -> Result<(), AppError>;
+    async fn sign_out(&self, base_url: &str) -> Result<(), SessionError>;
 }
 
 /// A signed-in client: the account's token is already installed on it, and
@@ -58,6 +58,11 @@ pub struct ActiveAccount {
 /// The only thing storage needs from auth, and the reason it can depend on
 /// auth without being able to reach the credentials.
 pub trait CurrentAccount: Send + Sync {
-    /// The live account; `Err(unauthorized)` when nobody is signed in.
-    fn current(&self) -> Result<ActiveAccount, AppError>;
+    /// The live account; `Err(NotSignedIn)` when nobody is signed in.
+    fn current(&self) -> Result<ActiveAccount, RemoteError>;
+
+    /// The server said the session behind `live` is gone. The one place that
+    /// knows is the adapter that read the answer, so the notification starts
+    /// here instead of being guessed from an error kind further up.
+    fn session_lost(&self);
 }

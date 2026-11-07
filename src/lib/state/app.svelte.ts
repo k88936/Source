@@ -1,8 +1,9 @@
 import {api, listen} from '#lib/api/client';
 import type {CatalogChangedEvent} from '#lib/api/bindings/CatalogChangedEvent';
 import type {AccountState} from '#lib/api/bindings/AccountState';
-import type {UploadTask} from '#lib/api/bindings/UploadTask';
+import type {QueuedUpload} from '#lib/api/bindings/QueuedUpload';
 import type {Job} from '#lib/api/bindings/Job';
+import {errorText} from '#lib/errors/i18n';
 import {appMessages} from './app.i18n';
 import {changes} from './changes';
 import {i18n} from './i18n.svelte';
@@ -12,7 +13,7 @@ export type ToastKind = 'success' | 'error' | 'info';
 export class AppState {
     account = $state<AccountState | null>(null);
     ready = $state(false);
-    uploads = $state<UploadTask[]>([]);
+    uploads = $state<QueuedUpload[]>([]);
     /** The queue's board: every job this process ran, newest first. */
     jobs = $state<Job[]>([]);
     /** Whether background work is paused, persisted by the adapter. */
@@ -125,10 +126,7 @@ export class AppState {
     }
 
     describeError(err: unknown): string {
-        if (err && typeof err === 'object' && 'message' in err) {
-            return String((err as {message: unknown}).message);
-        }
-        return String(err);
+        return errorText(err);
     }
 
     async logout(): Promise<void> {

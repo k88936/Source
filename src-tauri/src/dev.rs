@@ -218,7 +218,7 @@ pub(crate) fn autoconnect(core: &App) {
     }
     tauri::async_runtime::block_on(async {
         if let Err(error) = core.account.set_server(&config.endpoint).await {
-            eprintln!("dev: cannot reach {}: {error}", config.endpoint);
+            eprintln!("dev: cannot reach {}: {error:?}", config.endpoint);
             return;
         }
         match core.account.login(&config.email, &config.password).await {
@@ -231,7 +231,7 @@ pub(crate) fn autoconnect(core: &App) {
                 return;
             }
             Err(error) => {
-                eprintln!("dev: login as {} failed: {error}", config.email);
+                eprintln!("dev: login as {} failed: {error:?}", config.email);
                 return;
             }
         }
@@ -248,7 +248,7 @@ pub(crate) fn autoconnect(core: &App) {
                 })
                 .await
         {
-            eprintln!("dev: cannot add default album: {error}");
+            eprintln!("dev: cannot add default album: {error:?}");
         }
         println!("dev: connected to {} as {}", config.endpoint, config.email);
     });

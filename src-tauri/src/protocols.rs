@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use source_core::error::{AppError, ErrorCode};
+use source_core::app::browse::BrowseError;
+use source_core::media::MediaError;
+use source_core::remote::{MediaFetchError, RemoteError};
 use source_core::{LOCAL_THUMB_EDGE, preview_from_jpeg};
 use tauri::http::{Response, StatusCode, header};
 use tauri::{AppHandle, Manager, UriSchemeResponder};
@@ -46,22 +48,42 @@ pub(crate) fn http_response(
         .unwrap_or_else(|_| Response::new(Vec::new()))
 }
 
-pub(crate) fn error_response(error: &AppError) -> Response<Vec<u8>> {
-    let status = match error.code {
-        ErrorCode::NotFound => 404,
-        ErrorCode::Unauthorized => 401,
-        ErrorCode::Permission => 403,
+/// The webview's media element decides what to do from the status, so the
+/// error kind is translated once, here, instead of the page re-reading a body.
+pub(crate) fn error_response(error: &BrowseError) -> Response<Vec<u8>> {
+    let status = match error {
+        BrowseError::AssetMissing { .. } => 404,
+        BrowseError::Media { cause, .. } => match cause {
+            MediaFetchError::AssetGone { .. } => 404,
+            MediaFetchError::Permission { .. } => 403,
+            MediaFetchError::Transport { cause } => transport_status(cause),
+        },
+        BrowseError::LocalMedia { cause } => match cause {
+            MediaError::AssetGone { .. } => 404,
+            MediaError::PermissionDenied => 403,
+            _ => 502,
+        },
         _ => 502,
     };
     http_response(
         status,
         "application/json",
-        serde_json::json!({ "error": error.message })
-            .to_string()
-            .into_bytes(),
+        serde_json::to_vec(error).expect("a media error serializes"),
         None,
         "no-store",
     )
+}
+
+/// The server's own refusal decides the status the webview sees.
+fn transport_status(cause: &RemoteError) -> u16 {
+    match cause {
+        RemoteError::SessionExpired { .. }
+        | RemoteError::Rejected {
+            status: 401 | 403, ..
+        } => 401,
+        RemoteError::Rejected { status: 404, .. } => 404,
+        _ => 502,
+    }
 }
 
 fn get_thumb(app: AppHandle, id: String, responder: UriSchemeResponder) {

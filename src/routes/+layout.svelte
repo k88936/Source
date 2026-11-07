@@ -11,6 +11,7 @@
     import Sidebar from '#lib/components/Sidebar.svelte';
     import TabBar from '#lib/components/TabBar.svelte';
     import Toast from '#lib/components/Toast.svelte';
+    import {listen} from '#lib/api/client';
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
     import {layout} from './layout.i18n';
@@ -25,13 +26,18 @@
 
     onMount(() => {
         void app.init();
-        const onUnauthorized = () => {
+        // The adapter is the only place that can tell a refused session from a
+        // wrong password, so it reports the loss and the shell reacts; nothing
+        // here inspects an error kind.
+        let unlisten: (() => void) | undefined;
+        void listen('session://lost', () => {
             app.account = null;
             app.showToast(t.sessionExpired, 'error');
             void goto(resolve('/welcome'));
-        };
-        window.addEventListener('source:unauthorized', onUnauthorized);
-        return () => window.removeEventListener('source:unauthorized', onUnauthorized);
+        }).then((remove) => {
+            unlisten = remove;
+        });
+        return () => unlisten?.();
     });
 
     $effect(() => {

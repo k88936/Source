@@ -9,7 +9,6 @@
 
 pub mod app;
 pub mod credential;
-pub mod error;
 pub mod exif;
 pub mod mapping;
 pub mod media;
@@ -24,12 +23,12 @@ pub use app::{
     SyncService, UploadOutcome, UploadsService,
 };
 pub use credential::CredentialStore;
-pub use error::{AppError, ErrorCode};
 pub use media::{FsLocalMedia, LOCAL_THUMB_EDGE, ThumbCache, preview_from_jpeg};
 pub use remote::{
-    CloudreveAuth, CloudreveStorage, CurrentAccount, MediaRange, ProgressSink, RemoteAuth,
-    RemoteEntry, RemoteEntryPage, RemoteStorage, SignInOutcome, SignedIn, SiteInfo, UploadProgress,
-    UploadRequest,
+    CapacityError, CloudreveAuth, CloudreveStorage, CreateFolderError, CurrentAccount, ListError,
+    MediaFetchError, MediaRange, MetadataError, MoveError, ProbeError, ProgressSink, RemoteAuth,
+    RemoteEntry, RemoteEntryPage, RemoteError, RemoteStorage, SessionError, SignInError,
+    SignInOutcome, SignedIn, SiteInfo, UploadProgress, UploadRequest, UploadUriError,
 };
 pub use sqlite::SqliteCatalog;
 pub use store::{

@@ -13,6 +13,10 @@ pub(crate) mod storage;
 
 pub use auth::{CloudreveAuth, CurrentAccount, RemoteAuth, SignInOutcome, SignedIn, SiteInfo};
 pub(crate) use error::map_api_error;
+pub use error::{
+    CapacityError, CreateFolderError, ListError, MediaFetchError, MetadataError, MoveError,
+    ProbeError, RemoteError, SessionError, SignInError, UploadUriError,
+};
 pub use storage::{
     Capacity, CloudreveStorage, MediaRange, ProgressSink, RemoteEntry, RemoteEntryPage,
     RemoteStorage, UploadProgress, UploadRequest,

@@ -21,6 +21,5 @@ diesel::table! {
         last_page_token -> Nullable<Text>,
         remote_updated_at -> Nullable<BigInt>,
         status -> Text,
-        last_error -> Nullable<Text>,
     }
 }

@@ -9,4 +9,4 @@
  * Broader content is not stored here: see `crate::store::AlbumStore` for the
  * albums this account has.
  */
-export type UserInfo = {id: string; name: string; email: string | null};
+export type UserInfo = { id: string, name: string, email: string | null, };

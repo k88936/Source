@@ -26,24 +26,24 @@ use self::values::*;
 pub trait UploadSessionPort: Send + Sync {
     /// Store a new session under `key`, dropping the chunk rows of the session
     /// it replaces.
-    async fn create_session(&self, key: &str, session: &UploadSession) -> Result<(), AppError>;
+    async fn create_session(&self, key: &str, session: &UploadSession) -> Result<(), CatalogError>;
     /// Append one finished chunk, replacing the row of a chunk retried within
     /// the same session.
-    async fn append_chunk(&self, key: &str, record: &ChunkProgress) -> Result<(), AppError>;
+    async fn append_chunk(&self, key: &str, record: &ChunkProgress) -> Result<(), CatalogError>;
     /// Return the session and the chunks that can be resumed.
     async fn load_session(
         &self,
         key: &str,
-    ) -> Result<Option<(UploadSession, Vec<ChunkProgress>)>, AppError>;
+    ) -> Result<Option<(UploadSession, Vec<ChunkProgress>)>, CatalogError>;
     /// Remove the session row and every chunk recorded under `key`.
-    async fn remove_session(&self, key: &str) -> Result<(), AppError>;
+    async fn remove_session(&self, key: &str) -> Result<(), CatalogError>;
 }
 
 pub(crate) async fn create_session(
     cat: &SqliteCatalog,
     key: &str,
     session: &UploadSession,
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     let credential = session.credential();
     let policy = credential.storage_policy.as_ref();
     let encryption = credential.encrypt_metadata.as_ref();
@@ -126,7 +126,7 @@ pub(crate) async fn append_chunk(
     cat: &SqliteCatalog,
     key: &str,
     record: &ChunkProgress,
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     diesel::insert_into(records::table)
         .values((
@@ -150,7 +150,7 @@ pub(crate) async fn append_chunk(
 pub(crate) async fn load_session(
     cat: &SqliteCatalog,
     key: &str,
-) -> Result<Option<(UploadSession, Vec<ChunkProgress>)>, AppError> {
+) -> Result<Option<(UploadSession, Vec<ChunkProgress>)>, CatalogError> {
     let mut conn = cat.conn().await?;
     let row = sessions::table
         .filter(sessions::key.eq(key))
@@ -180,12 +180,12 @@ pub(crate) async fn load_session(
     Ok(Some((row.into_session(upload_urls)?, records)))
 }
 
-pub(crate) async fn remove_session(cat: &SqliteCatalog, key: &str) -> Result<(), AppError> {
+pub(crate) async fn remove_session(cat: &SqliteCatalog, key: &str) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     delete_session(&mut conn, key).await
 }
 
-async fn delete_session(conn: &mut Conn, key: &str) -> Result<(), AppError> {
+async fn delete_session(conn: &mut Conn, key: &str) -> Result<(), CatalogError> {
     // The chunk rows and the upload URLs go with the session row: both tables
     // cascade on delete, so nothing can outlive the session it belongs to.
     diesel::delete(sessions::table.filter(sessions::key.eq(key)))
@@ -197,22 +197,22 @@ async fn delete_session(conn: &mut Conn, key: &str) -> Result<(), AppError> {
 
 #[async_trait]
 impl UploadSessionPort for SqliteCatalog {
-    async fn create_session(&self, key: &str, session: &UploadSession) -> Result<(), AppError> {
+    async fn create_session(&self, key: &str, session: &UploadSession) -> Result<(), CatalogError> {
         create_session(self, key, session).await
     }
 
-    async fn append_chunk(&self, key: &str, record: &ChunkProgress) -> Result<(), AppError> {
+    async fn append_chunk(&self, key: &str, record: &ChunkProgress) -> Result<(), CatalogError> {
         append_chunk(self, key, record).await
     }
 
     async fn load_session(
         &self,
         key: &str,
-    ) -> Result<Option<(UploadSession, Vec<ChunkProgress>)>, AppError> {
+    ) -> Result<Option<(UploadSession, Vec<ChunkProgress>)>, CatalogError> {
         load_session(self, key).await
     }
 
-    async fn remove_session(&self, key: &str) -> Result<(), AppError> {
+    async fn remove_session(&self, key: &str) -> Result<(), CatalogError> {
         remove_session(self, key).await
     }
 }

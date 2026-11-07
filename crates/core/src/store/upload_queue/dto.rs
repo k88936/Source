@@ -4,7 +4,6 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::error::AppError;
 use crate::store::{LocalAssetId, id_type};
 
 id_type!(UploadTaskId);
@@ -37,5 +36,10 @@ pub struct UploadTask {
     pub speed: i64,
     pub eta_seconds: Option<u32>,
     pub attempts: u32,
-    pub error: Option<AppError>,
+    /// The failure that ended the last attempt, as the caller wrote it.
+    ///
+    /// The store only carries the bytes: it is the upload service that knows
+    /// what its own failures look like, so it parses this back into its own
+    /// type and the queue never links against a business error.
+    pub error: Option<String>,
 }

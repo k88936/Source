@@ -3,4 +3,4 @@
 /**
  * Whether the settings page wants background work to run.
  */
-export type SetJobsPausedParams = {paused: boolean};
+export type SetJobsPausedParams = { paused: boolean, };

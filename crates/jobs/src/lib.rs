@@ -134,12 +134,12 @@ impl Jobs {
     where
         F: Fn(Ctx) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<JobOutcome, E>> + Send + 'static,
-        E: ToString + Send + 'static,
+        E: std::fmt::Debug + Send + 'static,
     {
         let task = Arc::new(task);
         let factory: TaskFactory = Arc::new(move |ctx| {
             let task = Arc::clone(&task);
-            Box::pin(async move { task(ctx).await.map_err(|error| error.to_string()) })
+            Box::pin(async move { task(ctx).await.map_err(|error| format!("{error:?}")) })
         });
         let board = {
             let mut state = self.0.lock();
@@ -203,14 +203,14 @@ impl Jobs {
     where
         F: Fn() -> Fut + Send + 'static,
         Fut: Future<Output = Result<(), E>> + Send + 'static,
-        E: ToString + Send + 'static,
+        E: std::fmt::Debug + Send + 'static,
     {
         let book = Arc::clone(&self.0);
         tokio::spawn(async move {
             loop {
                 wait_until_resumed(&book).await;
                 if let Err(error) = tick().await {
-                    eprintln!("timer failed: {}", error.to_string());
+                    eprintln!("timer failed: {error:?}");
                 }
                 tokio::select! {
                     _ = wait_until_paused(&book) => {}

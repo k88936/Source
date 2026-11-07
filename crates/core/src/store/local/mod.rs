@@ -19,21 +19,21 @@ pub use dto::*;
 
 #[async_trait]
 pub trait LocalStore: Send + Sync {
-    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), AppError>;
-    async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError>;
+    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), CatalogError>;
+    async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, CatalogError>;
     /// Every registered local album, each with the album it syncs into.
-    async fn list_local_albums(&self) -> Result<Vec<LocalAlbumRecord>, AppError>;
-    async fn get_local_album(&self, id: &str) -> Result<Option<LocalAlbumRecord>, AppError>;
+    async fn list_local_albums(&self) -> Result<Vec<LocalAlbumRecord>, CatalogError>;
+    async fn get_local_album(&self, id: &str) -> Result<Option<LocalAlbumRecord>, CatalogError>;
     /// Register `uri` as a local album syncing into `album_id`.
-    async fn add_local_album(&self, uri: &str, name: &str, album_id: &str) -> Result<(), AppError>;
+    async fn add_local_album(&self, uri: &str, name: &str, album_id: &str) -> Result<(), CatalogError>;
     /// Forget a local album and its staging rows; the remote album stays.
-    async fn remove_local_album(&self, id: &str) -> Result<(), AppError>;
+    async fn remove_local_album(&self, id: &str) -> Result<(), CatalogError>;
 }
 
 pub(crate) async fn save_local_asset(
     cat: &SqliteCatalog,
     asset: &LocalAsset,
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     diesel::insert_into(local_assets::table)
         .values((
@@ -70,7 +70,7 @@ pub(crate) async fn save_local_asset(
 pub(crate) async fn get_local_asset(
     cat: &SqliteCatalog,
     id: &str,
-) -> Result<Option<LocalAsset>, AppError> {
+) -> Result<Option<LocalAsset>, CatalogError> {
     let mut conn = cat.conn().await?;
     local_assets::table
         .filter(local_assets::id.eq(id))
@@ -84,7 +84,7 @@ pub(crate) async fn get_local_asset(
 
 pub(crate) async fn list_local_albums(
     cat: &SqliteCatalog,
-) -> Result<Vec<LocalAlbumRecord>, AppError> {
+) -> Result<Vec<LocalAlbumRecord>, CatalogError> {
     let mut conn = cat.conn().await?;
     let rows = local_albums::table
         .inner_join(local_album_mapping::table.inner_join(folders::table))
@@ -106,7 +106,7 @@ pub(crate) async fn list_local_albums(
 pub(crate) async fn get_local_album(
     cat: &SqliteCatalog,
     id: &str,
-) -> Result<Option<LocalAlbumRecord>, AppError> {
+) -> Result<Option<LocalAlbumRecord>, CatalogError> {
     let mut conn = cat.conn().await?;
     local_albums::table
         .filter(local_albums::id.eq(id))
@@ -130,7 +130,7 @@ pub(crate) async fn add_local_album(
     uri: &str,
     name: &str,
     album_id: &str,
-) -> Result<(), AppError> {
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     conn.transaction::<(), TxError, _>(async |conn| {
         diesel::insert_into(local_albums::table)
@@ -163,7 +163,7 @@ pub(crate) async fn add_local_album(
     .map_err(|error| error.0)
 }
 
-pub(crate) async fn remove_local_album(cat: &SqliteCatalog, id: &str) -> Result<(), AppError> {
+pub(crate) async fn remove_local_album(cat: &SqliteCatalog, id: &str) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     conn.transaction::<(), TxError, _>(async |conn| {
         diesel::delete(
@@ -185,27 +185,27 @@ pub(crate) async fn remove_local_album(cat: &SqliteCatalog, id: &str) -> Result<
 
 #[async_trait]
 impl LocalStore for SqliteCatalog {
-    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), AppError> {
+    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), CatalogError> {
         save_local_asset(self, asset).await
     }
 
-    async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+    async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, CatalogError> {
         get_local_asset(self, id).await
     }
 
-    async fn list_local_albums(&self) -> Result<Vec<LocalAlbumRecord>, AppError> {
+    async fn list_local_albums(&self) -> Result<Vec<LocalAlbumRecord>, CatalogError> {
         list_local_albums(self).await
     }
 
-    async fn get_local_album(&self, id: &str) -> Result<Option<LocalAlbumRecord>, AppError> {
+    async fn get_local_album(&self, id: &str) -> Result<Option<LocalAlbumRecord>, CatalogError> {
         get_local_album(self, id).await
     }
 
-    async fn add_local_album(&self, uri: &str, name: &str, album_id: &str) -> Result<(), AppError> {
+    async fn add_local_album(&self, uri: &str, name: &str, album_id: &str) -> Result<(), CatalogError> {
         add_local_album(self, uri, name, album_id).await
     }
 
-    async fn remove_local_album(&self, id: &str) -> Result<(), AppError> {
+    async fn remove_local_album(&self, id: &str) -> Result<(), CatalogError> {
         remove_local_album(self, id).await
     }
 }

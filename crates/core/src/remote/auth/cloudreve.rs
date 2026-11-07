@@ -17,7 +17,7 @@ use tokio::sync::oneshot;
 
 use super::*;
 use crate::credential::CredentialStore;
-use crate::remote::{USER_AGENT, map_api_error};
+use crate::remote::{RemoteError, USER_AGENT, map_api_error};
 
 /// Deadline of one request this adapter sends on its own.
 ///
@@ -44,11 +44,6 @@ async fn bounded<T>(work: impl Future<Output = T>, limit: Duration) -> Option<T>
     }
 }
 
-/// Wait `limit` of real time, on the same clock as [`bounded`].
-pub(crate) async fn wait(limit: Duration) {
-    let _ = bounded(std::future::pending::<()>(), limit).await;
-}
-
 /// Run one SDK request under [`REQUEST_TIMEOUT`].
 ///
 /// A request that runs out of time fails like any other network failure, so a
@@ -56,10 +51,12 @@ pub(crate) async fn wait(limit: Duration) {
 /// connection gives it.
 pub(crate) async fn within_deadline<T>(
     request: impl Future<Output = Result<T, ApiError>>,
-) -> Result<T, AppError> {
+) -> Result<T, RemoteError> {
     match bounded(request, REQUEST_TIMEOUT).await {
         Some(result) => result.map_err(map_api_error),
-        None => Err(AppError::network("服务器响应超时")),
+        None => Err(RemoteError::Unreachable {
+            cause: "请求超时".to_string(),
+        }),
     }
 }
 
@@ -68,6 +65,9 @@ pub struct CloudreveAuth {
     store: Arc<dyn CredentialStore>,
     live: Arc<Mutex<Option<ActiveAccount>>>,
     http: reqwest::Client,
+    /// Told once when a request proves the stored session is gone, so the shell
+    /// can leave the library. Installed by the composition root.
+    lost: Arc<Mutex<Option<Arc<dyn Fn() + Send + Sync>>>>,
 }
 
 impl CloudreveAuth {
@@ -76,7 +76,13 @@ impl CloudreveAuth {
             store,
             live: Arc::new(Mutex::new(None)),
             http: reqwest::Client::new(),
+            lost: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Hand over what should run when the server ends the session.
+    pub fn on_session_lost(&self, listener: Arc<dyn Fn() + Send + Sync>) {
+        *self.lost.lock().unwrap() = Some(listener);
     }
 
     pub(crate) fn client_for(&self, base_url: &str) -> Arc<Client> {
@@ -97,9 +103,10 @@ impl CloudreveAuth {
 
     /// The token is the only thing auth adds to what the account row already
     /// says, so it is written under its server and nowhere else.
-    pub(crate) fn persist(&self, base_url: &str, token: &Token) -> Result<(), AppError> {
-        let raw = serde_json::to_string(token)
-            .map_err(|error| AppError::internal(format!("无法序列化登录令牌: {error}")))?;
+    pub(crate) fn persist(&self, base_url: &str, token: &Token) -> Result<(), RemoteError> {
+        let raw = serde_json::to_string(token).map_err(|error| RemoteError::Protocol {
+            cause: format!("无法序列化登录令牌: {error}"),
+        })?;
         self.store.write(base_url, &raw);
         Ok(())
     }
@@ -128,11 +135,19 @@ impl CloudreveAuth {
 }
 
 impl CurrentAccount for CloudreveAuth {
-    fn current(&self) -> Result<ActiveAccount, AppError> {
+    fn current(&self) -> Result<ActiveAccount, RemoteError> {
         self.live
             .lock()
             .ok()
             .and_then(|guard| guard.clone())
-            .ok_or_else(|| AppError::unauthorized("尚未登录"))
+            .ok_or(RemoteError::NotSignedIn)
+    }
+
+    fn session_lost(&self) {
+        *self.live.lock().unwrap() = None;
+        let listener = self.lost.lock().unwrap().clone();
+        if let Some(listener) = listener {
+            listener();
+        }
     }
 }

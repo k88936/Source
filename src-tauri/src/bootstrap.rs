@@ -6,9 +6,9 @@ use source_core::app::uploads::{UploadProgressEvent, UploadSinks, UploadStateEve
 use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
 use source_core::store::AssetSummary;
 use source_core::{
-    AccountService, AlbumsService, AppError, BrowseService, CloudreveAuth, CloudreveStorage,
-    CredentialStore, FoldersService, SettingsStore, SqliteCatalog, SyncService, ThumbCache,
-    UploadSessionPort, UploadsService,
+    AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, CredentialStore,
+    FoldersService, SettingsStore, SqliteCatalog, SyncService, ThumbCache, UploadSessionPort,
+    UploadsService,
 };
 use source_jobs::Jobs;
 use tauri::{Emitter, Manager};
@@ -54,6 +54,12 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             }
         };
         let auth = CloudreveAuth::new(cred_store);
+        // The adapter is the one place that sees a refused session, so it is
+        // the one place that reports it; the shell only listens.
+        let lost = app.handle().clone();
+        auth.on_session_lost(Arc::new(move || {
+            let _ = lost.emit("session://lost", ());
+        }));
         let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
         let local = LocalMedia::new();
         let jobs = Jobs::new(JOB_CONCURRENCY);
@@ -67,7 +73,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             sinks,
             jobs.clone(),
         );
-        Ok::<_, AppError>(App {
+        Ok::<_, source_core::store::CatalogError>(App {
             account: Arc::new(AccountService::new(auth, cloud.clone(), catalog.clone())),
             folders: Arc::new(FoldersService::new(cloud.clone(), catalog.clone())),
             albums: Arc::new(AlbumsService::new(
@@ -91,13 +97,17 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             jobs,
             settings,
         })
-    })?);
+    })
+    .map_err(|cause| std::io::Error::other(format!("{cause:?}")))?);
     let _ = tauri::async_runtime::block_on(core.account.bootstrap());
 
     #[cfg(debug_assertions)]
     crate::dev::autoconnect(&core);
 
-    let cache = Arc::new(ThumbCache::default_cache(&app_data)?);
+    let cache = Arc::new(
+        ThumbCache::default_cache(&app_data)
+            .map_err(|cause| std::io::Error::other(format!("{cause:?}")))?,
+    );
 
     // Uploads a previous process left behind go back in the queue, so they
     // resume from their sessions. Recovery only rewrites rows: the upload

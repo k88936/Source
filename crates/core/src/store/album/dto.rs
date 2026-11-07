@@ -35,6 +35,5 @@ pub struct AlbumSummary {
 #[ts(export)]
 pub struct AlbumSync {
     pub failed: bool,
-    pub error: Option<String>,
     pub listed_at: Option<i64>,
 }

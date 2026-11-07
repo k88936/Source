@@ -10,14 +10,13 @@ use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 
-use crate::error::AppError;
 use crate::mapping::{media_type, mime_for};
 use crate::store::{LocalAssetId, MediaType};
 use crate::time::system_millis;
 
 use super::{
-    LocalAsset, LocalAssetPage, LocalBrowsePage, LocalEntry, LocalMediaPort, MediaPermissionState,
-    PermissionGrant, jpeg_thumb_from_path, video_thumb_from_path,
+    LocalAsset, LocalAssetPage, LocalBrowsePage, LocalEntry, LocalMediaPort, MediaError,
+    MediaPermissionState, PermissionGrant, jpeg_thumb_from_path, video_thumb_from_path,
 };
 
 #[derive(Clone, Default)]
@@ -30,10 +29,12 @@ impl FsLocalMedia {
 }
 
 /// The directory browsing starts at.
-fn home() -> Result<PathBuf, AppError> {
+fn home() -> Result<PathBuf, MediaError> {
     std::env::var("HOME")
         .map(PathBuf::from)
-        .map_err(|_| AppError::internal("无法确定主目录"))
+        .map_err(|error| MediaError::Platform {
+            cause: format!("无法确定主目录: {error}"),
+        })
 }
 
 fn display_name(path: &Path) -> String {
@@ -59,9 +60,10 @@ fn is_media_path(path: &Path) -> bool {
 }
 
 /// The direct media files of `dir`, newest first.
-fn direct_media(dir: &Path) -> Result<Vec<PathBuf>, AppError> {
-    let entries = fs::read_dir(dir)
-        .map_err(|error| AppError::internal(format!("无法读取目录 {}: {error}", dir.display())))?;
+fn direct_media(dir: &Path) -> Result<Vec<PathBuf>, MediaError> {
+    let entries = fs::read_dir(dir).map_err(|error| MediaError::Platform {
+        cause: format!("无法读取目录 {}: {error}", dir.display()),
+    })?;
     let mut files: Vec<PathBuf> = entries
         .flatten()
         .map(|entry| entry.path())
@@ -101,24 +103,24 @@ fn local_asset_from_path(path: &Path) -> Option<LocalAsset> {
 
 #[async_trait]
 impl LocalMediaPort for FsLocalMedia {
-    async fn get_permission_state(&self) -> Result<MediaPermissionState, AppError> {
+    async fn get_permission_state(&self) -> Result<MediaPermissionState, MediaError> {
         Ok(MediaPermissionState {
             granted: PermissionGrant::Full,
             can_request: false,
         })
     }
 
-    async fn request_permission(&self) -> Result<MediaPermissionState, AppError> {
+    async fn request_permission(&self) -> Result<MediaPermissionState, MediaError> {
         self.get_permission_state().await
     }
 
-    async fn browse(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AppError> {
+    async fn browse(&self, parent: Option<&str>) -> Result<LocalBrowsePage, MediaError> {
         let dir = match parent {
             Some(uri) => PathBuf::from(uri),
             None => home()?,
         };
-        let entries = fs::read_dir(&dir).map_err(|error| {
-            AppError::internal(format!("无法读取目录 {}: {error}", dir.display()))
+        let entries = fs::read_dir(&dir).map_err(|error| MediaError::Platform {
+            cause: format!("无法读取目录 {}: {error}", dir.display()),
         })?;
         let mut entries: Vec<LocalEntry> = entries
             .flatten()
@@ -139,7 +141,7 @@ impl LocalMediaPort for FsLocalMedia {
         album_uri: &str,
         cursor: Option<&str>,
         limit: u32,
-    ) -> Result<LocalAssetPage, AppError> {
+    ) -> Result<LocalAssetPage, MediaError> {
         let files = direct_media(Path::new(album_uri))?;
         let offset = cursor.and_then(|c| c.parse::<usize>().ok()).unwrap_or(0);
         let limit = limit.clamp(1, 200) as usize;
@@ -157,15 +159,15 @@ impl LocalMediaPort for FsLocalMedia {
         Ok(LocalAssetPage { items, next })
     }
 
-    async fn count_assets(&self, album_uri: &str) -> Result<u32, AppError> {
+    async fn count_assets(&self, album_uri: &str) -> Result<u32, MediaError> {
         Ok(direct_media(Path::new(album_uri))?.len() as u32)
     }
 
-    async fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, AppError> {
+    async fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, MediaError> {
         Ok(local_asset_from_path(Path::new(id)))
     }
 
-    async fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, AppError> {
+    async fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, MediaError> {
         let path = Path::new(id);
         let name = path
             .file_name()
@@ -176,6 +178,8 @@ impl LocalMediaPort for FsLocalMedia {
             MediaType::Video => video_thumb_from_path(path, edge),
             MediaType::Other | MediaType::Audio => None,
         };
-        preview.ok_or_else(|| AppError::not_found("无法生成缩略图"))
+        preview.ok_or_else(|| MediaError::DecodeFailed {
+            uri: id.to_string(),
+        })
     }
 }

@@ -12,14 +12,14 @@ use std::sync::Arc;
 
 use source_jobs::{Ctx, JobId, JobKind, JobOutcome, JobPriority, Jobs};
 
-use crate::error::AppError;
-use crate::media::{LocalAsset, LocalMediaPort};
+use crate::media::{LocalAsset, LocalMediaPort, MediaError};
 use crate::remote::RemoteStorage;
 use crate::store::{
-    AlbumId, AlbumStore, AssetStore, FolderStore, LocalAlbumRecord, LocalStore, UploadQueueStore,
+    AlbumId, AlbumStore, AssetStore, CatalogError, FolderStore, LocalAlbumRecord, LocalStore,
+    UploadQueueStore,
 };
 
-use super::uploads::UploadsService;
+use super::uploads::{UploadError, UploadsService};
 
 /// How many files one page of a device directory lists.
 const LOCAL_PAGE: u32 = 200;
@@ -27,6 +27,22 @@ const LOCAL_PAGE: u32 = 200;
 /// One directory scan is one job. The queue only compares the key, so what a
 /// sync is stays here, and the stop button reaches every directory through it.
 pub const SYNC_JOB: JobKind = JobKind::new("sync");
+
+/// What a scan can fail with.
+///
+/// A scan only reads the device and writes the queue, so its failures are those
+/// two: a directory the platform refuses, and a queue write that did not land.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[ts(export)]
+pub enum SyncError {
+    /// The index could not answer.
+    Catalog { cause: CatalogError },
+    /// The device library could not list this directory.
+    DirectoryUnreadable { uri: String, cause: MediaError },
+    /// The file could not be written into the upload queue.
+    QueueFailed { cause: UploadError },
+}
 
 pub struct SyncService<R, C, M> {
     catalog: C,
@@ -58,7 +74,7 @@ where
     /// by its job, one page at a time. The files it queues become upload jobs in
     /// the same queue, so a scan and the uploads it started share one budget
     /// instead of each holding its own.
-    pub async fn sync_all(self: &Arc<Self>) -> Result<usize, AppError> {
+    pub async fn sync_all(self: &Arc<Self>) -> Result<usize, SyncError> {
         self.sync_all_impl().await
     }
 
@@ -79,8 +95,12 @@ where
     C: AlbumStore + AssetStore + FolderStore + LocalStore + UploadQueueStore + Clone + 'static,
     M: LocalMediaPort + 'static,
 {
-    async fn sync_all_impl(self: &Arc<Self>) -> Result<usize, AppError> {
-        let albums = self.catalog.list_local_albums().await?;
+    async fn sync_all_impl(self: &Arc<Self>) -> Result<usize, SyncError> {
+        let albums = self
+            .catalog
+            .list_local_albums()
+            .await
+            .map_err(|cause| SyncError::Catalog { cause })?;
         for album in &albums {
             let sync = Arc::clone(self);
             let album = album.clone();
@@ -110,12 +130,21 @@ where
         &self,
         album: &LocalAlbumRecord,
         ctx: &Ctx,
-    ) -> Result<JobOutcome, AppError> {
-        let Some(folder) = self.catalog.get_folder(&album.album_id).await? else {
+    ) -> Result<JobOutcome, SyncError> {
+        let Some(folder) = self
+            .catalog
+            .get_folder(&album.album_id)
+            .await
+            .map_err(|cause| SyncError::Catalog { cause })?
+        else {
             // The album is gone, and the local row pointing at it goes with it.
             return Ok(JobOutcome::Done);
         };
-        let names = self.catalog.list_album_asset_names(&folder.id).await?;
+        let names = self
+            .catalog
+            .list_album_asset_names(&folder.id)
+            .await
+            .map_err(|cause| SyncError::Catalog { cause })?;
         // Matched by name, so a directory of tens of thousands of files does
         // not turn every page into a scan of everything the album holds.
         let held: HashSet<&str> = names.iter().map(String::as_str).collect();
@@ -132,7 +161,11 @@ where
             let page = self
                 .local
                 .list_assets(&album.uri, cursor.as_deref(), LOCAL_PAGE)
-                .await?;
+                .await
+                .map_err(|cause| SyncError::DirectoryUnreadable {
+                    uri: album.uri.clone(),
+                    cause,
+                })?;
             let missing: Vec<LocalAsset> = page
                 .items
                 .into_iter()
@@ -142,7 +175,10 @@ where
             // starts share one budget. Page by page also means a directory of
             // tens of thousands of files is never held in memory whole, and a
             // stop between pages keeps everything queued so far.
-            self.uploads.enqueue_assets(&album_id, &missing).await?;
+            self.uploads
+                .enqueue_assets(&album_id, &missing)
+                .await
+                .map_err(|cause| SyncError::QueueFailed { cause })?;
             ctx.advance(1);
             cursor = page.next;
             if cursor.is_none() {

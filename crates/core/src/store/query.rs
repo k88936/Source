@@ -13,7 +13,7 @@ use super::*;
 /// The update arm deliberately leaves `created_at`, `exif_parsed` and
 /// `thumb_hash` alone: favorites survive a re-index, and the blur-up mosaic is
 /// derived from the thumbnail, not from the remote metadata.
-pub(crate) async fn upsert_asset_row(conn: &mut Conn, asset: &AssetRecord) -> Result<(), AppError> {
+pub(crate) async fn upsert_asset_row(conn: &mut Conn, asset: &AssetRecord) -> Result<(), CatalogError> {
     let summary = &asset.summary;
     diesel::insert_into(assets::table)
         .values((
@@ -67,7 +67,7 @@ pub(crate) async fn timeline(
     folder: Option<&str>,
     cursor: Option<&TimelineCursor>,
     limit: u32,
-) -> Result<TimelinePage, AppError> {
+) -> Result<TimelinePage, CatalogError> {
     let limit = i64::from(limit.clamp(1, 200));
     let mut query = assets::table
         .filter(assets::media_type.eq_any(MEDIA_TYPES))
