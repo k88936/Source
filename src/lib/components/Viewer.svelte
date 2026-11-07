@@ -202,7 +202,7 @@
         >
             <X size={24} />
         </button>
-        <div class="min-w-0 max-w-[calc(100%-20.5rem)] text-center">
+        <div class="min-w-0 text-center">
             <p class="truncate text-sm font-medium">{current?.name ?? ''}</p>
             <p class="text-[11px] text-white/60">{index + 1} / {items.length}</p>
         </div>
