@@ -1,6 +1,7 @@
 <script lang="ts">
     import type {MediaSourceParams} from '#lib/api/bindings/MediaSourceParams';
     import {mediaSource} from '#lib/api/media';
+    import {app} from '#lib/state/app.svelte';
 
     import {Check, Heart, Play} from '@lucide/svelte';
 
@@ -54,7 +55,12 @@
         return () => observer.disconnect();
     });
 
+    // The address is minted for the account the page shows, but only a live
+    // client can honour it: a tile painted during the start-up check is
+    // reloaded when the answer arrives, because the address does not change.
     $effect(() => {
+        void app.account?.user.id;
+        void app.setup;
         if (!visible || !source) return;
         let live = true;
         void mediaSource(source).then((url) => {
@@ -99,17 +105,19 @@
         {/if}
     {/if}
     {#if visible && src}
-        <img
-            {src}
-            alt={name}
-            loading="lazy"
-            decoding="async"
-            draggable="false"
-            onload={() => (loaded = true)}
-            class="relative size-full object-cover transition-opacity duration-300 {loaded
-                ? 'opacity-100'
-                : 'opacity-0'}"
-        />
+        {#key app.setup}
+            <img
+                {src}
+                alt={name}
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+                onload={() => (loaded = true)}
+                class="relative size-full object-cover transition-opacity duration-300 {loaded
+                    ? 'opacity-100'
+                    : 'opacity-0'}"
+            />
+        {/key}
     {/if}
     <!-- Nothing is layered over the photo: labels carry their own shadow instead. -->
     <div class="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-2">

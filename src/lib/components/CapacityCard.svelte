@@ -1,6 +1,5 @@
 <script lang="ts">
     import {resolve} from '$app/paths';
-    import {onMount} from 'svelte';
     import {api} from '#lib/api/client';
     import type {Capacity} from '#lib/api/bindings/Capacity';
     import {Settings} from '@lucide/svelte';
@@ -11,16 +10,28 @@
 
     const t = $derived(i18n.pick(text));
 
-    // The quota is the one account fact that changes on its own, so this card
-    // asks the server for it instead of reading a cached copy of the account.
     let capacity = $state<Capacity | null>(null);
 
-    onMount(async () => {
-        try {
-            capacity = await api.capacity();
-        } catch {
-            // capacity is informational
-        }
+    // The quota is the one account fact that changes on its own, so this card
+    // asks the server for it instead of reading a cached copy of the account.
+    // It asks again once the stored session turns live: at start-up no client
+    // stands behind the account yet, and a refusal then would leave the card
+    // on "unknown" for the rest of the process.
+    $effect(() => {
+        void app.account?.user.id;
+        if (app.setup !== 'live') return;
+        let live = true;
+        void api
+            .capacity()
+            .then((next) => {
+                if (live) capacity = next;
+            })
+            .catch(() => {
+                // capacity is informational
+            });
+        return () => {
+            live = false;
+        };
     });
 
     const usedPercent = $derived.by(() => {
