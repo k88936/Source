@@ -84,11 +84,8 @@
     .device-screen {
         display: flex;
         flex-direction: column;
-        /* Rounding the frame is the mask's job: clipping here leaves a light
-           anti-aliasing seam where the browser composites the iframe. */
-        overflow: visible;
         /* The 49px corners of the shell, in the 390x830 screen coordinates. */
-        --screen-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='390' height='830'><rect width='390' height='830' rx='49' fill='white'/></svg>");
+        --screen-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='390' height='830'%3E%3Crect width='390' height='830' rx='49' fill='white'/%3E%3C/svg%3E");
     }
 
     .device-screen iframe {
@@ -97,6 +94,11 @@
         width: 100%;
         border: 0;
         background: transparent;
+        /* The 49px corners are cut on the frame itself, so its square edges never
+           reach the shell. The SVG has to stay percent encoded: Gecko rejects the
+           raw utf8 data URI and then paints the iframe square over the bezel. */
+        border-radius: 49px;
+        clip-path: inset(0 round 49px);
         -webkit-mask-image: var(--screen-mask);
         mask-image: var(--screen-mask);
         -webkit-mask-size: 100% 100%;
