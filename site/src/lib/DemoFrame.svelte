@@ -84,7 +84,11 @@
     .device-screen {
         display: flex;
         flex-direction: column;
-        overflow: hidden;
+        /* Rounding the frame is the mask's job: clipping here leaves a light
+           anti-aliasing seam where the browser composites the iframe. */
+        overflow: visible;
+        /* The 49px corners of the shell, in the 390x830 screen coordinates. */
+        --screen-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='390' height='830'><rect width='390' height='830' rx='49' fill='white'/></svg>");
     }
 
     .device-screen iframe {
@@ -93,5 +97,9 @@
         width: 100%;
         border: 0;
         background: transparent;
+        -webkit-mask-image: var(--screen-mask);
+        mask-image: var(--screen-mask);
+        -webkit-mask-size: 100% 100%;
+        mask-size: 100% 100%;
     }
 </style>
