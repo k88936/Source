@@ -70,13 +70,21 @@ where
     S: RemoteStorage,
     C: AccountStore,
 {
-    /// Restore the account the app was last used with.
+    /// Try the stored session once and say how it went.
     ///
     /// The stored identity is what the UI shows when the server cannot be
-    /// reached: a dead token drops it, but a network failure does not, because
-    /// an offline library is still browsable.
-    pub async fn bootstrap(&self) -> Option<AccountState> {
-        self.bootstrap_impl().await
+    /// reached: a refused session drops it, but a network failure does not,
+    /// because an offline library is still browsable.
+    ///
+    /// This is the one call of a start that waits for a server, so the shell
+    /// runs it off the main thread and opens the window from the row on disk.
+    pub async fn restore(&self) -> Result<RestoreOutcome, AccountError> {
+        self.restore_impl().await
+    }
+
+    /// Whether a signed-in client stands behind the account right now.
+    pub fn is_live(&self) -> bool {
+        self.auth.is_live()
     }
 
     /// Remember the server before the first sign-in, keeping the identity of
@@ -120,30 +128,28 @@ where
     S: RemoteStorage,
     C: AccountStore,
 {
-    async fn bootstrap_impl(&self) -> Option<AccountState> {
-        let account = self
-            .account_store
-            .get_current_account()
-            .await
-            .ok()
-            .flatten()?;
+    async fn restore_impl(&self) -> Result<RestoreOutcome, AccountError> {
+        let Some(account) = self.current_account().await? else {
+            return Ok(RestoreOutcome::Empty);
+        };
         match self.auth.restore(&account.base_url).await {
-            Ok(Some(signed_in)) => self.remember(&account, signed_in).await.ok(),
+            Ok(Some(signed_in)) => Ok(RestoreOutcome::Restored {
+                account: self.remember(&account, signed_in).await?,
+            }),
             Ok(None) => {
-                self.forget_user(account).await.ok()?;
-                None
+                self.forget_user(account).await?;
+                Ok(RestoreOutcome::Rejected)
             }
             // The token was not refused - `restore` reports that as `Ok(None)`
             // - so the identity on disk is still the best answer this start
             // can give, and an offline library stays browsable.
-            Err(_) => {
-                let user = account.user?;
-                Some(AccountState {
+            Err(_) => Ok(RestoreOutcome::Unreachable {
+                account: account.user.map(|user| AccountState {
                     server: account.base_url,
                     site_name: account.site_name,
                     user,
-                })
-            }
+                }),
+            }),
         }
     }
 

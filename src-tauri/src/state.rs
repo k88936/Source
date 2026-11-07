@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use source_core::app::Jobs;
 use source_core::{
@@ -42,6 +43,10 @@ pub(crate) struct App {
     /// The queue every background job goes through, and the board the UI reads.
     pub(crate) jobs: Jobs,
     pub(crate) settings: Arc<dyn SettingsStore>,
+    /// Whether the stored session is still being checked. The restore loop is
+    /// the only writer; `session_state` reads it to say what the page is
+    /// waiting for.
+    pub(crate) restoring: AtomicBool,
 }
 
 /// Everything a command needs: the use cases plus the thumbnail cache.

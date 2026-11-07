@@ -1,8 +1,11 @@
 //! Startup wiring: the composition root and resuming what a crash left behind.
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::time::Duration;
 
 use source_core::app::Jobs;
+use source_core::app::account::{RestoreOutcome, SessionSetup, SessionState};
 use source_core::app::uploads::{UploadProgressEvent, UploadSinks, UploadStateEvent};
 use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
 use source_core::store::AssetSummary;
@@ -97,12 +100,11 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
                 uploads,
                 jobs,
                 settings,
+                restoring: AtomicBool::new(true),
             })
         })
         .map_err(|cause| std::io::Error::other(format!("{cause:?}")))?,
     );
-    let _ = tauri::async_runtime::block_on(core.account.bootstrap());
-
     #[cfg(debug_assertions)]
     crate::dev::autoconnect(&core);
 
@@ -145,12 +147,72 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         });
     }
 
+    let handle = app.handle().clone();
     app.manage(AppState {
-        core,
+        core: Arc::clone(&core),
         cache,
         app_data,
     });
+    // The stored session is checked off this thread, once the window has
+    // everything it needs to open on the row in sqlite.
+    restore_session(handle, core);
     Ok(())
+}
+
+/// How long a server that answered nothing is left alone before it is asked
+/// again.
+const RESTORE_RETRY: Duration = Duration::from_secs(10);
+
+/// Check the stored session in the background, then say how it went.
+///
+/// A start never waits for a server: the window opens from the account row in
+/// sqlite, and this task reports its verdict as `session://setup`, or as
+/// `session://lost` when the server refused the stored session.
+///
+/// A server that answered nothing is asked again. A port forward in front of a
+/// container that is still coming up accepts the connection and says nothing,
+/// which is a moment in its start rather than a dead address; the row on disk
+/// is kept either way, so waiting costs nothing.
+fn restore_session(handle: tauri::AppHandle, core: Arc<App>) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let outcome = core.account.restore().await;
+            core.restoring
+                .store(false, std::sync::atomic::Ordering::Relaxed);
+            match outcome {
+                Ok(RestoreOutcome::Empty) => return,
+                Ok(RestoreOutcome::Restored { account }) => {
+                    let _ = handle.emit(
+                        "session://setup",
+                        SessionState {
+                            account: Some(account),
+                            setup: SessionSetup::Live,
+                        },
+                    );
+                    return;
+                }
+                Ok(RestoreOutcome::Rejected) => {
+                    let _ = handle.emit("session://lost", ());
+                    return;
+                }
+                Ok(RestoreOutcome::Unreachable { account }) => {
+                    let _ = handle.emit(
+                        "session://setup",
+                        SessionState {
+                            account,
+                            setup: SessionSetup::Offline,
+                        },
+                    );
+                }
+                Err(cause) => {
+                    // The catalog refused a write, which a retry cannot mend.
+                    eprintln!("session: restore failed: {cause:?}");
+                    return;
+                }
+            }
+            tokio::time::sleep(RESTORE_RETRY).await;
+        }
+    });
 }
 
 /// Where the upload queue reports: the webview's events.

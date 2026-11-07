@@ -202,6 +202,10 @@ use cloudreve_sdk_api::models::explorer::{
 
 #[async_trait]
 impl RemoteStorage for CloudreveStorage {
+    fn is_live(&self) -> bool {
+        self.account.current().is_ok()
+    }
+
     async fn get_capacity(&self) -> Result<Capacity, CapacityError> {
         let client = self.client().map_err(capacity)?;
         let cap = client

@@ -66,7 +66,7 @@ pub fn run() {
             commands::connection::login,
             commands::connection::login_2fa,
             commands::connection::logout,
-            commands::connection::account_state,
+            commands::connection::session_state,
             commands::connection::capacity,
             commands::connection::list_remote_folders,
             commands::connection::create_folder,

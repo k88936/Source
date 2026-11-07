@@ -27,6 +27,12 @@ pub(crate) const PAGE_SIZE: i32 = 100;
 
 #[async_trait]
 pub trait RemoteStorage: Send + Sync {
+    /// Whether the adapter has a signed-in client behind it right now.
+    ///
+    /// The upload queue asks before it starts a row: without a session every
+    /// attempt fails as an expired one and the backlog loses its place.
+    fn is_live(&self) -> bool;
+
     /// The account's quota, read from the server rather than cached.
     async fn get_capacity(&self) -> Result<Capacity, CapacityError>;
 

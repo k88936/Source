@@ -5,7 +5,8 @@ pub(crate) use std::path::PathBuf;
 pub(crate) use tauri::{AppHandle, Emitter, State};
 
 pub(crate) use source_core::app::account::{
-    AccountError, AccountState, Login2faParams, LoginOutcome, LoginParams, SetServerParams,
+    AccountError, AccountState, Login2faParams, LoginOutcome, LoginParams, SessionSetup,
+    SessionState, SetServerParams,
 };
 pub(crate) use source_core::app::albums::{
     AddAlbumParams, AddLocalAlbumParams, AlbumError, AlbumPageParams, AlbumParams,

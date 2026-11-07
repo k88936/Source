@@ -1,5 +1,7 @@
 //! Connection, login and remote-folder commands.
 
+use std::sync::atomic::Ordering;
+
 use crate::prelude::*;
 
 #[tauri::command]
@@ -21,26 +23,34 @@ pub(crate) async fn set_server(
 
 #[tauri::command]
 pub(crate) async fn login(
+    app: AppHandle,
     state: State<'_, AppState>,
     params: LoginParams,
 ) -> Result<LoginOutcome, AccountError> {
-    state
+    let outcome = state
         .core
         .account
         .login(&params.email, &params.password)
-        .await
+        .await?;
+    if let LoginOutcome::Authenticated { account } = &outcome {
+        announce_setup(&app, account);
+    }
+    Ok(outcome)
 }
 
 #[tauri::command]
 pub(crate) async fn login_2fa(
+    app: AppHandle,
     state: State<'_, AppState>,
     params: Login2faParams,
 ) -> Result<AccountState, AccountError> {
-    state
+    let account = state
         .core
         .account
         .login_2fa(&params.session_id, &params.otp)
-        .await
+        .await?;
+    announce_setup(&app, &account);
+    Ok(account)
 }
 
 #[tauri::command]
@@ -49,10 +59,29 @@ pub(crate) async fn logout(state: State<'_, AppState>) -> Result<(), AccountErro
 }
 
 #[tauri::command]
-pub(crate) async fn account_state(
+pub(crate) async fn session_state(
     state: State<'_, AppState>,
-) -> Result<Option<AccountState>, AccountError> {
-    state.core.account.get_account_state().await
+) -> Result<SessionState, AccountError> {
+    let account = state.core.account.get_account_state().await?;
+    let setup = if state.core.account.is_live() {
+        SessionSetup::Live
+    } else if state.core.restoring.load(Ordering::Relaxed) {
+        SessionSetup::Restoring
+    } else {
+        SessionSetup::Offline
+    };
+    Ok(SessionState { account, setup })
+}
+
+/// Tell the page that a client now stands behind the account.
+fn announce_setup(app: &AppHandle, account: &AccountState) {
+    let _ = app.emit(
+        "session://setup",
+        SessionState {
+            account: Some(account.clone()),
+            setup: SessionSetup::Live,
+        },
+    );
 }
 
 #[tauri::command]

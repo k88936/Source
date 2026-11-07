@@ -45,6 +45,10 @@ pub trait RemoteAuth: Send + Sync {
     async fn restore(&self, base_url: &str) -> Result<Option<SignedIn>, SessionError>;
 
     async fn sign_out(&self, base_url: &str) -> Result<(), SessionError>;
+
+    /// Whether a signed-in client stands behind the adapter right now: a
+    /// restored or a fresh sign-in, not the identity a stored row still shows.
+    fn is_live(&self) -> bool;
 }
 
 /// A signed-in client: the account's token is already installed on it, and

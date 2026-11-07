@@ -233,6 +233,10 @@ impl RemoteAuth for CloudreveAuth {
         self.restore_session(base_url).await
     }
 
+    fn is_live(&self) -> bool {
+        self.current().is_ok()
+    }
+
     async fn sign_out(&self, base_url: &str) -> Result<(), SessionError> {
         if let Ok(active) = self.current() {
             active.client.clear_tokens().await;
