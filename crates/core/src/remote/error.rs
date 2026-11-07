@@ -83,6 +83,9 @@ pub(crate) fn map_api_error(err: ApiError) -> RemoteError {
         ApiError::RequestError(cause) => RemoteError::Unreachable {
             cause: cause.to_string(),
         },
+        // The server took the connection and then said nothing: unreachable in
+        // the only sense a caller cares about, since trying again is the answer.
+        ApiError::Timeout(cause) => RemoteError::Unreachable { cause },
         ApiError::JsonError(cause) => RemoteError::Protocol {
             cause: cause.to_string(),
         },

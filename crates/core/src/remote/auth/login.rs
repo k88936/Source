@@ -1,28 +1,13 @@
 //! Password / OTP login and session restore, built on the raw auth endpoints so
 //! 2FA challenges survive the typed SDK layer.
 
-use std::time::Duration;
-
 use cloudreve_sdk_api::api::{SiteApi, UserApi};
 use cloudreve_sdk_api::models::user::Token;
-use tokio_util::sync::CancellationToken;
 
-use super::cloudreve::{CloudreveAuth, within_deadline};
+use super::cloudreve::CloudreveAuth;
 use super::raw::{LoginData, raw_post, user_info};
 use super::*;
 use crate::remote::map_api_error;
-use crate::task::{Attempt, Retry, Step, attempt};
-
-/// What restoring a session costs before the window settles for the account row
-/// alone.
-///
-/// A port forward can accept the connection while the container behind it is
-/// still coming up, so a request that ran out of time is worth repeating; the
-/// stored identity is only shown once every try is gone.
-const RESTORE_RETRY: Retry = Retry {
-    attempts: 2,
-    base: Duration::from_secs(2),
-};
 
 /// The credential step of a password sign-in.
 fn sign_in_error(cause: RemoteError) -> SignInError {
@@ -52,7 +37,7 @@ fn code_error(cause: RemoteError) -> SignInError {
     }
 }
 
-/// Restoring: a transport failure is worth one more visit, a refusal is not.
+/// Restoring: a transport failure is a failed check, not a refused session.
 fn session_error(cause: RemoteError) -> SessionError {
     match cause {
         RemoteError::Unreachable { cause } => SessionError::Unreachable { cause },
@@ -174,31 +159,18 @@ impl CloudreveAuth {
             .await
             .map_err(map_api_error)
             .map_err(session_error)?;
-        let cancel = CancellationToken::new();
-        let ran = attempt(RESTORE_RETRY, &cancel, |_| async {
-            match within_deadline(client.get_user_me()).await {
-                Ok(user) => {
-                    let user = user_info(&user);
-                    let site_name = self.site_name_of(&client).await;
-                    self.install(base, Arc::clone(&client));
-                    Step::Done(Some(SignedIn { user, site_name }))
-                }
-                Err(cause) if session_is_gone(&cause) => {
-                    self.clear_token(base);
-                    Step::Done(None)
-                }
-                Err(RemoteError::Unreachable { cause }) => {
-                    Step::Retry(SessionError::Unreachable { cause })
-                }
-                Err(cause) => Step::Failed(session_error(cause)),
+        match client.get_user_me().await.map_err(map_api_error) {
+            Ok(user) => {
+                let user = user_info(&user);
+                let site_name = self.site_name_of(&client).await;
+                self.install(base, Arc::clone(&client));
+                Ok(Some(SignedIn { user, site_name }))
             }
-        })
-        .await;
-        match ran {
-            Attempt::Done(signed_in) => Ok(signed_in),
-            Attempt::Failed(error) => Err(error),
-            // Not restored: the credential stays on disk for the next start.
-            Attempt::Stopped => Ok(None),
+            Err(cause) if session_is_gone(&cause) => {
+                self.clear_token(base);
+                Ok(None)
+            }
+            Err(cause) => Err(session_error(cause)),
         }
     }
 
@@ -222,10 +194,12 @@ impl CloudreveAuth {
 impl RemoteAuth for CloudreveAuth {
     async fn site_info(&self, base_url: &str) -> Result<SiteInfo, ProbeError> {
         let client = self.client_for(base_url.trim_end_matches('/'));
-        let cfg = within_deadline(client.get_site_config("basic"))
+        let cfg = client
+            .get_site_config("basic")
             .await
-            .map_err(probe_error)?;
-        let thumbnail_size = within_deadline(client.get_site_config("thumb"))
+            .map_err(|cause| probe_error(map_api_error(cause)))?;
+        let thumbnail_size = client
+            .get_site_config("thumb")
             .await
             .ok()
             .and_then(|c| c.thumbnail_width)
