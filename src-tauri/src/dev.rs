@@ -176,7 +176,7 @@ fn read_json<T: for<'de> Deserialize<'de>>(name: &str) -> Option<T> {
 
 /// Point the window at whatever port Vite picked, so the dev server never has to
 /// compete for `build.devUrl`. The moved origin is a remote one for Tauri, which
-/// is why `capabilities/dev.json`/`dev-remote.json` grant the app commands.
+/// is why `capabilities/dev.json` grants the app commands and the remote URL.
 pub(crate) fn open_dev_frontend(app: &tauri::AppHandle) {
     let Some(vite) = read_json::<ViteInfo>("vite.json") else {
         return;

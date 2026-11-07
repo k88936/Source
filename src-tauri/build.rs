@@ -58,10 +58,14 @@ fn main() {
     let attributes = if debug {
         // A dev window follows `tmp/vite.json`, so its origin can be any Vite
         // port; Tauri treats that as remote and requires an explicit grant.
+        // `dev.json` therefore carries the remote origin and every permission
+        // the app needs, and is the only capability a dev build sees.
+        println!("cargo:rerun-if-changed=capabilities/dev.json");
         let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR is not set"));
         let pattern: &'static str = Box::leak(dev_permissions(&out_dir).into_boxed_str());
         tauri_build::Attributes::new()
             .app_manifest(tauri_build::AppManifest::new().permissions_path_pattern(pattern))
+            .capabilities_path_pattern("./capabilities/dev.json")
     } else {
         // Release builds load the bundled frontend only, so the capabilities
         // that exist for the dev server are left out entirely.

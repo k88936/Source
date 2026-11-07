@@ -3,5 +3,8 @@
     "identifier": "dev",
     "description": "Dev builds call the simulated CDP endpoint and may load the frontend from a moved Vite port, which Tauri treats as a remote origin",
     "windows": ["main"],
-    "permissions": ["app-commands", "playwright:default"]
+    "remote": {
+        "urls": ["http://localhost:*/*", "http://127.0.0.1:*/*"]
+    },
+    "permissions": ["core:default", "opener:default", "playwright:default", "app-commands", "safe-area-insets-css:default"]
 }
