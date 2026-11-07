@@ -332,6 +332,13 @@ where
     /// steady state, and the board comes back down once the import is done
     /// instead of staying large for the rest of the process.
     async fn spawn_pending(self: &Arc<Self>) -> Result<(), UploadError> {
+        // The queue ticks from the first moment of the process, often before the
+        // stored session has been checked. Starting a row then fails it as an
+        // expired session, and the backlog loses its place for a reason that
+        // belongs to the start rather than to the file.
+        if !self.cloud.is_live() {
+            return Ok(());
+        }
         let live = self
             .jobs
             .list()
