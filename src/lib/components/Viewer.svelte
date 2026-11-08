@@ -1,15 +1,12 @@
 <script lang="ts">
-    import {api} from '#lib/api/client';
-    import type {AssetDetail} from '#lib/api/bindings/AssetDetail';
-    import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
+    import type {Snippet} from 'svelte';
     import {mediaSource} from '#lib/api/media';
     import {common} from '#lib/i18n/common.i18n';
-    import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
-    import AssetInfoSheet from './AssetInfoSheet.svelte';
-    import {ChevronLeft, ChevronRight, Download, Heart, Info, Play, X} from '@lucide/svelte';
+    import {ChevronLeft, ChevronRight, Play, X} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
     import {viewer} from './Viewer.i18n';
+    import type {ViewerItem} from './viewer-item';
 
     let {
         items,
@@ -17,12 +14,18 @@
         total,
         onLoadMore,
         onClose,
+        actions,
+        overlay,
+        onFavorite,
     }: {
-        items: AssetSummary[];
+        items: ViewerItem[];
         index?: number;
         total: number;
         onLoadMore: () => void;
         onClose: () => void;
+        actions?: Snippet;
+        overlay?: Snippet;
+        onFavorite?: () => void;
     } = $props();
 
     const t = $derived(i18n.pick(viewer));
@@ -33,54 +36,39 @@
     let translateY = $state(0);
     let src = $state('');
     let videoSrc = $state('');
-    let detail = $state<AssetDetail | null>(null);
-    let showInfo = $state(false);
     let swipeX = $state(0);
     let gesturing = $state(false);
     let imageElement = $state<HTMLImageElement | null>(null);
-    let favoriteBusy = $state(false);
 
     let current = $derived(items[index]);
-    let isVideo = $derived(current?.mediaType === 'video');
+    let isVideo = $derived(current?.video ?? false);
 
     $effect(() => {
-        const asset = items[index];
+        const asset = current;
         if (!asset) return;
         scale = 1;
         translateX = 0;
         translateY = 0;
         swipeX = 0;
-        detail = null;
-        showInfo = false;
         src = '';
         videoSrc = '';
         // Every address comes from the backend: it alone knows whether this
         // platform plays a custom scheme or needs a signed server URL.
-        const full = asset.mediaType === 'video' ? 'video' : 'original';
         let live = true;
-        void Promise.all([
-            mediaSource({kind: 'thumb', assetId: asset.id}),
-            mediaSource({kind: full, assetId: asset.id}),
-        ]).then(([thumb, resolved]) => {
-            if (!live || items[index]?.id !== asset.id) return;
+        void Promise.all([mediaSource(asset.thumb), mediaSource(asset.full)]).then(([thumb, resolved]) => {
+            if (!live || current?.id !== asset.id) return;
             src = thumb;
             videoSrc = resolved;
-            if (asset.mediaType === 'image') {
+            if (!asset.video) {
                 // The still replaces the thumbnail only once it decodes, so a slow
                 // download never blanks a frame that is already on screen.
                 const image = new Image();
                 image.onload = () => {
-                    if (live && items[index]?.id === asset.id) src = resolved;
+                    if (live && current?.id === asset.id) src = resolved;
                 };
                 image.src = resolved;
             }
         });
-        void api
-            .assetDetail({assetId: asset.id})
-            .then((value) => {
-                if (items[index]?.id === asset.id) detail = value;
-            })
-            .catch(() => {});
         return () => {
             live = false;
         };
@@ -99,7 +87,7 @@
             if (event.key === 'Escape') onClose();
             if (event.key === 'ArrowRight') next();
             if (event.key === 'ArrowLeft') previous();
-            if (event.key === 'f') void toggleFavorite();
+            if (event.key === 'f') onFavorite?.();
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
@@ -338,34 +326,6 @@
         };
     }
 
-    async function toggleFavorite() {
-        const asset = items[index];
-        if (!asset || favoriteBusy) return;
-        favoriteBusy = true;
-        try {
-            const updated = await api.setFavorite({
-                assetId: asset.id,
-                value: !asset.favorite,
-            });
-            items[index] = updated;
-            if (detail) detail = {...detail, asset: updated};
-        } catch (error) {
-            app.showToast(app.describeError(error), 'error');
-        } finally {
-            favoriteBusy = false;
-        }
-    }
-
-    async function download() {
-        const asset = items[index];
-        if (!asset) return;
-        try {
-            const result = await api.exportAssets({assetIds: [asset.id]});
-            app.showToast(t.exported(result.exported, result.directory), 'success');
-        } catch (error) {
-            app.showToast(app.describeError(error), 'error');
-        }
-    }
 </script>
 
 <div class="fixed inset-0 z-50 flex flex-col bg-black text-white">
@@ -382,31 +342,7 @@
             <p class="text-[11px] text-white/60">{index + 1} / {total}</p>
         </div>
         <div class="flex items-center justify-self-end gap-2">
-            <button
-                onclick={toggleFavorite}
-                class="grid size-11 place-items-center rounded-full hover:bg-white/10"
-                aria-label={t.favorite}
-            >
-                <Heart
-                    size={23}
-                    fill={current?.favorite ? 'currentColor' : 'none'}
-                    class={current?.favorite ? 'text-rose-500' : ''}
-                />
-            </button>
-            <button
-                onclick={download}
-                class="grid size-11 place-items-center rounded-full hover:bg-white/10"
-                aria-label={c.download}
-            >
-                <Download size={22} />
-            </button>
-            <button
-                onclick={() => (showInfo = !showInfo)}
-                class="grid size-11 place-items-center rounded-full hover:bg-white/10"
-                aria-label={t.info}
-            >
-                <Info size={22} />
-            </button>
+            {@render actions?.()}
         </div>
     </div>
 
@@ -464,8 +400,8 @@
                         : 'opacity-60'}"
                     aria-label={item.name}
                 >
-                    <MediaImage source={{kind: 'thumb', assetId: item.id}} alt="" class="size-full object-cover" />
-                    {#if item.mediaType === 'video'}
+                    <MediaImage source={item.thumb} alt="" class="size-full object-cover" />
+                    {#if item.video}
                         <span class="absolute inset-0 grid place-items-center bg-black/20">
                             <Play size={14} fill="currentColor" />
                         </span>
@@ -475,5 +411,5 @@
         </div>
     </div>
 
-    <AssetInfoSheet bind:open={showInfo} asset={current} {detail} />
+    {@render overlay?.()}
 </div>

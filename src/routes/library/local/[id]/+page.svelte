@@ -8,9 +8,10 @@
     import AssetThumb from '#lib/components/AssetThumb.svelte';
     import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
     import LoadMoreSentinel from '#lib/components/LoadMoreSentinel.svelte';
-    import {Folder, Trash, Upload, X} from '@lucide/svelte';
+    import LocalAlbumMenu from '#lib/components/LocalAlbumMenu.svelte';
+    import LocalViewer from '#lib/components/LocalViewer.svelte';
+    import {Ellipsis, Folder, RefreshCw} from '@lucide/svelte';
     import TopBar from '#lib/components/TopBar.svelte';
-    import UploadSheet from '#lib/components/UploadSheet.svelte';
     import {formatBytes} from '#lib/format';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
@@ -24,12 +25,11 @@
     let next = $state<string | null>(null);
     let loading = $state(true);
     let loadingMore = $state(false);
-    let selected = $state<string[]>([]);
-    let uploadOpen = $state(false);
+    let refreshing = $state(false);
+    let menuOpen = $state(false);
     let unlinkOpen = $state(false);
-    // Uploads pick their target every time: the mapping records intent, it does
-    // not drive the queue yet.
-    let initialDest = $state('');
+    let viewerOpen = $state(false);
+    let viewerIndex = $state(0);
     let currentId = $state('');
 
     const t = $derived(i18n.pick(text));
@@ -43,13 +43,13 @@
         }
     });
 
-    async function load(id: string) {
+    async function load(id: string): Promise<boolean> {
         loading = true;
         next = null;
         try {
             const albums = await api.localAlbumList();
             album = albums.find((entry) => entry.id === id) ?? null;
-            if (!album) return;
+            if (!album) return false;
             const result = await api.localAssetPage({
                 albumUri: album.uri,
                 cursor: null,
@@ -57,10 +57,23 @@
             });
             items = result.items;
             next = result.next;
+            return true;
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
+            return false;
         } finally {
             loading = false;
+        }
+    }
+
+    /// Re-reads the folder from the device: the page never caches a listing.
+    async function refresh() {
+        if (refreshing) return;
+        refreshing = true;
+        try {
+            if (await load(currentId)) app.showToast(t.refreshed, 'success');
+        } finally {
+            refreshing = false;
         }
     }
 
@@ -82,18 +95,9 @@
         }
     }
 
-    function toggle(asset: LocalAsset) {
-        selected = selected.includes(asset.id) ? selected.filter((id) => id !== asset.id) : [...selected, asset.id];
-    }
-
-    function openUpload() {
-        initialDest = '';
-        uploadOpen = true;
-    }
-
-    function uploaded() {
-        selected = [];
-        app.showToast(t.uploadCreated, 'success');
+    function open(asset: LocalAsset) {
+        viewerIndex = items.findIndex((entry) => entry.id === asset.id);
+        viewerOpen = true;
     }
 
     /// Unlink only. Files already on the server stay, and the album they went to
@@ -114,37 +118,26 @@
 <svelte:head><title>{album?.name ?? t.fallback} - Source</title></svelte:head>
 
 <TopBar
-    title={selected.length ? t.selected(selected.length) : (album?.name ?? t.fallback)}
+    title={album?.name ?? t.fallback}
     subtitle={loading ? c.loading : t.subtitle(album?.assetCount ?? items.length, album?.albumName ?? '')}
-    back={selected.length === 0}
+    back
 >
     {#snippet actions()}
-        {#if selected.length > 0}
-            <button
-                onclick={() => {
-                    selected = [];
-                }}
-                class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label={t.cancelSelection}
-            >
-                <X size={21} />
-            </button>
-        {:else}
-            <button
-                onclick={() => (unlinkOpen = true)}
-                class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label={t.unlink}
-            >
-                <Trash size={19} />
-            </button>
-            <button
-                onclick={openUpload}
-                class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label={c.upload}
-            >
-                <Upload size={21} />
-            </button>
-        {/if}
+        <button
+            onclick={() => void refresh()}
+            disabled={refreshing}
+            class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray disabled:opacity-50"
+            aria-label={t.refresh}
+        >
+            <RefreshCw size={20} class={refreshing ? 'animate-spin' : ''} />
+        </button>
+        <button
+            onclick={() => (menuOpen = true)}
+            class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
+            aria-label={t.actions}
+        >
+            <Ellipsis size={20} />
+        </button>
     {/snippet}
 </TopBar>
 
@@ -158,9 +151,6 @@
     <div class="flex flex-col items-center gap-3 px-8 py-20 text-center">
         <Folder size={34} class="text-muted" />
         <p class="text-sm font-medium">{t.noPhotos}</p>
-        <button onclick={openUpload} class="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-on-primary"
-            >{t.choosePhotos}</button
-        >
     </div>
 {:else}
     <div class="grid grid-cols-3 gap-[2px] sidebar:grid-cols-5">
@@ -171,9 +161,7 @@
                 name={asset.name}
                 {video}
                 badge={formatBytes(asset.size)}
-                selectionMode
-                selected={selected.includes(asset.id)}
-                onToggle={() => toggle(asset)}
+                onOpen={() => open(asset)}
             />
         {/each}
     </div>
@@ -181,24 +169,17 @@
     <LoadMoreSentinel hasMore={next !== null} onLoad={() => void loadMore()} />
 {/if}
 
-{#if selected.length > 0}
-    <div
-        class="fixed inset-x-0 bottom-[calc(3.6rem+var(--safe-bottom))] z-20 border-t border-line bg-light/95 px-4 py-2 backdrop-blur sidebar:bottom-0 sidebar:ps-60"
-    >
-        <div class="mx-auto flex max-w-3xl items-center justify-between">
-            <span class="text-xs text-muted">{t.selectedCount(selected.length)}</span>
-            <button
-                onclick={openUpload}
-                class="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary"
-            >
-                <Upload size={17} />
-                {t.uploadToAlbum}
-            </button>
-        </div>
-    </div>
+{#if viewerOpen}
+    <LocalViewer
+        {items}
+        total={album?.assetCount ?? items.length}
+        onLoadMore={() => void loadMore()}
+        bind:index={viewerIndex}
+        onClose={() => (viewerOpen = false)}
+    />
 {/if}
 
-<UploadSheet bind:open={uploadOpen} bind:initialDest initialSelection={selected} onUploaded={uploaded} />
+<LocalAlbumMenu bind:open={menuOpen} onUnlink={() => (unlinkOpen = true)} />
 
 <ConfirmDialog
     open={unlinkOpen}
