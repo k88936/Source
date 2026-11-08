@@ -101,7 +101,7 @@
         {#each albums as album (album.id)}
             <li>
                 <a
-                    href={resolve('/library/[id]', {id: album.id})}
+                    href={resolve('/library/[id]', {id: encodeURIComponent(album.id)})}
                     class="flex items-center gap-3 rounded-2xl bg-gray p-3 transition-colors hover:bg-line/40"
                 >
                     <div class="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
