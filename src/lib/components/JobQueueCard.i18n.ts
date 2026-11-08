@@ -17,9 +17,11 @@ export const queue = bundle(
             failed: 'Failed',
             cancelled: 'Cancelled',
         },
-        group: (live: number, done: number, failed: number) => `${live} live - ${done} done - ${failed} failed`,
+        group: (live: number, done: number, failed: number, cancelled: number) =>
+            `${live} live - ${done} done - ${failed} failed` + (cancelled > 0 ? ` - ${cancelled} cancelled` : ''),
         processed: (count: number) => `${count} processed`,
         more: (count: number) => `and ${count} more`,
+        empty: 'No jobs yet',
     },
     {
         title: '任务队列',
@@ -37,8 +39,10 @@ export const queue = bundle(
             failed: '失败',
             cancelled: '已取消',
         },
-        group: (live: number, done: number, failed: number) => `${live} 进行中 - ${done} 完成 - ${failed} 失败`,
+        group: (live: number, done: number, failed: number, cancelled: number) =>
+            `${live} 进行中 - ${done} 完成 - ${failed} 失败` + (cancelled > 0 ? ` - ${cancelled} 已取消` : ''),
         processed: (count: number) => `已处理 ${count}`,
         more: (count: number) => `还有 ${count} 项`,
+        empty: '暂无任务',
     },
 );

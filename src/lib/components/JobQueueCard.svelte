@@ -21,8 +21,6 @@
         return Math.min(100, Math.round((job.progress.done / total) * 100));
     }
 
-    const live = $derived(app.jobs.filter((job) => isLive(job.state)));
-
     const groups = $derived(
         (['index', 'sync', 'upload'] as const).map((kind) => {
             const rows = app.jobs.filter((job) => job.kind === kind);
@@ -31,25 +29,28 @@
                 live: rows.filter((job) => isLive(job.state)),
                 done: rows.filter((job) => job.state === 'done').length,
                 failed: rows.filter((job) => job.state === 'failed').length,
+                cancelled: rows.filter((job) => job.state === 'cancelled').length,
             };
         }),
     );
 </script>
 
-{#if live.length > 0}
-    <section class="mt-3 rounded-2xl bg-gray p-4">
-        <div class="mb-2 flex items-center justify-between">
-            <p class="text-sm font-semibold">{t.title}</p>
-            <span class="text-[11px] text-muted">{t.items(live.length)}</span>
-        </div>
+<section class="mt-3 rounded-2xl bg-gray p-4">
+    <div class="mb-2 flex items-center justify-between">
+        <p class="text-sm font-semibold">{t.title}</p>
+        <span class="text-[11px] text-muted">{t.items(app.jobs.length)}</span>
+    </div>
+    {#if app.jobs.length === 0}
+        <p class="py-1 text-xs text-muted">{t.empty}</p>
+    {:else}
         <div class="flex flex-col gap-3">
             {#each groups as group (group.kind)}
-                {#if group.live.length > 0 || group.done > 0 || group.failed > 0}
+                {#if group.live.length > 0 || group.done > 0 || group.failed > 0 || group.cancelled > 0}
                     <div>
                         <div class="flex items-baseline justify-between gap-2">
                             <p class="text-xs font-medium">{t.kind[group.kind]}</p>
                             <span class="shrink-0 text-[11px] text-muted">
-                                {t.group(group.live.length, group.done, group.failed)}
+                                {t.group(group.live.length, group.done, group.failed, group.cancelled)}
                             </span>
                         </div>
                         {#each group.live.slice(0, ROWS) as job (job.id)}
@@ -71,5 +72,5 @@
                 {/if}
             {/each}
         </div>
-    </section>
-{/if}
+    {/if}
+</section>
