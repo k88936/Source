@@ -167,8 +167,9 @@ impl LocalMediaPort for FsLocalMedia {
         Ok(local_asset_from_path(Path::new(id)))
     }
 
-    async fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, MediaError> {
-        let path = Path::new(id);
+    async fn get_thumb(&self, uri: &str, edge: u32) -> Result<Vec<u8>, MediaError> {
+        // The media route carries the app-side uri, not the bare path.
+        let path = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
         let name = path
             .file_name()
             .and_then(|n| n.to_str())
@@ -179,7 +180,7 @@ impl LocalMediaPort for FsLocalMedia {
             MediaType::Other | MediaType::Audio => None,
         };
         preview.ok_or_else(|| MediaError::DecodeFailed {
-            uri: id.to_string(),
+            uri: uri.to_string(),
         })
     }
 }
