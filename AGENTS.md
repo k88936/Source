@@ -15,12 +15,13 @@ xvfb-run -a -s "-screen 0 1400x1000x24" ./target/debug/source --debug-cdp-port {
 
 ```
 
-* NEVER use android vm to debug or test unless required.
-
 ## Observability
 
 * recommend use playwright-cli skill via `playwright-cli attach --cdp {CDP_PORT}` to interact with the app.
+* NEVER use android vm to debug or test unless required.
+
 * user launched app will default use 9333 cdp port, yours should avoid it.
+* you can restart user launched app by restart RustRover's run config `app` (for example to apply rust side change)
 
 * app data is in local isolated dir :`./tmp/home`. specially,
   db is `./tmp/home/.local/share/top.k88936.source/catalog.sqlite3`
