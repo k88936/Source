@@ -29,8 +29,8 @@ libsqlite3-sys = { version = "0.35", features = ["bundled"] }
 
 # Cloudreve adapter
 anyhow = "1"
-cloudreve-sdk-api = { path = "/root/RustroverProjects/cloudreve-sdk-rs/crates/cloudreve-sdk-api" }
-cloudreve-sdk-uploader = { path = "/root/RustroverProjects/cloudreve-sdk-rs/crates/cloudreve-sdk-uploader" }
+cloudreve-sdk-api = { git = "https://github.com/k88936/cloudreve-sdk-rs", rev = "577da283f857d0d8fc821a67e24d7c2c4fa9f5b2" }
+cloudreve-sdk-uploader = { git = "https://github.com/k88936/cloudreve-sdk-rs", rev = "577da283f857d0d8fc821a67e24d7c2c4fa9f5b2" }
 futures = "0.3"
 urlencoding = "2"
 
