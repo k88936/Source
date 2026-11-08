@@ -73,9 +73,15 @@ pub(crate) async fn timeline(
         .filter(assets::media_type.eq_any(MEDIA_TYPES))
         .select(AssetRow::as_select())
         .into_boxed::<Sqlite>();
+    let mut total_query = assets::table
+        .filter(assets::media_type.eq_any(MEDIA_TYPES))
+        .select(diesel::dsl::count_star())
+        .into_boxed::<Sqlite>();
     if let Some(folder) = folder {
         query = query.filter(assets::folder_id.eq(folder));
+        total_query = total_query.filter(assets::folder_id.eq(folder));
     }
+    let total = total_query.get_result::<i64>(conn).await.map_err(db_err)?;
     if let Some(cursor) = cursor {
         query = query.filter(
             assets::taken_at.lt(cursor.taken_at).or(assets::taken_at
@@ -89,10 +95,10 @@ pub(crate) async fn timeline(
         .load::<AssetRow>(conn)
         .await
         .map_err(db_err)?;
-    Ok(page_from_rows(rows, limit))
+    Ok(page_from_rows(rows, limit, total))
 }
 
-pub(crate) fn page_from_rows(rows: Vec<AssetRow>, limit: i64) -> TimelinePage {
+pub(crate) fn page_from_rows(rows: Vec<AssetRow>, limit: i64, total: i64) -> TimelinePage {
     let mut items: Vec<AssetSummary> = rows.into_iter().map(AssetSummary::from).collect();
     let mut next = None;
     if items.len() as i64 > limit {
@@ -104,5 +110,9 @@ pub(crate) fn page_from_rows(rows: Vec<AssetRow>, limit: i64) -> TimelinePage {
             });
         }
     }
-    TimelinePage { items, next }
+    TimelinePage {
+        items,
+        next,
+        total: total.max(0) as u32,
+    }
 }

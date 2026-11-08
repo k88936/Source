@@ -20,6 +20,7 @@ pub struct TimelineCursor {
 pub struct TimelinePage {
     pub items: Vec<AssetSummary>,
     pub next: Option<TimelineCursor>,
+    pub total: u32,
 }
 
 #[derive(Debug, Clone, Default)]

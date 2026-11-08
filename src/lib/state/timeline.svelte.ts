@@ -17,6 +17,7 @@ export type PageLoader = (cursor: TimelineCursor | null, limit: number) => Promi
 export class Timeline {
     items = $state<AssetSummary[]>([]);
     next = $state<TimelineCursor | null>(null);
+    total = $state(0);
     loading = $state(false);
     loaded = $state(false);
     error = $state('');
@@ -42,6 +43,7 @@ export class Timeline {
             if (id !== this.requestId) return;
             this.items = page.items;
             this.next = page.next;
+            this.total = page.total;
             this.loaded = true;
         } catch (err) {
             if (id !== this.requestId) return;
@@ -62,6 +64,7 @@ export class Timeline {
             const known = new Set(this.items.map((item) => item.id));
             this.items = [...this.items, ...page.items.filter((item) => !known.has(item.id))];
             this.next = page.next;
+            this.total = page.total;
         } catch (err) {
             if (id === this.requestId) this.error = app.describeError(err);
         } finally {
@@ -83,13 +86,16 @@ export class Timeline {
 
     remove(ids: string[]): void {
         const drop = new Set(ids);
+        const before = this.items.length;
         this.items = this.items.filter((item) => !drop.has(item.id));
+        this.total -= before - this.items.length;
     }
 
     reset(): void {
         this.requestId += 1;
         this.items = [];
         this.next = null;
+        this.total = 0;
         this.loaded = false;
         this.loading = false;
         this.error = '';

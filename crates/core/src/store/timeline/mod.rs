@@ -42,26 +42,40 @@ pub(crate) async fn search(
         .filter(assets::media_type.eq_any(MEDIA_TYPES))
         .select(AssetRow::as_select())
         .into_boxed::<Sqlite>();
+    let mut total_query = assets::table
+        .filter(assets::media_type.eq_any(MEDIA_TYPES))
+        .select(diesel::dsl::count_star())
+        .into_boxed::<Sqlite>();
     let needle = query.query.trim();
     if !needle.is_empty() {
         let escaped = needle
             .replace('\\', "\\\\")
             .replace('%', "\\%")
             .replace('_', "\\_");
-        statement = statement.filter(assets::name.like(format!("%{escaped}%")).escape('\\'));
+        let pattern = format!("%{escaped}%");
+        statement = statement.filter(assets::name.like(pattern.clone()).escape('\\'));
+        total_query = total_query.filter(assets::name.like(pattern).escape('\\'));
     }
     if let Some(from) = query.from {
         statement = statement.filter(assets::taken_at.ge(from));
+        total_query = total_query.filter(assets::taken_at.ge(from));
     }
     if let Some(to) = query.to {
         statement = statement.filter(assets::taken_at.le(to));
+        total_query = total_query.filter(assets::taken_at.le(to));
     }
     if let Some(favorite) = query.favorite {
         statement = statement.filter(assets::favorite.eq(favorite));
+        total_query = total_query.filter(assets::favorite.eq(favorite));
     }
     if let Some(media_type) = query.media_type {
         statement = statement.filter(assets::media_type.eq(media_type_to_str(media_type)));
+        total_query = total_query.filter(assets::media_type.eq(media_type_to_str(media_type)));
     }
+    let total = total_query
+        .get_result::<i64>(&mut conn)
+        .await
+        .map_err(db_err)?;
     if let Some(cursor) = &query.cursor {
         statement = statement.filter(
             assets::taken_at.lt(cursor.taken_at).or(assets::taken_at
@@ -75,7 +89,7 @@ pub(crate) async fn search(
         .load::<AssetRow>(&mut conn)
         .await
         .map_err(db_err)?;
-    Ok(page_from_rows(rows, limit))
+    Ok(page_from_rows(rows, limit, total))
 }
 
 #[async_trait]

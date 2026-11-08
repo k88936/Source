@@ -14,10 +14,14 @@
     let {
         items,
         index = $bindable(0),
+        total,
+        onLoadMore,
         onClose,
     }: {
         items: AssetSummary[];
         index?: number;
+        total: number;
+        onLoadMore: () => void;
         onClose: () => void;
     } = $props();
 
@@ -108,6 +112,12 @@
     function previous() {
         if (index > 0) index -= 1;
     }
+
+    // The viewer holds whatever the grid loaded; ask for the next page before
+    // the swiper reaches the end of that window.
+    $effect(() => {
+        if (index >= items.length - 2) onLoadMore();
+    });
 
     const MAX_SCALE = 5;
     const TAP_SLOP = 8;
@@ -369,7 +379,7 @@
         </button>
         <div class="min-w-0 text-center">
             <p class="truncate text-sm font-medium">{current?.name ?? ''}</p>
-            <p class="text-[11px] text-white/60">{index + 1} / {items.length}</p>
+            <p class="text-[11px] text-white/60">{index + 1} / {total}</p>
         </div>
         <div class="flex items-center justify-self-end gap-2">
             <button

@@ -12,8 +12,8 @@
     import {Image, SquareDashed, X} from '@lucide/svelte';
     import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
+    import TimelineViewer from '#lib/components/TimelineViewer.svelte';
     import TopBar from '#lib/components/TopBar.svelte';
-    import Viewer from '#lib/components/Viewer.svelte';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
@@ -154,5 +154,5 @@
 <AlbumPickerSheet bind:open={pickerOpen} onPick={(album) => void moveToAlbum(album)} />
 
 {#if viewerOpen}
-    <Viewer items={timeline.items} bind:index={viewerIndex} onClose={() => (viewerOpen = false)} />
+    <TimelineViewer {timeline} bind:index={viewerIndex} onClose={() => (viewerOpen = false)} />
 {/if}

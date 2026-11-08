@@ -25,9 +25,9 @@ import * as demo from './fixtures';
 function paged(items: AssetSummary[], cursor: TimelineCursor | null, limit: number): TimelinePage {
     const from = cursor ? items.findIndex((item) => item.id === cursor.id) + 1 : 0;
     const page = items.slice(from, from + limit);
-    if (from + limit >= items.length) return {items: page, next: null};
+    if (from + limit >= items.length) return {items: page, next: null, total: items.length};
     const last = page[page.length - 1]!;
-    return {items: page, next: {takenAt: last.takenAt, id: last.id}};
+    return {items: page, next: {takenAt: last.takenAt, id: last.id}, total: items.length};
 }
 
 function pagedLocal(items: LocalAsset[], cursor: string | null, limit: number): LocalAssetPage {
