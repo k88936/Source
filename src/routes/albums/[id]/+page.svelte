@@ -11,6 +11,7 @@
     import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
     import DescriptionDialog from '#lib/components/DescriptionDialog.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
+    import LoadMoreSentinel from '#lib/components/LoadMoreSentinel.svelte';
     import {Ellipsis, Image, RefreshCw, SquareDashed, WifiOff, X} from '@lucide/svelte';
     import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
@@ -302,14 +303,7 @@
         onToggle={(asset) => selection.toggle(asset.id)}
         onColumns={(columns) => app.setColumns(columns)}
     />
-    {#if timeline.next}
-        <button
-            onclick={() => void timeline.loadMore()}
-            class="mx-auto mb-28 mt-2 block rounded-xl border border-line px-4 py-2 text-xs text-muted transition-colors hover:bg-gray"
-        >
-            {t.loadMore}
-        </button>
-    {/if}
+    <LoadMoreSentinel hasMore={timeline.next !== null} onLoad={() => void timeline.loadMore()} />
 {/if}
 
 {#if selection.active}

@@ -8,6 +8,7 @@
     import AlbumPickerSheet from '#lib/components/AlbumPickerSheet.svelte';
     import AssetGrid from '#lib/components/AssetGrid.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
+    import LoadMoreSentinel from '#lib/components/LoadMoreSentinel.svelte';
     import {Image, SquareDashed, X} from '@lucide/svelte';
     import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
@@ -29,7 +30,6 @@
 
     let viewerOpen = $state(false);
     let viewerIndex = $state(0);
-    let sentinel: HTMLDivElement | undefined = $state();
     let pickerOpen = $state(false);
     let moving = $state(false);
 
@@ -42,18 +42,6 @@
             }
             for (const asset of change.assets) timeline.upsert(asset);
         });
-    });
-
-    $effect(() => {
-        if (!sentinel || !timeline.next) return;
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0]?.isIntersecting) void timeline.loadMore();
-            },
-            {rootMargin: '800px 0px'},
-        );
-        observer.observe(sentinel);
-        return () => observer.disconnect();
     });
 
     onMount(() => {
@@ -150,11 +138,7 @@
         onColumns={(columns) => app.setColumns(columns)}
     />
 
-    {#if timeline.next}
-        <div bind:this={sentinel} class="flex justify-center pb-24 pt-2">
-            <div class="size-6 animate-spin rounded-full border-2 border-line border-t-primary"></div>
-        </div>
-    {/if}
+    <LoadMoreSentinel hasMore={timeline.next !== null} onLoad={() => void timeline.loadMore()} />
 {/if}
 
 {#if selection.active}

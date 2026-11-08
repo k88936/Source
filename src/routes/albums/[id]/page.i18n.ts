@@ -21,7 +21,6 @@ export const album = bundle(
         empty: 'This album is still empty',
         emptyHint: 'Upload photos from this device, or move photos from the timeline into it.',
         uploadPhotos: 'Upload photos',
-        loadMore: 'Load more',
         removeTitle: (name: string) => `Remove "${name}"?`,
         removeMessage:
             'Only the local record and index are removed; the cloud folder and its files are untouched. Local albums synced to this album are removed as well.',
@@ -47,7 +46,6 @@ export const album = bundle(
         empty: '这个相册还是空的',
         emptyHint: '从本机上传照片, 或把时间线里的照片移动进来.',
         uploadPhotos: '上传照片',
-        loadMore: '加载更多',
         removeTitle: (name: string) => `移除 "${name}"?`,
         removeMessage: '只会删掉本机的登记与索引, 云端文件夹与文件不受影响. 同步到这个相册的本机相册也会一起移除.',
         remove: '移除',

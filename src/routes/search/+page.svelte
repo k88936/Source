@@ -7,6 +7,7 @@
     import AlbumPickerSheet from '#lib/components/AlbumPickerSheet.svelte';
     import AssetGrid from '#lib/components/AssetGrid.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
+    import LoadMoreSentinel from '#lib/components/LoadMoreSentinel.svelte';
     import {Heart, Image, Search, SquareDashed, Video, WifiOff, X} from '@lucide/svelte';
     import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
@@ -321,15 +322,7 @@
         onToggle={(asset) => selection.toggle(asset.id)}
         onColumns={(columns) => app.setColumns(columns)}
     />
-    {#if timeline.next}
-        <button
-            onclick={() => void timeline.loadMore()}
-            disabled={timeline.loading}
-            class="mx-auto mb-28 block rounded-xl border border-line px-4 py-2 text-xs text-muted transition-colors hover:bg-gray"
-        >
-            {t.loadMore}
-        </button>
-    {/if}
+    <LoadMoreSentinel hasMore={timeline.next !== null} onLoad={() => void timeline.loadMore()} />
 {/if}
 
 {#if selection.active}

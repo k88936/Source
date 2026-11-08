@@ -7,6 +7,7 @@
     import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
     import AssetThumb from '#lib/components/AssetThumb.svelte';
     import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
+    import LoadMoreSentinel from '#lib/components/LoadMoreSentinel.svelte';
     import {Folder, Trash, Upload, X} from '@lucide/svelte';
     import TopBar from '#lib/components/TopBar.svelte';
     import UploadSheet from '#lib/components/UploadSheet.svelte';
@@ -23,7 +24,6 @@
     let next = $state<string | null>(null);
     let loading = $state(true);
     let loadingMore = $state(false);
-    let sentinel: HTMLDivElement | undefined = $state();
     let selected = $state<string[]>([]);
     let uploadOpen = $state(false);
     let unlinkOpen = $state(false);
@@ -41,18 +41,6 @@
             currentId = id;
             void load(id);
         }
-    });
-
-    $effect(() => {
-        if (!sentinel || !next) return;
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0]?.isIntersecting) void loadMore();
-            },
-            {rootMargin: '800px 0px'},
-        );
-        observer.observe(sentinel);
-        return () => observer.disconnect();
     });
 
     async function load(id: string) {
@@ -190,11 +178,7 @@
         {/each}
     </div>
 
-    {#if next}
-        <div bind:this={sentinel} class="flex justify-center pb-24 pt-2">
-            <div class="size-6 animate-spin rounded-full border-2 border-line border-t-primary"></div>
-        </div>
-    {/if}
+    <LoadMoreSentinel hasMore={next !== null} onLoad={() => void loadMore()} />
 {/if}
 
 {#if selected.length > 0}
