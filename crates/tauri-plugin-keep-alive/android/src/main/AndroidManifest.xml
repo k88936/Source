@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- A pass that outlives the window runs behind a foreground service: the
+         notification is what Android charges for keeping the process up, and
+         the wake lock keeps the CPU up while the screen is off. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+        <!-- The class lives in this module, so it is named in full: a relative
+             name would be resolved against the app's package, not this one. -->
+        <service
+            android:name="top.k88936.source.mobile.keepalive.KeepAliveService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+    </application>
+</manifest>

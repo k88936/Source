@@ -20,10 +20,11 @@ tauri-plugin-safe-area-insets-css = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = "0.1"
-base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 source-core = { path = "../crates/core" }
 source-jobs = { path = "../crates/jobs" }
+tauri-plugin-keep-alive = { path = "../crates/tauri-plugin-keep-alive" }
+tauri-plugin-mediastore = { path = "../crates/tauri-plugin-mediastore" }
 tokio = { version = "1", features = ["sync", "time", "rt"] }
 urlencoding = "2"
 mime_guess = "2"

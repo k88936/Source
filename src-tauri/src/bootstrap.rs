@@ -143,7 +143,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     {
         let hold = !core.jobs.is_paused();
         tauri::async_runtime::spawn(async move {
-            crate::android_keep_alive::sync(hold).await;
+            tauri_plugin_keep_alive::sync(hold).await;
         });
     }
 

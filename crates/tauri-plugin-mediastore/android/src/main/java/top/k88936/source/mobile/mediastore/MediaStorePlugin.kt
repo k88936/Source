@@ -1,4 +1,4 @@
-package top.k88936.source
+package top.k88936.source.mobile.mediastore
 
 import android.Manifest
 import android.app.Activity

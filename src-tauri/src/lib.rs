@@ -2,8 +2,6 @@
 //! protocol. Business rules live in `source-core`.
 
 #[cfg(target_os = "android")]
-mod android_keep_alive;
-#[cfg(target_os = "android")]
 mod android_media;
 mod bootstrap;
 mod commands;
@@ -38,8 +36,8 @@ pub fn run() {
     // the composition root can reach them.
     #[cfg(target_os = "android")]
     let builder = builder
-        .plugin(android_media::plugin())
-        .plugin(android_keep_alive::plugin());
+        .plugin(tauri_plugin_mediastore::init())
+        .plugin(tauri_plugin_keep_alive::init());
 
     // The simulated CDP endpoint only exists when `--debug-cdp-port` is passed.
     #[cfg(debug_assertions)]

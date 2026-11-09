@@ -1,0 +1,18 @@
+[package]
+name = "tauri-plugin-keep-alive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Holds the Android process up behind a foreground service while background work is allowed"
+links = "tauri-plugin-keep-alive"
+
+[lib]
+name = "tauri_plugin_keep_alive"
+crate-type = ["rlib"]
+
+[dependencies]
+serde = { workspace = true }
+tauri = { version = "2", features = [] }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

@@ -1,0 +1,19 @@
+[package]
+name = "tauri-plugin-mediastore"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kotlin bridge to the Android MediaStore photo library"
+links = "tauri-plugin-mediastore"
+
+[lib]
+name = "tauri_plugin_mediastore"
+crate-type = ["rlib"]
+
+[dependencies]
+base64 = "0.22"
+serde = { workspace = true }
+tauri = { version = "2", features = [] }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

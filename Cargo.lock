@@ -4229,7 +4229,6 @@ name = "source"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "base64 0.22.1",
  "clap",
  "mime_guess",
  "serde",
@@ -4238,8 +4237,10 @@ dependencies = [
  "source-jobs",
  "tauri",
  "tauri-build",
+ "tauri-plugin-keep-alive",
  "tauri-plugin-keyring",
  "tauri-plugin-log",
+ "tauri-plugin-mediastore",
  "tauri-plugin-opener",
  "tauri-plugin-playwright",
  "tauri-plugin-safe-area-insets-css",
@@ -4696,6 +4697,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-keep-alive"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+]
+
+[[package]]
 name = "tauri-plugin-keyring"
 version = "0.2.1"
 source = "git+https://github.com/charlesportwoodii/tauri-plugin-keyring?rev=b0a137bab0c3e592c637c32c328040d86f28256a#b0a137bab0c3e592c637c32c328040d86f28256a"
@@ -4734,6 +4744,16 @@ dependencies = [
  "tauri-plugin",
  "thiserror 2.0.21",
  "time",
+]
+
+[[package]]
+name = "tauri-plugin-mediastore"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

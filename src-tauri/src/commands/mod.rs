@@ -46,6 +46,6 @@ pub(crate) async fn set_jobs_paused(
     // process up: a paused queue has no reason to hold it, and a resumed one is
     // held before the first job arrives, not after it.
     #[cfg(target_os = "android")]
-    crate::android_keep_alive::sync(!params.paused).await;
+    tauri_plugin_keep_alive::sync(!params.paused).await;
     Ok(())
 }

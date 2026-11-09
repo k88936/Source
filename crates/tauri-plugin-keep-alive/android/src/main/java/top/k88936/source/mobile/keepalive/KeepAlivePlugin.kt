@@ -1,4 +1,4 @@
-package top.k88936.source
+package top.k88936.source.mobile.keepalive
 
 import android.app.Activity
 import android.app.Notification
@@ -138,10 +138,12 @@ class KeepAliveService : Service() {
 
   private fun notification(): Notification {
     channel()
+    // The app's launcher activity is not a class of this module, so it is
+    // found through the package manager instead of being named here.
     val open = PendingIntent.getActivity(
       this,
       0,
-      Intent(this, MainActivity::class.java),
+      packageManager.getLaunchIntentForPackage(packageName),
       PendingIntent.FLAG_IMMUTABLE
     )
     return NotificationCompat.Builder(this, CHANNEL)

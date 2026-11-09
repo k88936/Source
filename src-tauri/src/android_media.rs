@@ -1,55 +1,25 @@
-//! Android media adapter: [`LocalMediaPort`] over MediaStore, through the
-//! `MediaStorePlugin` Kotlin bridge.
+//! Android media adapter: [`LocalMediaPort`] over the `mediastore` plugin.
+//!
+//! The plugin speaks MediaStore's own language - buckets, `content://` uris,
+//! camelCase rows - and knows nothing of this app's model. This is the thin
+//! seam that turns each answer into [`LocalEntry`] / [`LocalAsset`] and each
+//! failure into a [`MediaError`]; there is no other logic here.
 //!
 //! A phone has no home directory and no directory a plain file API may walk, so
 //! the desktop model - one directory the user adds - becomes a bucket here: a
 //! `RELATIVE_PATH` such as `DCIM/Camera/`, picked out of a flat list, whose ids
-//! are `content://` uris. Opening that list is also what raises the system
-//! permission dialog; nothing else in the app asks for it.
-
-use std::sync::OnceLock;
+//! are `content://` uris.
 
 use async_trait::async_trait;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
-use serde::{Deserialize, Serialize};
 use source_core::media::{
     LocalAsset, LocalAssetPage, LocalBrowsePage, LocalEntry, LocalMediaPort, MediaError,
     MediaPermissionState,
 };
-use tauri::Wry;
-use tauri::plugin::PluginHandle;
-use tauri::plugin::mobile::PluginInvokeError;
-
-/// Where the Kotlin class lives: the package it declares, then the class name.
-const PACKAGE: &str = "top.k88936.source";
-const CLASS: &str = "MediaStorePlugin";
-
-/// The plugin's name on both sides of the bridge; every Kotlin command is
-/// reached through it.
-const PLUGIN: &str = "mediastore";
-
-static HANDLE: OnceLock<PluginHandle<Wry>> = OnceLock::new();
-
-/// Register the Kotlin bridge with the Android layer.
-///
-/// The plugin has no webview commands - it exists so Rust can reach the class -
-/// so nothing here reaches `tauri.conf.json` or the capability files.
-pub(crate) fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
-    tauri::plugin::Builder::new(PLUGIN)
-        .setup(|_app, api| {
-            let handle = api.register_android_plugin(PACKAGE, CLASS)?;
-            let _ = HANDLE.set(handle);
-            Ok(())
-        })
-        .build()
-}
+use source_core::store::LocalAssetId;
+use tauri_plugin_mediastore as mediastore;
+use tauri_plugin_mediastore::{Asset, Error, Grant};
 
 /// MediaStore, as the local media port.
-///
-/// The bridge is looked up per call rather than held in the struct: it is
-/// registered by the plugin above, which runs after the composition root that
-/// constructs this adapter.
 #[derive(Clone, Copy)]
 pub(crate) struct AndroidMedia;
 
@@ -57,39 +27,35 @@ impl AndroidMedia {
     pub(crate) fn new() -> Self {
         Self
     }
-
-    async fn call<T>(&self, command: &str, payload: impl Serialize) -> Result<T, MediaError>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        let handle = HANDLE.get().ok_or_else(|| MediaError::Platform {
-            cause: "MediaStore 插件未注册".to_string(),
-        })?;
-        handle
-            .run_mobile_plugin_async(command, payload)
-            .await
-            .map_err(rejected)
-    }
 }
 
 #[async_trait]
 impl LocalMediaPort for AndroidMedia {
     async fn get_permission_state(&self) -> Result<MediaPermissionState, MediaError> {
-        self.call("permissionState", ()).await
+        let state = mediastore::permission_state().await.map_err(media_error)?;
+        Ok(permission(state))
     }
 
     async fn request_permission(&self) -> Result<MediaPermissionState, MediaError> {
-        self.call("requestPermission", ()).await
+        let state = mediastore::request_permission()
+            .await
+            .map_err(media_error)?;
+        Ok(permission(state))
     }
 
     /// MediaStore is flat: there is no parent to walk and no current directory,
     /// so the whole library comes back as one list of buckets.
     async fn browse(&self, _parent: Option<&str>) -> Result<LocalBrowsePage, MediaError> {
-        let buckets: Buckets = self.call("browse", ()).await?;
+        let entries = mediastore::browse()
+            .await
+            .map_err(media_error)?
+            .into_iter()
+            .map(entry)
+            .collect();
         Ok(LocalBrowsePage {
             current: None,
             parent: None,
-            entries: buckets.entries,
+            entries,
         })
     }
 
@@ -99,81 +65,72 @@ impl LocalMediaPort for AndroidMedia {
         cursor: Option<&str>,
         limit: u32,
     ) -> Result<LocalAssetPage, MediaError> {
-        self.call(
-            "assets",
-            AssetPageArgs {
-                uri: album_uri,
-                cursor,
-                limit,
-            },
-        )
-        .await
+        let page = mediastore::assets(album_uri, cursor, limit)
+            .await
+            .map_err(media_error)?;
+        Ok(LocalAssetPage {
+            items: page.items.into_iter().map(asset).collect(),
+            next: page.next,
+        })
     }
 
     async fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, MediaError> {
-        self.call("asset", AssetArgs { id }).await
+        Ok(mediastore::asset(id).await.map_err(media_error)?.map(asset))
     }
 
     async fn count_assets(&self, album_uri: &str) -> Result<u32, MediaError> {
-        self.call("count", UriArgs { uri: album_uri }).await
+        Ok(mediastore::count(album_uri).await.map_err(media_error)?)
     }
 
     async fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, MediaError> {
-        let encoded: String = self.call("thumb", ThumbArgs { id, edge }).await?;
-        STANDARD
-            .decode(encoded)
-            .map_err(|error| MediaError::Platform {
-                cause: format!("无法解码缩略图: {error}"),
-            })
+        Ok(mediastore::thumb(id, edge).await.map_err(media_error)?)
     }
 }
 
-/// Kotlin answers the picker with the buckets it found, and nothing else: a
-/// flat list has no current directory and no "up".
-#[derive(Deserialize)]
-struct Buckets {
-    entries: Vec<LocalEntry>,
+fn permission(state: mediastore::PermissionState) -> MediaPermissionState {
+    MediaPermissionState {
+        granted: match state.granted {
+            Grant::Full => source_core::media::PermissionGrant::Full,
+            Grant::Partial => source_core::media::PermissionGrant::Partial,
+            Grant::Denied => source_core::media::PermissionGrant::Denied,
+        },
+        can_request: state.can_request,
+    }
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AssetPageArgs<'a> {
-    uri: &'a str,
-    cursor: Option<&'a str>,
-    limit: u32,
+fn entry(entry: mediastore::Entry) -> LocalEntry {
+    LocalEntry {
+        uri: entry.uri,
+        name: entry.name,
+        path: entry.path,
+    }
 }
 
-#[derive(Serialize)]
-struct UriArgs<'a> {
-    uri: &'a str,
+fn asset(asset: Asset) -> LocalAsset {
+    LocalAsset {
+        id: LocalAssetId(asset.id),
+        // MediaStore rows carry no album of their own: the bucket the user
+        // added is the album, and it lives outside this row.
+        album_id: None,
+        name: asset.name,
+        mime: asset.mime,
+        size: asset.size,
+        date_taken: asset.date_taken,
+        uri: asset.uri,
+        width: asset.width,
+        height: asset.height,
+        duration_ms: asset.duration_ms,
+    }
 }
 
-#[derive(Serialize)]
-struct AssetArgs<'a> {
-    id: &'a str,
-}
-
-#[derive(Serialize)]
-struct ThumbArgs<'a> {
-    id: &'a str,
-    edge: u32,
-}
-
-/// A rejection carries the message the user should see, and a permission one
-/// is a different situation from a query that blew up, so its code survives.
-fn rejected(error: PluginInvokeError) -> MediaError {
+/// The plugin's failures are the platform's, but the port speaks one error: a
+/// denial is a situation the user can still act on, everything else is a query
+/// that did not come back.
+fn media_error(error: Error) -> MediaError {
     match error {
-        PluginInvokeError::InvokeRejected(response) => {
-            let message = response
-                .message
-                .unwrap_or_else(|| "无法访问系统相册".to_string());
-            match response.code.as_deref() {
-                Some("permission" | "denied") => MediaError::PermissionDenied,
-                _ => MediaError::Platform { cause: message },
-            }
-        }
+        Error::PermissionDenied => MediaError::PermissionDenied,
         other => MediaError::Platform {
-            cause: format!("无法访问系统相册: {other}"),
+            cause: other.to_string(),
         },
     }
 }

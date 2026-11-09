@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/jobs", "src-tauri"]
+members = [
+  "crates/core",
+  "crates/jobs",
+  "crates/tauri-plugin-keep-alive",
+  "crates/tauri-plugin-mediastore",
+  "src-tauri",
+]
 
 [workspace.package]
 version = "0.1.0"
