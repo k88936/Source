@@ -1,9 +1,13 @@
 <script lang="ts">
+    import {onDestroy} from 'svelte';
     import type {MediaSourceParams} from '#lib/api/bindings/MediaSourceParams';
     import {mediaSource} from '#lib/api/media';
     import {app} from '#lib/state/app.svelte';
 
     import {Check, Heart, Play} from '@lucide/svelte';
+
+    const LONG_PRESS_MS = 500;
+    const PRESS_SLOP = 10;
 
     let {
         source,
@@ -77,10 +81,44 @@
         return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
     }
 
+    let pressTimer: ReturnType<typeof setTimeout> | undefined;
+    let pressOrigin = {x: 0, y: 0};
+    /** A long press already picked this tile; swallow the click that follows. */
+    let held = false;
+
+    function startPress(event: PointerEvent) {
+        if (!event.isPrimary || selectionMode || !onToggle || event.button !== 0) return;
+        cancelPress();
+        held = false;
+        pressOrigin = {x: event.clientX, y: event.clientY};
+        pressTimer = setTimeout(() => {
+            pressTimer = undefined;
+            held = true;
+            onToggle?.();
+        }, LONG_PRESS_MS);
+    }
+
+    function cancelPress() {
+        if (pressTimer === undefined) return;
+        clearTimeout(pressTimer);
+        pressTimer = undefined;
+    }
+
+    function trackPress(event: PointerEvent) {
+        if (pressTimer === undefined) return;
+        if (Math.hypot(event.clientX - pressOrigin.x, event.clientY - pressOrigin.y) > PRESS_SLOP) cancelPress();
+    }
+
     function click() {
+        if (held) {
+            held = false;
+            return;
+        }
         if (selectionMode) onToggle?.();
         else onOpen?.();
     }
+
+    onDestroy(cancelPress);
 </script>
 
 <button
@@ -90,6 +128,12 @@
         ? 'size-full'
         : 'aspect-square w-full'} {selected ? 'scale-90 rounded-lg' : ''}"
     onclick={click}
+    onpointerdown={startPress}
+    onpointermove={trackPress}
+    onpointerup={cancelPress}
+    onpointercancel={cancelPress}
+    onpointerleave={cancelPress}
+    oncontextmenu={(event) => event.preventDefault()}
     aria-label={name}
 >
     {#if visible && src && !loaded}

@@ -12,7 +12,7 @@
     import DescriptionDialog from '#lib/components/DescriptionDialog.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
     import LoadMoreSentinel from '#lib/components/LoadMoreSentinel.svelte';
-    import {Ellipsis, Image, RefreshCw, Search as SearchIcon, SquareDashed, WifiOff, X} from '@lucide/svelte';
+    import {Ellipsis, Image, RefreshCw, Search as SearchIcon, WifiOff, X} from '@lucide/svelte';
     import SearchFilters from '#lib/components/SearchFilters.svelte';
     import SearchInput from '#lib/components/SearchInput.svelte';
     import SearchResults from '#lib/components/SearchResults.svelte';
@@ -247,13 +247,6 @@
                 <X size={21} />
             </button>
         {:else if search.open}
-            <button
-                onclick={() => selection.start()}
-                class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label={c.select}
-            >
-                <SquareDashed size={20} />
-            </button>
             <button onclick={() => search.exit()} class="rounded-full px-3 py-2 text-xs font-medium text-muted">
                 {c.cancel}
             </button>
@@ -275,13 +268,6 @@
                 aria-label={c.search}
             >
                 <SearchIcon size={20} />
-            </button>
-            <button
-                onclick={() => selection.start()}
-                class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
-                aria-label={c.select}
-            >
-                <SquareDashed size={20} />
             </button>
             <button
                 onclick={() => (menuOpen = true)}
