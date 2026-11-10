@@ -41,6 +41,6 @@ export default defineConfig({
         // The site proxies this port under its own origin, so the port is fixed.
         port: 5174,
         strictPort: true,
-        watch: {ignored: ['**/src-tauri/**']},
+        watch: {ignored: ['**/target/**', '**/src-tauri/**']},
     },
 });

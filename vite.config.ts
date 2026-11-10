@@ -60,6 +60,7 @@ export default defineConfig({
         hmr: host ? {protocol: 'ws', host, port: 1421} : undefined,
         // `tmp/home` is the app's data directory: the WebView writes caches
         // there while it runs, and a watcher on it would reload the app forever.
-        watch: {ignored: ['**/src-tauri/**', '**/tmp/**']},
+        // Cargo and Tauri output under `target` is huge and unrelated to the frontend.
+        watch: {ignored: ['**/target/**', '**/src-tauri/**', '**/tmp/**']},
     },
 });
