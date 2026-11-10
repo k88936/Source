@@ -1,10 +1,10 @@
 import {bundle} from '#lib/i18n/bundle';
 
+/** Words of the search mode the photos page and an album page both host. */
 export const search = bundle(
     {
-        title: 'Search',
-        selected: (count: number) => `${count} selected`,
         placeholder: 'Search by file name',
+        placeholderInAlbum: 'Search this album',
         clear: 'Clear',
         image: 'Images',
         video: 'Videos',
@@ -14,17 +14,17 @@ export const search = bundle(
         clearFilters: 'Clear filters',
         failed: 'Search failed',
         noMatch: 'No matches found',
+        noMatchInAlbum: 'No matches in this album',
         idleTitle: 'Search your photos',
+        idleTitleInAlbum: 'Search this album',
+        idleHintInAlbum: 'Only the photos of this album are searched',
         recent: 'Recent searches',
-        results: (count: number, more: boolean) => `${count}${more ? '+' : ''} results`,
+        results: (count: number) => `${count} result${count === 1 ? '' : 's'}`,
         searching: 'Searching...',
-        exported: (count: number) => `Exported ${count} items`,
-        moved: (count: number, album: string) => `Moved ${count} items to "${album}"`,
     },
     {
-        title: '搜索',
-        selected: (count: number) => `已选择 ${count} 项`,
         placeholder: '按文件名搜索',
+        placeholderInAlbum: '在此相册中搜索',
         clear: '清空',
         image: '图片',
         video: '视频',
@@ -34,11 +34,12 @@ export const search = bundle(
         clearFilters: '清除筛选',
         failed: '搜索失败',
         noMatch: '没有找到匹配项',
+        noMatchInAlbum: '此相册中没有找到匹配项',
         idleTitle: '搜索你的照片',
+        idleTitleInAlbum: '搜索此相册',
+        idleHintInAlbum: '只搜索此相册中的照片',
         recent: '最近搜索',
-        results: (count: number, more: boolean) => `${count}${more ? '+' : ''} 个结果`,
+        results: (count: number) => `${count} 个结果`,
         searching: '搜索中...',
-        exported: (count: number) => `已导出 ${count} 项`,
-        moved: (count: number, album: string) => `已移动 ${count} 项到 "${album}"`,
     },
 );

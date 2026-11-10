@@ -7,15 +7,15 @@ export const nav = bundle(
         ariaLabel: 'Main navigation',
         library: 'Library',
         photos: 'Photos',
-        search: 'Search',
         settings: 'Settings',
+        sync: 'Sync',
     },
     {
         albums: '相册',
         ariaLabel: '主导航',
         library: '资料库',
         photos: '照片',
-        search: '搜索',
         settings: '设置',
+        sync: '同步',
     },
 );

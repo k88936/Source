@@ -11,16 +11,22 @@
         subtitle = '',
         back = false,
         transparent = false,
+        content,
         actions,
     }: {
         title: string;
         subtitle?: string;
         back?: boolean;
         transparent?: boolean;
+        /** Replaces the title and the subtitle, e.g. by a search field. */
+        content?: Snippet;
         actions?: Snippet;
     } = $props();
 
     const t = $derived(i18n.pick(common));
+
+    /** Width of the trailing actions, mirrored on the empty leading side. */
+    let actionsWidth = $state(0);
 
     function goBack() {
         if (history.length > 1) history.back();
@@ -50,13 +56,19 @@
                 <ChevronLeft size={22} />
             </button>
         {/if}
-        <div class="flex min-w-0 flex-1 items-baseline gap-2">
-            <h1 class="truncate text-base font-semibold sidebar:text-sm sidebar:font-medium">{title}</h1>
-            {#if subtitle}
-                <span class="truncate text-xs text-muted">{subtitle}</span>
-            {/if}
-        </div>
-        <div class="flex items-center gap-1">
+        {#if content}
+            <div class="min-w-0 flex-1" style="padding-inline-start: {actionsWidth}px">
+                {@render content()}
+            </div>
+        {:else}
+            <div class="flex min-w-0 flex-1 items-baseline gap-2">
+                <h1 class="truncate text-base font-semibold sidebar:text-sm sidebar:font-medium">{title}</h1>
+                {#if subtitle}
+                    <span class="truncate text-xs text-muted">{subtitle}</span>
+                {/if}
+            </div>
+        {/if}
+        <div bind:clientWidth={actionsWidth} class="flex items-center gap-1">
             {@render actions?.()}
         </div>
     </div>

@@ -61,13 +61,40 @@ pub(crate) async fn upsert_asset_row(conn: &mut Conn, asset: &AssetRecord) -> Re
     Ok(())
 }
 
-/// One page of timeline assets, newest first.
-pub(crate) async fn timeline(
+/// How a listing narrows the library. The timeline, one album and a search are
+/// one statement with a different filter, so they share [`asset_page`].
+#[derive(Default)]
+pub(crate) struct AssetFilter<'a> {
+    /// A single folder, which is what an album is.
+    pub folder: Option<&'a str>,
+    /// Needle the file name must contain; escaped here, not by the caller.
+    pub name: Option<&'a str>,
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+    pub favorite: Option<bool>,
+    pub media_type: Option<MediaType>,
+}
+
+/// `%needle%` with the wildcards the name may contain escaped, so a file named
+/// `100%` only matches itself.
+fn like_pattern(needle: &str) -> String {
+    let escaped = needle
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+    format!("%{escaped}%")
+}
+
+/// One page of assets, newest first, with the total the filter matches. The
+/// count runs over the same predicate as the page; diesel cannot box a filter
+/// expression, so each condition is applied to both statements.
+pub(crate) async fn asset_page(
     conn: &mut Conn,
-    folder: Option<&str>,
+    filter: &AssetFilter<'_>,
     cursor: Option<&TimelineCursor>,
     limit: u32,
 ) -> Result<TimelinePage, CatalogError> {
+    let pattern = filter.name.map(like_pattern);
     let limit = i64::from(limit.clamp(1, 200));
     let mut query = assets::table
         .filter(assets::media_type.eq_any(MEDIA_TYPES))
@@ -77,9 +104,29 @@ pub(crate) async fn timeline(
         .filter(assets::media_type.eq_any(MEDIA_TYPES))
         .select(diesel::dsl::count_star())
         .into_boxed::<Sqlite>();
-    if let Some(folder) = folder {
+    if let Some(folder) = filter.folder {
         query = query.filter(assets::folder_id.eq(folder));
         total_query = total_query.filter(assets::folder_id.eq(folder));
+    }
+    if let Some(pattern) = pattern.as_deref() {
+        query = query.filter(assets::name.like(pattern).escape('\\'));
+        total_query = total_query.filter(assets::name.like(pattern).escape('\\'));
+    }
+    if let Some(from) = filter.from {
+        query = query.filter(assets::taken_at.ge(from));
+        total_query = total_query.filter(assets::taken_at.ge(from));
+    }
+    if let Some(to) = filter.to {
+        query = query.filter(assets::taken_at.le(to));
+        total_query = total_query.filter(assets::taken_at.le(to));
+    }
+    if let Some(favorite) = filter.favorite {
+        query = query.filter(assets::favorite.eq(favorite));
+        total_query = total_query.filter(assets::favorite.eq(favorite));
+    }
+    if let Some(media_type) = filter.media_type {
+        query = query.filter(assets::media_type.eq(media_type_to_str(media_type)));
+        total_query = total_query.filter(assets::media_type.eq(media_type_to_str(media_type)));
     }
     let total = total_query.get_result::<i64>(conn).await.map_err(db_err)?;
     if let Some(cursor) = cursor {

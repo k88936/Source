@@ -12,7 +12,10 @@
     import DescriptionDialog from '#lib/components/DescriptionDialog.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
     import LoadMoreSentinel from '#lib/components/LoadMoreSentinel.svelte';
-    import {Ellipsis, Image, RefreshCw, SquareDashed, WifiOff, X} from '@lucide/svelte';
+    import {Ellipsis, Image, RefreshCw, Search as SearchIcon, SquareDashed, WifiOff, X} from '@lucide/svelte';
+    import SearchFilters from '#lib/components/SearchFilters.svelte';
+    import SearchInput from '#lib/components/SearchInput.svelte';
+    import SearchResults from '#lib/components/SearchResults.svelte';
     import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
     import TimelineViewer from '#lib/components/TimelineViewer.svelte';
@@ -21,6 +24,7 @@
     import {app} from '#lib/state/app.svelte';
     import {changes} from '#lib/state/changes';
     import {i18n} from '#lib/state/i18n.svelte';
+    import {Search} from '#lib/state/search.svelte';
     import {Selection} from '#lib/state/selection.svelte';
     import {Timeline} from '#lib/state/timeline.svelte';
     import {album as text} from './page.i18n';
@@ -28,9 +32,13 @@
     let currentId = $state('');
     const timeline = new Timeline((cursor, limit) => api.albumPage({albumId: currentId, cursor, limit}));
     const selection = new Selection();
+    /** Confined to this album, so a result can never come from another one. */
+    const search = new Search(() => page.params.id ?? null, selection);
 
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
+    /** The list on screen: the timeline, or the results while search is on. */
+    const shown = $derived(search.open ? search.timeline : timeline);
 
     let album = $state<AlbumSummary | null>(null);
     let metaError = $state('');
@@ -64,6 +72,7 @@
         if (id && id !== currentId) {
             currentId = id;
             selection.exit();
+            search.dismiss();
             void load(id);
         }
     });
@@ -73,6 +82,7 @@
             if (change.kind === 'albums') {
                 const updated = change.albums.find((entry) => entry.id === currentId);
                 if (updated) album = updated;
+                if (search.open) void search.run();
                 return;
             }
             for (const asset of change.assets) {
@@ -80,6 +90,8 @@
             }
         });
     });
+
+    $effect(() => () => search.dispose());
 
     async function load(id: string, keepItems = false) {
         if (!keepItems) timeline.reset();
@@ -136,8 +148,14 @@
             selection.toggle(asset.id);
             return;
         }
-        viewerIndex = timeline.items.findIndex((item) => item.id === asset.id);
+        viewerIndex = shown.items.findIndex((item) => item.id === asset.id);
         if (viewerIndex >= 0) viewerOpen = true;
+    }
+
+    function onKeydown(event: KeyboardEvent) {
+        // The viewer closes itself on Escape; one press must not also leave the mode.
+        if (event.key !== 'Escape' || !search.open || selection.active || viewerOpen) return;
+        search.exit();
     }
 
     async function setCover(asset: AssetSummary) {
@@ -188,7 +206,7 @@
                 albumId: target.id,
             });
             // The assets left this album's folder, so drop them from the grid.
-            timeline.remove(ids);
+            shown.remove(ids);
             app.showToast(t.moved(moved.length, target.name), 'success');
             selection.exit();
         } catch (err) {
@@ -201,7 +219,18 @@
 
 <svelte:head><title>{album ? `${album.name} - ${t.fallback}` : t.fallback} - Source</title></svelte:head>
 
-<TopBar {title} {subtitle} back={!coverMode && !selection.active}>
+<svelte:window onkeydown={onKeydown} />
+
+{#snippet searchContent()}
+    <SearchInput {search} scoped />
+{/snippet}
+
+<TopBar
+    {title}
+    {subtitle}
+    back={!coverMode && !selection.active && !search.open}
+    content={search.open ? searchContent : undefined}
+>
     {#snippet actions()}
         {#if coverMode}
             <button
@@ -209,13 +238,24 @@
                 class="rounded-lg px-3 py-2 text-xs font-medium text-muted hover:bg-gray">{c.cancel}</button
             >
         {:else if selection.active}
-            <SelectAllButton {selection} ids={timeline.items.map((item) => item.id)} />
+            <SelectAllButton {selection} ids={shown.items.map((item) => item.id)} />
             <button
                 onclick={() => selection.exit()}
                 class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
                 aria-label={c.cancel}
             >
                 <X size={21} />
+            </button>
+        {:else if search.open}
+            <button
+                onclick={() => selection.start()}
+                class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
+                aria-label={c.select}
+            >
+                <SquareDashed size={20} />
+            </button>
+            <button onclick={() => search.exit()} class="rounded-full px-3 py-2 text-xs font-medium text-muted">
+                {c.cancel}
             </button>
         {:else}
             <button
@@ -228,6 +268,13 @@
                 {:else}
                     <RefreshCw size={20} />
                 {/if}
+            </button>
+            <button
+                onclick={() => search.enter()}
+                class="grid size-9 place-items-center rounded-full text-dark hover:bg-gray"
+                aria-label={c.search}
+            >
+                <SearchIcon size={20} />
             </button>
             <button
                 onclick={() => selection.start()}
@@ -247,7 +294,7 @@
     {/snippet}
 </TopBar>
 
-{#if album?.sync?.failed && !coverMode}
+{#if album?.sync?.failed && !coverMode && !search.open}
     <div class="mx-4 mt-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
         <p class="text-xs font-medium text-amber-600">{t.syncFailed}</p>
         <div class="mt-2 flex gap-2">
@@ -265,13 +312,16 @@
     </div>
 {/if}
 
-{#if album?.description && !coverMode}
+{#if album?.description && !coverMode && !search.open}
     <p class="whitespace-pre-wrap px-4 pt-2 text-sm text-muted">
         {album.description}
     </p>
 {/if}
 
-{#if timeline.loading && timeline.items.length === 0 && !timeline.loaded}
+{#if search.open}
+    {#if !selection.active}<SearchFilters {search} />{/if}
+    <SearchResults {search} {selection} scoped onOpen={open} />
+{:else if timeline.loading && timeline.items.length === 0 && !timeline.loaded}
     <div class="grid grid-cols-3 gap-0.5">
         {#each Array(12) as _}
             <div class="aspect-square animate-pulse bg-gray"></div>
@@ -343,5 +393,5 @@
 />
 
 {#if viewerOpen}
-    <TimelineViewer {timeline} bind:index={viewerIndex} onClose={() => (viewerOpen = false)} />
+    <TimelineViewer timeline={shown} bind:index={viewerIndex} onClose={() => (viewerOpen = false)} />
 {/if}

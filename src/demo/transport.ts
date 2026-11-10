@@ -164,9 +164,14 @@ function run(command: string, params: Record<string, unknown>): unknown {
         }
 
         case 'search_assets': {
-            const {favorite, mediaType, cursor, limit} = params as SearchParams;
+            const {query, folderId, from, to, favorite, mediaType, cursor, limit} = params as SearchParams;
+            const needle = query.trim().toLowerCase();
             const items = demo.assets.filter(
                 (item) =>
+                    (!needle || item.name.toLowerCase().includes(needle)) &&
+                    (folderId === null || item.folderId === folderId) &&
+                    (from === null || item.takenAt >= from) &&
+                    (to === null || item.takenAt <= to) &&
                     (favorite === null || item.favorite === favorite) &&
                     (mediaType === null || item.mediaType === mediaType),
             );

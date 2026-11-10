@@ -253,6 +253,7 @@ where
         self.catalog
             .search(&SearchQuery {
                 query: params.query,
+                folder: params.folder_id,
                 from: params.from,
                 to: params.to,
                 favorite: params.favorite,

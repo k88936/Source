@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {Image, Images, LibraryBig, Search} from '@lucide/svelte';
+    import {CloudSync, Image, Images, LibraryBig} from '@lucide/svelte';
     import {resolve} from '$app/paths';
     import {page} from '$app/state';
     import {i18n} from '#lib/state/i18n.svelte';
@@ -9,8 +9,8 @@
 
     const tabs = $derived([
         {href: resolve('/photos'), label: t.photos, icon: Image},
-        {href: resolve('/search'), label: t.search, icon: Search},
         {href: resolve('/albums'), label: t.albums, icon: Images},
+        {href: resolve('/sync'), label: t.sync, icon: CloudSync},
         {href: resolve('/library'), label: t.library, icon: LibraryBig},
     ]);
 

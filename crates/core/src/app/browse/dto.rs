@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::mapping::ExifField;
-use crate::store::{AssetId, AssetSummary, MediaType, TimelineCursor};
+use crate::store::{AssetId, AssetSummary, FolderId, MediaType, TimelineCursor};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -52,6 +52,8 @@ pub enum MediaSourceParams {
 #[ts(export)]
 pub struct SearchParams {
     pub query: String,
+    /// Restrict the search to one album; `None` searches the whole library.
+    pub folder_id: Option<FolderId>,
     pub from: Option<i64>,
     pub to: Option<i64>,
     pub favorite: Option<bool>,

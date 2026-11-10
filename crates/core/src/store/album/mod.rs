@@ -262,7 +262,11 @@ pub(crate) async fn get_album_page(
     limit: u32,
 ) -> Result<TimelinePage, CatalogError> {
     let mut conn = cat.conn().await?;
-    timeline(&mut conn, Some(album_id), cursor, limit).await
+    let filter = AssetFilter {
+        folder: Some(album_id),
+        ..AssetFilter::default()
+    };
+    asset_page(&mut conn, &filter, cursor, limit).await
 }
 
 pub(crate) async fn set_album_cover(

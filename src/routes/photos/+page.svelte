@@ -9,7 +9,10 @@
     import AssetGrid from '#lib/components/AssetGrid.svelte';
     import EmptyState from '#lib/components/EmptyState.svelte';
     import LoadMoreSentinel from '#lib/components/LoadMoreSentinel.svelte';
-    import {Image, SquareDashed, X} from '@lucide/svelte';
+    import {Image, Search as SearchIcon, SquareDashed, X} from '@lucide/svelte';
+    import SearchFilters from '#lib/components/SearchFilters.svelte';
+    import SearchInput from '#lib/components/SearchInput.svelte';
+    import SearchResults from '#lib/components/SearchResults.svelte';
     import SelectAllButton from '#lib/components/SelectAllButton.svelte';
     import SelectionBar from '#lib/components/SelectionBar.svelte';
     import TimelineViewer from '#lib/components/TimelineViewer.svelte';
@@ -18,15 +21,19 @@
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
     import {changes} from '#lib/state/changes';
+    import {Search} from '#lib/state/search.svelte';
     import {Selection} from '#lib/state/selection.svelte';
     import {Timeline} from '#lib/state/timeline.svelte';
     import {photos} from './page.i18n';
 
     const timeline = new Timeline((cursor, limit) => api.timelinePage({cursor, limit}));
     const selection = new Selection();
+    const search = new Search(() => null, selection);
 
     const t = $derived(i18n.pick(photos));
     const c = $derived(i18n.pick(common));
+    /** The list on screen: the timeline, or the results while search is on. */
+    const shown = $derived(search.open ? search.timeline : timeline);
 
     let viewerOpen = $state(false);
     let viewerIndex = $state(0);
@@ -38,22 +45,31 @@
         return changes.subscribe((change) => {
             if (change.kind === 'albums') {
                 void timeline.reload();
+                if (search.open) void search.run();
                 return;
             }
             for (const asset of change.assets) timeline.upsert(asset);
         });
     });
 
+    $effect(() => () => search.dispose());
+
     onMount(() => {
         void timeline.reload();
     });
 
     function open(asset: AssetSummary) {
-        const index = timeline.items.findIndex((item) => item.id === asset.id);
+        const index = shown.items.findIndex((item) => item.id === asset.id);
         if (index >= 0) {
             viewerIndex = index;
             viewerOpen = true;
         }
+    }
+
+    function onKeydown(event: KeyboardEvent) {
+        // The viewer closes itself on Escape; one press must not also leave the mode.
+        if (event.key !== 'Escape' || !search.open || selection.active || viewerOpen) return;
+        search.exit();
     }
 
     async function downloadSelected() {
@@ -74,7 +90,7 @@
                 assetIds: [...selection.ids],
                 albumId: album.id,
             });
-            for (const asset of moved) timeline.upsert(asset);
+            for (const asset of moved) shown.upsert(asset);
             app.showToast(t.moved(moved.length, album.name), 'success');
             selection.exit();
         } catch (err) {
@@ -87,13 +103,20 @@
 
 <svelte:head><title>{t.title} - Source</title></svelte:head>
 
+<svelte:window onkeydown={onKeydown} />
+
+{#snippet searchContent()}
+    <SearchInput {search} />
+{/snippet}
+
 <TopBar
     title={selection.active ? t.selected(selection.count) : t.title}
     subtitle={selection.active ? '' : (app.account?.siteName ?? '')}
+    content={search.open && !selection.active ? searchContent : undefined}
 >
     {#snippet actions()}
         {#if selection.active}
-            <SelectAllButton {selection} ids={timeline.items.map((item) => item.id)} />
+            <SelectAllButton {selection} ids={shown.items.map((item) => item.id)} />
             <button
                 onclick={() => selection.exit()}
                 class="grid size-10 place-items-center rounded-full text-dark"
@@ -101,7 +124,29 @@
             >
                 <X size={21} />
             </button>
+        {:else if search.open}
+            <button
+                onclick={() => selection.start()}
+                class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
+                aria-label={c.select}
+            >
+                <SquareDashed size={20} />
+            </button>
+            <button
+                onclick={() => search.exit()}
+                class="rounded-full px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-gray"
+                aria-label={c.cancel}
+            >
+                {c.cancel}
+            </button>
         {:else}
+            <button
+                onclick={() => search.enter()}
+                class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
+                aria-label={c.search}
+            >
+                <SearchIcon size={20} />
+            </button>
             <button
                 onclick={() => selection.start()}
                 class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
@@ -113,7 +158,10 @@
     {/snippet}
 </TopBar>
 
-{#if !timeline.loaded}
+{#if search.open}
+    {#if !selection.active}<SearchFilters {search} />{/if}
+    <SearchResults {search} {selection} onOpen={open} />
+{:else if !timeline.loaded}
     <div class="grid gap-[2px]" style:grid-template-columns="repeat({app.columns}, minmax(0, 1fr))">
         {#each Array(app.columns * 6) as _}
             <div class="aspect-square animate-pulse bg-gray"></div>
@@ -154,5 +202,5 @@
 <AlbumPickerSheet bind:open={pickerOpen} onPick={(album) => void moveToAlbum(album)} />
 
 {#if viewerOpen}
-    <TimelineViewer {timeline} bind:index={viewerIndex} onClose={() => (viewerOpen = false)} />
+    <TimelineViewer timeline={shown} bind:index={viewerIndex} onClose={() => (viewerOpen = false)} />
 {/if}
