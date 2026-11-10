@@ -1,12 +1,12 @@
 <script lang="ts">
     import {onMount, setContext, type Snippet} from 'svelte';
     import {rootKey} from './context';
-    import {NavigationRoot, type Linking} from './navigation.svelte';
+    import {NavigationRoot} from './navigation.svelte';
 
-    let {linking = {}, children}: {linking?: Linking; children: Snippet} = $props();
+    let {children}: {children: Snippet} = $props();
 
     // svelte-ignore state_referenced_locally
-    const root = new NavigationRoot(linking);
+    const root = new NavigationRoot();
     setContext(rootKey, root);
 
     onMount(() => {

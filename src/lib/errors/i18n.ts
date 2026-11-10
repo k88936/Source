@@ -26,7 +26,7 @@ import type {SyncError} from '#lib/api/bindings/SyncError';
 import type {UploadError} from '#lib/api/bindings/UploadError';
 import type {UploadUriError} from '#lib/api/bindings/UploadUriError';
 import {bundle} from '#lib/i18n/bundle';
-import {i18n} from '#lib/state/i18n.svelte';
+import {i18n} from '#lib/i18n/i18n.svelte';
 
 /** Every error a command can report, in the shape the IPC body carries. */
 export type AppError =

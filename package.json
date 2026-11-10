@@ -4,9 +4,7 @@
     "version": "0.1.0",
     "type": "module",
     "imports": {
-        "#lib/*": "./src/lib/*",
-        "#screens/*": "./src/screens/*",
-        "#navigation/*": "./src/navigation/*"
+        "#lib/*": "./src/lib/*"
     },
     "scripts": {
         "dev": "vite dev --host 0.0.0.0",

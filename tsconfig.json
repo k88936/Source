@@ -18,11 +18,9 @@
         "noUncheckedIndexedAccess": true,
         "paths": {
             "#lib/*": ["./src/lib/*"],
-            "#screens/*": ["./src/screens/*"],
-            "#navigation/*": ["./src/navigation/*"],
-            "$app/env": ["./src/lib/immich/env.ts"],
-            "$app/navigation": ["./src/lib/immich/navigation.ts"],
-            "$app/state": ["./src/lib/immich/state.ts"]
+            "$app/env": ["./src/lib/hack/svelteKit4immich/env.ts"],
+            "$app/navigation": ["./src/lib/hack/svelteKit4immich/navigation.ts"],
+            "$app/state": ["./src/lib/hack/svelteKit4immich/state.ts"]
         },
         "types": ["node", "vite/client"]
     }

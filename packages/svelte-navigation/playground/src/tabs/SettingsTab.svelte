@@ -1,11 +1,13 @@
 <script lang="ts">
     import {createNativeStackNavigator} from 'svelte-navigation';
     import type {SettingsStackParamList} from '../params';
-    import Settings from '../screens/Settings.svelte';
+    import {settingsScreens} from './screens';
 
     const Stack = createNativeStackNavigator<SettingsStackParamList>();
 </script>
 
-<Stack.Navigator initialRouteName="Settings" screenOptions={{headerBackLabel: 'Back'}}>
-    <Stack.Screen name="Settings" component={Settings} options={{title: 'Settings'}} />
-</Stack.Navigator>
+<Stack.Navigator
+    screens={settingsScreens}
+    initialRouteName="Settings"
+    screenOptions={{headerBackLabel: 'Back'}}
+/>

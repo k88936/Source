@@ -1,22 +1,24 @@
-<script lang="ts" generics="ParamList extends ParamListBase">
+<script lang="ts">
     import {getContext, onMount, setContext, type Snippet} from 'svelte';
     import {rootKey, stackKey, tabKey} from '../context';
     import {StackController, type NavigationRoot, type ScreenEntry} from '../navigation.svelte';
-    import type {Animation, ParamListBase, Route, StackHeaderProps, StackOptions} from '../types';
+    import type {Animation, ParamListBase, Route, StackHeaderProps, StackScreen, StackOptions} from '../types';
     import Layer from './Layer.svelte';
 
+    // The factory that hands this component out carries the typed face, so the
+    // body only deals with names and screens; the param list is checked there.
     let {
+        screens,
         initialRouteName,
         screenOptions = {},
         header,
         layerClass = '',
-        children,
     }: {
-        initialRouteName: keyof ParamList & string;
-        screenOptions?: StackOptions | ((route: Route<ParamList>) => StackOptions);
+        screens: Record<string, StackScreen>;
+        initialRouteName: string;
+        screenOptions?: StackOptions | ((route: Route<ParamListBase>) => StackOptions);
         header?: Snippet<[StackHeaderProps]>;
         layerClass?: string;
-        children: Snippet;
     } = $props();
 
     const root = getContext<NavigationRoot>(rootKey);
@@ -26,8 +28,10 @@
         tab,
         // svelte-ignore state_referenced_locally
         initialRouteName,
-        screenOptions: () => screenOptions as StackOptions | ((route: Route<ParamListBase>) => StackOptions),
+        screenOptions: () => screenOptions,
     });
+    // svelte-ignore state_referenced_locally
+    controller.setScreens(screens);
     setContext(stackKey, controller);
 
     onMount(() => {
@@ -50,8 +54,6 @@
         ...controller.leaving.map((entry) => ({entry, top: false, exiting: true, behindAnimation: undefined})),
     ]);
 </script>
-
-{@render children()}
 
 <div class="relative h-full w-full overflow-hidden">
     {#each layers as layer (layer.entry.key)}

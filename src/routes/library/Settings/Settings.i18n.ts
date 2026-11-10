@@ -1,0 +1,66 @@
+import {bundle} from '#lib/i18n/bundle';
+
+export const settings = bundle(
+    {
+        refresh: 'Refresh',
+        logout: 'Log out',
+        appearance: 'Appearance',
+        system: 'System',
+        dark: 'Dark',
+        light: 'Light',
+        language: 'Language',
+        background: 'Background jobs',
+        cache: 'Thumbnail cache',
+        files: (count: number) => (count === 1 ? '1 file' : `${count} files`),
+        limitPrefix: 'Limit',
+        clearing: 'Clearing...',
+        clearCache: 'Clear cache',
+        cacheCleared: 'Thumbnail cache cleared',
+        app: 'App',
+        version: 'Version',
+        platform: 'Platform',
+        confirm: {
+            clearCache: {
+                title: 'Clear cache',
+                message: 'Clear all thumbnail cache? Browsing will download them again.',
+                confirmLabel: 'Clear',
+            },
+            logout: {
+                title: 'Log out',
+                message: 'The local index is kept, so you can continue after logging in again.',
+                confirmLabel: 'Log out',
+            },
+        },
+    },
+    {
+        refresh: '刷新状态',
+        logout: '退出登录',
+        appearance: '外观',
+        system: '跟随系统',
+        dark: '深色',
+        light: '浅色',
+        language: '语言',
+        background: '后台任务',
+        cache: '缩略图缓存',
+        files: (count: number) => `${count} 个文件`,
+        limitPrefix: '上限',
+        clearing: '清除中...',
+        clearCache: '清除缓存',
+        cacheCleared: '缩略图缓存已清除',
+        app: '应用',
+        version: '版本',
+        platform: '平台',
+        confirm: {
+            clearCache: {
+                title: '清除缓存',
+                message: '清除所有缩略图缓存? 下次浏览会重新下载.',
+                confirmLabel: '清除',
+            },
+            logout: {
+                title: '退出登录',
+                message: '本地索引会保留, 下次登录后可以继续使用.',
+                confirmLabel: '退出登录',
+            },
+        },
+    },
+);

@@ -7,12 +7,11 @@
     import {onMount} from 'svelte';
     import {NavigationContainer} from 'svelte-navigation';
     import {listen} from '#lib/api/client';
-    import {app} from '#lib/state/app.svelte';
-    import {i18n} from '#lib/state/i18n.svelte';
-    import MainTabs from './navigation/MainTabs.svelte';
-    import WelcomeStack from './navigation/WelcomeStack.svelte';
-    import {linking} from './navigation/linking';
-    import {layout} from './navigation/layout.i18n';
+    import {i18n} from '#lib/i18n/i18n.svelte';
+    import Tabs from './routes/Tabs.svelte';
+    import WelcomeStack from './routes/welcome/Stack.svelte';
+    import {layout} from './routes/layout.i18n';
+    import {app} from '#lib/app/app.svelte';
 
     const t = $derived(i18n.pick(layout));
 
@@ -45,9 +44,9 @@
     {:else}
         <!-- Signed in or not is what picks the root stack: the login screen has no tabs. -->
         <div class="h-full bg-light text-dark">
-            <NavigationContainer {linking}>
+            <NavigationContainer>
                 {#if app.account}
-                    <MainTabs />
+                    <Tabs />
                 {:else}
                     <WelcomeStack />
                 {/if}

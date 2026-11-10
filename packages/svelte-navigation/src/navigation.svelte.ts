@@ -1,6 +1,6 @@
 import {untrack} from 'svelte';
 import type {Component} from 'svelte';
-import type {Navigation, ParamListBase, Route, StackOptions} from './types';
+import type {Navigation, ParamListBase, Route, StackScreen, StackOptions} from './types';
 
 /** How long a popped layer stays around to play its exit transition. */
 export const TRANSITION_MS = 280;
@@ -21,19 +21,13 @@ export type ScreenEntry = {
     navigation?: Navigation;
 };
 
-export type StackScreenConfig = {
-    name: string;
-    component: Component<Record<string, never>>;
-    options?: StackOptions | ((route: Route<ParamListBase>) => StackOptions);
-};
+/** One registered screen: the navigator's name for it plus its own declaration. */
+export type StackScreenConfig = StackScreen & {name: string};
 
 export type TabScreenConfig = {
     name: string;
     component: Component<Record<string, never>>;
 };
-
-/** Tab name -> screen name -> URL pattern. A screen without a pattern keeps the URL. */
-export type Linking = Record<string, Record<string, string>>;
 
 /** The `history.state` of one stack screen, or of a mode that takes the back key. */
 export type HistoryEntry = {
@@ -84,17 +78,37 @@ export class NavigationRoot {
     active = $state('');
     tabs = $state<string[]>([]);
     controllers = new Map<string, StackController>();
-    private linking: Linking;
+    /** Tab name -> screen name -> URL pattern, collected from the screens themselves. */
+    private patterns = new Map<string, Record<string, string>>();
     private pending: {tab: string; name: string; params: Record<string, unknown>} | null = null;
     private current: HistoryEntry | null = null;
     private currentUrl = '';
     private modes: {entryKey: string; listener: () => void}[] = [];
+    private started = false;
 
-    constructor(linking: Linking = {}) {
-        this.linking = linking;
+    /**
+     * The paths a level answers on. A tab declares them before it is mounted, so a
+     * cold start can pick the tab from the URL without a second linking table.
+     */
+    registerPatterns(tab: string, screens: Record<string, StackScreen>): void {
+        const paths: Record<string, string> = {};
+        for (const [name, screen] of Object.entries(screens)) {
+            if (screen.path) paths[name] = screen.path;
+        }
+        this.patterns.set(tab, paths);
+        if (!this.started) this.resolve();
+    }
+
+    unregisterPatterns(tab: string): void {
+        this.patterns.delete(tab);
+    }
+
+    /** Matches the opening URL to the deepest declared path, until the tree is up. */
+    private resolve(): void {
         const path = location.pathname.slice(base.length) || '/';
         let weight = 0;
-        for (const [tab, screens] of Object.entries(linking)) {
+        this.pending = null;
+        for (const [tab, screens] of this.patterns) {
             for (const [name, pattern] of Object.entries(screens)) {
                 const params = matchPath(pattern, path);
                 if (!params) continue;
@@ -104,7 +118,7 @@ export class NavigationRoot {
                 this.pending = {tab, name, params};
             }
         }
-        if (this.pending) this.active = this.pending.tab;
+        this.active = this.pending?.tab ?? '';
     }
 
     /** Called by the tab navigator once the tab order is known. */
@@ -122,6 +136,7 @@ export class NavigationRoot {
     }
 
     attach(controller: StackController): void {
+        this.started = true;
         this.controllers.set(controller.tab, controller);
         if (!this.active) this.active = controller.tab;
         if (this.active === controller.tab) this.replace(controller);
@@ -254,7 +269,7 @@ export class NavigationRoot {
     }
 
     private url(tab: string, entry: ScreenEntry): string {
-        const pattern = this.linking[tab]?.[entry.name];
+        const pattern = this.patterns.get(tab)?.[entry.name];
         if (pattern === undefined) return this.currentUrl || `${base}/`;
         return base + buildPath(pattern, entry.params);
     }
@@ -308,12 +323,17 @@ export class StackController {
         this.screenOptions = options.screenOptions;
     }
 
-    register(config: StackScreenConfig): () => void {
-        this.configs = {...this.configs, [config.name]: config};
-        return () => {
-            const {[config.name]: _dropped, ...rest} = this.configs;
-            this.configs = rest;
-        };
+    /**
+     * The navigator hands over its whole table at once, so a screen cannot be
+     * registered in one place and addressed by name in another.
+     */
+    setScreens(screens: Record<string, StackScreen>): void {
+        const configs: Record<string, StackScreenConfig> = {};
+        for (const [name, screen] of Object.entries(screens)) configs[name] = {...screen, name};
+        this.configs = configs;
+        // A tab's paths belong to the tab navigator, which knows about a tab before its
+        // stack is mounted. Only the root stack has no such owner, so it reports itself.
+        if (!this.tab) this.root.registerPatterns('', screens);
     }
 
     mount(): void {
@@ -327,6 +347,7 @@ export class StackController {
     }
 
     unmount(): void {
+        if (!this.tab) this.root.unregisterPatterns('');
         this.root.detach(this);
     }
 

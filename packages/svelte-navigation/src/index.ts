@@ -2,7 +2,6 @@ export {default as NavigationContainer} from './NavigationContainer.svelte';
 export {createNativeStackNavigator} from './stack/createNativeStackNavigator';
 export {createBottomTabNavigator} from './tabs/createBottomTabNavigator';
 export {useBackHandler, useIsFocused, useNavigation, useRoute, useScrollContainer} from './hooks';
-export type {Linking} from './navigation.svelte';
 export type {
     Animation,
     HeaderOptions,
@@ -11,9 +10,11 @@ export type {
     Route,
     StackOptions,
     StackHeaderProps,
-    StackScreenProps,
     StackNavigatorProps,
+    StackScreen,
+    StackScreens,
     TabBarProps,
-    TabScreenProps,
     TabNavigatorProps,
+    TabScreen,
+    TabScreens,
 } from './types';

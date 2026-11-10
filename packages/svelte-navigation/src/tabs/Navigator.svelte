@@ -1,38 +1,48 @@
 <script lang="ts">
-    import {getContext, setContext, type Snippet} from 'svelte';
-    import {rootKey, tabScreensKey} from '../context';
+    import {getContext, onDestroy, type Snippet} from 'svelte';
+    import {rootKey} from '../context';
     import type {NavigationRoot, TabScreenConfig} from '../navigation.svelte';
-    import type {TabBarProps} from '../types';
+    import type {TabBarProps, TabScreen} from '../types';
     import Content from './Content.svelte';
 
     let {
+        tabs,
         tabBar,
-        children,
     }: {
+        tabs: Record<string, TabScreen>;
         tabBar: Snippet<[TabBarProps]>;
-        children: Snippet;
     } = $props();
 
     const root = getContext<NavigationRoot>(rootKey);
-    const registry = $state<{screens: TabScreenConfig[]}>({screens: []});
-    setContext(tabScreensKey, registry);
+
+    // The navigator owns the table, so this happens in one place: the tabs, their
+    // order, and the paths of a tab whose stack has not been mounted yet.
+    // svelte-ignore state_referenced_locally
+    const screens: TabScreenConfig[] = Object.entries(tabs).map(([name, tab]) => ({
+        name,
+        component: tab.component,
+    }));
+    // svelte-ignore state_referenced_locally
+    for (const [name, tab] of Object.entries(tabs)) root.registerPatterns(name, tab.screens);
+    root.setTabs(screens.map((screen) => screen.name));
 
     let mounted = $state<string[]>([]);
 
-    const active = $derived(root.active || registry.screens[0]?.name || '');
+    const active = $derived(root.active || screens[0]?.name || '');
 
     $effect(() => {
-        root.setTabs(registry.screens.map((screen) => screen.name));
-        const name = root.active || registry.screens[0]?.name;
+        const name = root.active || screens[0]?.name;
         if (name && !mounted.includes(name)) mounted.push(name);
+    });
+
+    onDestroy(() => {
+        for (const screen of screens) root.unregisterPatterns(screen.name);
     });
 </script>
 
-{@render children()}
-
 <div class="flex h-full flex-col">
     <div class="relative min-h-0 flex-1">
-        {#each registry.screens as screen (screen.name)}
+        {#each screens as screen (screen.name)}
             <!-- Only mounted once visited, then kept: a tab keeps its stack, its scroll and its data.
                  A hidden tab is not painted at all, so nothing of it can linger on the tab
                  that is being shown instead. -->
@@ -48,7 +58,7 @@
         {/each}
     </div>
     {@render tabBar({
-        tabs: registry.screens.map((screen) => screen.name),
+        tabs: screens.map((screen) => screen.name),
         active,
         activate: (name) => root.activate(name),
     })}

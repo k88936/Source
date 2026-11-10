@@ -1,4 +1,4 @@
-import {i18n} from '#lib/state/i18n.svelte';
+import {i18n} from '#lib/i18n/i18n.svelte';
 
 export function formatBytes(bytes: number): string {
     if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';

@@ -47,31 +47,50 @@ export type TabBarProps = {
     activate: (name: string) => void;
 };
 
+/**
+ * One screen of a stack. Everything the navigator needs about it lives here, so
+ * a screen cannot be declared in one place and given a URL in another.
+ */
+export type StackScreen<ParamList extends ParamListBase = ParamListBase> = {
+    component: Component<Record<string, never>>;
+    /** URL pattern, e.g. `/albums/:id`. A screen without one keeps the URL below it. */
+    path?: string;
+    options?: StackOptions | ((route: Route<ParamList>) => StackOptions);
+};
+
+/** Name -> screen, checked against the stack's param list so neither can be forgotten. */
+export type StackScreens<ParamList extends ParamListBase> = {
+    [Name in keyof ParamList & string]: StackScreen<ParamList>;
+};
+
 export type StackNavigatorProps<ParamList extends ParamListBase> = {
+    screens: StackScreens<ParamList>;
     initialRouteName: keyof ParamList & string;
     screenOptions?: StackOptions | ((route: Route<ParamList>) => StackOptions);
     /** Painted per layer, above the scroll container and below the status bar. */
     header?: Snippet<[StackHeaderProps]>;
     /** Classes for the layer itself, so the app owns its surface colour. */
     layerClass?: string;
-    children: Snippet;
 };
 
-export type StackScreenProps<ParamList extends ParamListBase> = {
-    name: keyof ParamList & string;
+/**
+ * One tab: the stack it shows. The navigator owns the table, so the tab list and
+ * the paths of a tab are known before any of its stacks is mounted.
+ */
+export type TabScreen = {
     component: Component<Record<string, never>>;
-    options?: StackOptions | ((route: Route<ParamList>) => StackOptions);
+    screens: Record<string, StackScreen>;
+};
+
+/** Name -> tab, checked against the tab param list so none can be forgotten. */
+export type TabScreens<ParamList extends ParamListBase> = {
+    [Name in keyof ParamList & string]: TabScreen;
 };
 
 export type TabNavigatorProps<ParamList extends ParamListBase> = {
+    tabs: TabScreens<ParamList>;
     /** Painted below the tab content. */
     tabBar: Snippet<[TabBarProps]>;
-    children: Snippet;
-};
-
-export type TabScreenProps<ParamList extends ParamListBase> = {
-    name: keyof ParamList & string;
-    component: Component<Record<string, never>>;
 };
 
 export type Navigation<ParamList extends ParamListBase = ParamListBase> = {

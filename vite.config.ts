@@ -39,9 +39,9 @@ export default defineConfig({
     // plain Vite build, so those virtual modules resolve to thin shims.
     resolve: {
         alias: {
-            '$app/env': resolve(process.cwd(), 'src/lib/immich/env.ts'),
-            '$app/navigation': resolve(process.cwd(), 'src/lib/immich/navigation.ts'),
-            '$app/state': resolve(process.cwd(), 'src/lib/immich/state.ts'),
+            '$app/env': resolve(process.cwd(), 'src/lib/hack/svelteKit4immich/env.ts'),
+            '$app/navigation': resolve(process.cwd(), 'src/lib/hack/svelteKit4immich/navigation.ts'),
+            '$app/state': resolve(process.cwd(), 'src/lib/hack/svelteKit4immich/state.ts'),
         },
     },
 
@@ -58,6 +58,8 @@ export default defineConfig({
         strictPort: false,
         host: host || false,
         hmr: host ? {protocol: 'ws', host, port: 1421} : undefined,
-        watch: {ignored: ['**/src-tauri/**']},
+        // `tmp/home` is the app's data directory: the WebView writes caches
+        // there while it runs, and a watcher on it would reload the app forever.
+        watch: {ignored: ['**/src-tauri/**', '**/tmp/**']},
     },
 });

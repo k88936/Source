@@ -1,22 +1,32 @@
 <script lang="ts">
-    import {createBottomTabNavigator, NavigationContainer} from 'svelte-navigation';
+    import {createBottomTabNavigator, NavigationContainer, type TabBarProps} from 'svelte-navigation';
     import type {TabParamList} from './params';
     import HomeTab from './tabs/HomeTab.svelte';
     import SettingsTab from './tabs/SettingsTab.svelte';
-    import Square from './Square.svelte';
-    import Circle from './Circle.svelte';
+    import {homeScreens, settingsScreens} from './tabs/screens';
 
     const Tabs = createBottomTabNavigator<TabParamList>();
 
-    const linking = {
-        Home: {Home: '/home', Detail: '/home/:id'},
-        Settings: {Settings: '/settings'},
+    const tabs = {
+        Home: {component: HomeTab, screens: homeScreens},
+        Settings: {component: SettingsTab, screens: settingsScreens},
     };
 </script>
 
-<NavigationContainer {linking}>
-    <Tabs.Navigator>
-        <Tabs.Screen name="Home" component={HomeTab} options={{title: 'Home', icon: Square}} />
-        <Tabs.Screen name="Settings" component={SettingsTab} options={{title: 'Settings', icon: Circle}} />
-    </Tabs.Navigator>
+{#snippet tabBar({tabs, active, activate}: TabBarProps)}
+    <nav class="flex border-t">
+        {#each tabs as tab (tab)}
+            <button
+                class="flex-1 p-3"
+                class:font-bold={active === tab}
+                onclick={() => activate(tab)}
+            >
+                {tab}
+            </button>
+        {/each}
+    </nav>
+{/snippet}
+
+<NavigationContainer>
+    <Tabs.Navigator {tabs} {tabBar} />
 </NavigationContainer>

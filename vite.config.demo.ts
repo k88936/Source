@@ -14,10 +14,15 @@ export default defineConfig({
     base,
     plugins: [tailwindcss(), svelte()],
 
-    optimizeDeps: {exclude: ['svelte-navigation']},
+    optimizeDeps: {exclude: ['svelte-navigation', '@immich/ui']},
 
     resolve: {
         alias: [
+            // `@immich/ui` is written for SvelteKit and imports `$app/*`; the
+            // demo is a plain Vite build too, so the same shims apply.
+            {find: '$app/env', replacement: resolve('src/lib/hack/svelteKit4immich/env.ts')},
+            {find: '$app/navigation', replacement: resolve('src/lib/hack/svelteKit4immich/navigation.ts')},
+            {find: '$app/state', replacement: resolve('src/lib/hack/svelteKit4immich/state.ts')},
             {find: /^#lib\/api\/transport$/, replacement: resolve('src/demo/transport.ts')},
             {
                 find: /^@saurl\/tauri-plugin-safe-area-insets-css-api$/,
