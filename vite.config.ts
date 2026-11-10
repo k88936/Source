@@ -1,7 +1,6 @@
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {sveltekit} from '@sveltejs/kit/vite';
-import adapter from '@sveltejs/adapter-static';
+import {svelte} from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import {defineConfig, type Plugin} from 'vite';
 
@@ -34,18 +33,15 @@ const writeDevUrl = (): Plugin => ({
 });
 
 export default defineConfig({
-    plugins: [
-        tailwindcss(),
-        sveltekit({
-            adapter: adapter({fallback: 'index.html', precompress: true}),
-            paths: {relative: false},
-        }),
-        writeDevUrl(),
-    ],
+    plugins: [tailwindcss(), svelte(), writeDevUrl()],
+
+    // The navigator imports `.svelte.ts` state out of the linked package, which
+    // Vite must compile as source instead of pre-bundling.
+    optimizeDeps: {exclude: ['svelte-navigation']},
 
     // prevent Vite from obscuring Rust errors
     clearScreen: false,
-    build: {target: 'es2022'},
+    build: {target: 'es2022', outDir: 'build'},
     server: {
         port: 1420,
         strictPort: false,

@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+@source '../../src';
+
+@theme {
+    --color-light: #ffffff;
+    --color-dark: #16181d;
+    --color-gray: #f1f2f4;
+    --color-line: #d9dbe0;
+    --color-muted: #6b7280;
+    --color-primary: #1e6feb;
+    --color-on-primary: #ffffff;
+    --navbar-height: 3.5rem;
+}
+
+:root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body,
+#app {
+    height: 100%;
+    margin: 0;
+    background: var(--color-light);
+    color: var(--color-dark);
+    font-family: system-ui, sans-serif;
+}

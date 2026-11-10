@@ -21,7 +21,7 @@
 </script>
 
 <div
-    class="fixed inset-x-0 bottom-[calc(3.6rem+var(--safe-bottom))] z-20 border-t border-line bg-light/95 px-3 py-2 backdrop-blur sidebar:bottom-0 sidebar:ps-60"
+    class="fixed inset-x-0 bottom-[calc(3.6rem+var(--safe-bottom))] z-20 border-t border-line bg-light/95 px-3 py-2 backdrop-blur"
 >
     <div class="mx-auto flex max-w-3xl items-center justify-between gap-2 min-h-8 max-[380px]:gap-1">
         {#if onCancel}

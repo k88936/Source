@@ -1,5 +1,4 @@
 <script lang="ts">
-    import {resolve} from '$app/paths';
     import {api} from '#lib/api/client';
     import type {Capacity} from '#lib/api/bindings/Capacity';
     import {Settings} from '@lucide/svelte';
@@ -7,6 +6,8 @@
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
     import {capacity as text} from './CapacityCard.i18n';
+
+    let {onOpen}: {onOpen: () => void} = $props();
 
     const t = $derived(i18n.pick(text));
 
@@ -40,7 +41,11 @@
     });
 </script>
 
-<a href={resolve('/settings')} class="block rounded-2xl bg-gray p-4 transition-colors hover:bg-line/40">
+<button
+    type="button"
+    onclick={onOpen}
+    class="block w-full rounded-2xl bg-gray p-4 text-left transition-colors hover:bg-line/40"
+>
     <div class="flex items-center gap-3">
         <div
             class="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-lg font-semibold text-on-primary"
@@ -71,4 +76,4 @@
             <div class="h-full rounded-full bg-primary" style:width="{usedPercent}%"></div>
         </div>
     </div>
-</a>
+</button>

@@ -1,12 +1,11 @@
 <script lang="ts">
-    import {resolve} from '$app/paths';
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import {Images} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
     import {card} from './AlbumCard.i18n';
 
-    let {album}: {album: AlbumSummary} = $props();
+    let {album, onOpen}: {album: AlbumSummary; onOpen: () => void} = $props();
 
     const t = $derived(i18n.pick(card));
 
@@ -19,9 +18,10 @@
     }
 </script>
 
-<a
-    href={resolve('/albums/[id]', {id: album.id})}
-    class="group block rounded-2xl border border-transparent p-4 transition-colors hover:border-line hover:bg-gray sidebar:p-5"
+<button
+    type="button"
+    onclick={onOpen}
+    class="group block w-full rounded-2xl border border-transparent p-4 text-left transition-colors hover:border-line hover:bg-gray"
 >
     <div class="relative aspect-square overflow-hidden rounded-xl bg-gray">
         {#if covers.length > 0}
@@ -50,4 +50,4 @@
         </p>
         <p class="mt-1 truncate text-xs text-muted">{t.items(album.assetCount, album.path)}</p>
     </div>
-</a>
+</button>

@@ -75,14 +75,6 @@
     });
 
     $effect(() => {
-        const previous = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        return () => {
-            document.body.style.overflow = previous;
-        };
-    });
-
-    $effect(() => {
         const onKey = (event: KeyboardEvent) => {
             if (event.key === 'Escape') onClose();
             if (event.key === 'ArrowRight') next();

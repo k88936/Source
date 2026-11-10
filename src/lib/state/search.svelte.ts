@@ -60,12 +60,18 @@ export class Search {
     private folder: () => string | null;
     private selection: Selection;
     private timer: ReturnType<typeof setTimeout> | undefined;
+    /** The page's scroll container, so the mode reopens where it was left. */
+    private scroll: () => HTMLElement | undefined;
     private scrollY = 0;
-    private pushed = false;
 
-    constructor(folder: () => string | null, selection: Selection) {
+    constructor(
+        folder: () => string | null,
+        selection: Selection,
+        scroll: () => HTMLElement | undefined,
+    ) {
         this.folder = folder;
         this.selection = selection;
+        this.scroll = scroll;
         // Replaced by `run()` before the first request; an idle mode loads nothing.
         this.timeline = new Timeline((cursor, limit) =>
             this.request({query: '', mediaType: null, favorite: false, from: '', to: ''}, cursor, limit),
@@ -80,42 +86,20 @@ export class Search {
     enter(): void {
         if (this.open) return;
         this.selection.exit();
-        this.scrollY = window.scrollY;
-        // A history entry is what lets the back gesture leave the mode instead
-        // of the page. Same URL, so SvelteKit runs no navigation of its own; the
-        // marked state is what makes the engine treat it as a new entry.
-        history.pushState({...history.state, sourceSearch: true}, '', location.href);
-        this.pushed = true;
-        window.addEventListener('popstate', this.onPopState);
+        this.scrollY = this.scroll()?.scrollTop ?? 0;
         this.open = true;
         if (this.filtered) void this.run();
     }
 
-    /** Leave through the history entry, so cancel, Escape and back share one path. */
+    /** Leaving the mode is a plain close: the back key is the page's handler. */
     exit(): void {
         if (!this.open) return;
-        if (!this.pushed) {
-            this.close();
-            return;
-        }
-        this.pushed = false;
-        history.back();
-    }
-
-    /**
-     * Drop the mode without touching history. Used when the page underneath is
-     * being replaced, where stepping back would undo that navigation.
-     */
-    dismiss(): void {
-        if (!this.open) return;
-        this.pushed = false;
         this.close();
     }
 
-    /** Forget the mode without touching history; the page itself is going away. */
+    /** Forget the mode without touching anything; the page itself is going away. */
     dispose(): void {
         clearTimeout(this.timer);
-        window.removeEventListener('popstate', this.onPopState);
     }
 
     setQuery(value: string): void {
@@ -213,12 +197,6 @@ export class Search {
     /** Back to where the timeline was left; the swap lands on the next frame. */
     private async restore(): Promise<void> {
         await tick();
-        window.scrollTo(0, this.scrollY);
+        this.scroll()?.scrollTo(0, this.scrollY);
     }
-
-    private onPopState = (): void => {
-        if (!this.open) return;
-        this.pushed = false;
-        this.close();
-    };
 }

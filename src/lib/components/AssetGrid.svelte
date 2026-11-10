@@ -1,4 +1,5 @@
 <script lang="ts">
+    import {useScrollContainer} from 'svelte-navigation';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
     import {justify} from '#lib/justify';
     import {mosaicBackground} from '#lib/mosaic';
@@ -95,6 +96,8 @@
     let scrolled = $state(false);
     let monthSheet = $state(false);
 
+    const scroll = useScrollContainer();
+
     function monthKey(ts: number): string {
         const d = new Date(ts);
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -126,16 +129,18 @@
     }
 
     $effect(() => {
+        const element = scroll();
+        if (!element) return;
         const onScroll = () => {
-            scrolled = window.scrollY > 1200;
+            scrolled = element.scrollTop > 1200;
         };
-        window.addEventListener('scroll', onScroll, {passive: true});
+        element.addEventListener('scroll', onScroll, {passive: true});
         onScroll();
-        return () => window.removeEventListener('scroll', onScroll);
+        return () => element.removeEventListener('scroll', onScroll);
     });
 
     function toTop() {
-        window.scrollTo({top: 0, behavior: 'smooth'});
+        scroll()?.scrollTo({top: 0, behavior: 'smooth'});
     }
 
     function pinch(node: HTMLElement, initial: {columns: number; onChange?: (n: number) => void}) {
@@ -177,7 +182,7 @@
     }
 </script>
 
-<div use:pinch={{columns, onChange: onColumns}} bind:clientWidth={gridWidth} class="pb-24 sidebar:pb-8">
+<div use:pinch={{columns, onChange: onColumns}} bind:clientWidth={gridWidth} class="pb-24">
     {#each sections as section (section.group.key)}
         <section id="day-{section.group.key}">
             <h2 class="pb-2 pt-6 text-xs font-medium text-muted md:text-sm">
@@ -217,7 +222,7 @@
     <button
         type="button"
         onclick={() => (monthSheet = true)}
-        class="fixed bottom-[calc(7.4rem+var(--safe-bottom))] right-3 z-20 grid size-10 place-items-center rounded-full bg-light/90 text-dark shadow-lg backdrop-blur sidebar:bottom-6"
+        class="fixed bottom-[calc(7.4rem+var(--safe-bottom))] right-3 z-20 grid size-10 place-items-center rounded-full bg-light/90 text-dark shadow-lg backdrop-blur"
         aria-label={t.jumpMonth}
     >
         <Calendar size={19} />
@@ -228,7 +233,7 @@
     <button
         type="button"
         onclick={toTop}
-        class="fixed bottom-[calc(4.2rem+var(--safe-bottom))] right-3 z-20 grid size-10 place-items-center rounded-full bg-light/90 text-dark shadow-lg backdrop-blur sidebar:bottom-6 sidebar:right-[calc(1.5rem)]"
+        class="fixed bottom-[calc(4.2rem+var(--safe-bottom))] right-3 z-20 grid size-10 place-items-center rounded-full bg-light/90 text-dark shadow-lg backdrop-blur"
         aria-label={t.backToTop}
     >
         <ChevronUp size={20} />

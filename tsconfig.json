@@ -1,6 +1,5 @@
 {
-    "extends": "$app/tsconfig",
-    "include": ["src", "*"],
+    "include": ["src", "packages/*/src", "*"],
     "exclude": ["src/service-worker"],
     "compilerOptions": {
         "allowJs": true,
@@ -11,11 +10,17 @@
         "skipLibCheck": true,
         "sourceMap": true,
         "strict": true,
+        "module": "esnext",
+        "target": "es2022",
         "moduleResolution": "bundler",
+        "verbatimModuleSyntax": true,
+        "isolatedModules": true,
         "noUncheckedIndexedAccess": true,
         "paths": {
-            "#lib/*": ["./src/lib/*"]
+            "#lib/*": ["./src/lib/*"],
+            "#screens/*": ["./src/screens/*"],
+            "#navigation/*": ["./src/navigation/*"]
         },
-        "types": ["node", "$app/types"]
+        "types": ["node", "vite/client"]
     }
 }
