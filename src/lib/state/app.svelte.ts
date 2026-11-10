@@ -1,3 +1,4 @@
+import {toastManager} from '@immich/ui';
 import {api, listen} from '#lib/api/client';
 import type {CatalogChangedEvent} from '#lib/api/bindings/CatalogChangedEvent';
 import type {AccountState} from '#lib/api/bindings/AccountState';
@@ -21,7 +22,6 @@ export class AppState {
     /** Whether background work is paused, persisted by the adapter. */
     jobsPaused = $state(false);
     columns = $state(3);
-    toast = $state<{message: string; kind: ToastKind} | null>(null);
     private started = false;
 
     async init(): Promise<void> {
@@ -108,10 +108,14 @@ export class AppState {
     }
 
     showToast(message: string, kind: ToastKind = 'info'): void {
-        this.toast = {message, kind};
-        setTimeout(() => {
-            if (this.toast?.message === message) this.toast = null;
-        }, 3200);
+        const toast = {description: message};
+        if (kind === 'error') {
+            toastManager.danger(toast);
+        } else if (kind === 'success') {
+            toastManager.success(toast);
+        } else {
+            toastManager.info(toast);
+        }
     }
 
     describeError(err: unknown): string {

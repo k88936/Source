@@ -2,11 +2,11 @@
     // Importing the plugin publishes `--safe-area-inset-*` on `:root`; it hooks the
     // keyboard events itself, so there is nothing to call.
     import '@saurl/tauri-plugin-safe-area-insets-css-api';
+    import {TooltipProvider} from '@immich/ui';
     import {Cloud} from '@lucide/svelte';
     import {onMount} from 'svelte';
     import {NavigationContainer} from 'svelte-navigation';
     import {listen} from '#lib/api/client';
-    import Toast from '#lib/components/Toast.svelte';
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
     import MainTabs from './navigation/MainTabs.svelte';
@@ -32,24 +32,26 @@
     });
 </script>
 
-{#if !app.ready}
-    <div class="grid h-full place-items-center bg-light text-dark">
-        <div class="flex flex-col items-center gap-4">
-            <div class="grid size-16 animate-pulse place-items-center rounded-2xl bg-primary text-on-primary">
-                <Cloud size={30} />
+<TooltipProvider>
+    {#if !app.ready}
+        <div class="grid h-full place-items-center bg-light text-dark">
+            <div class="flex flex-col items-center gap-4">
+                <div class="grid size-16 animate-pulse place-items-center rounded-2xl bg-primary text-on-primary">
+                    <Cloud size={30} />
+                </div>
+                <p class="text-sm text-muted">{t.loading}</p>
             </div>
-            <p class="text-sm text-muted">{t.loading}</p>
         </div>
-    </div>
-{:else}
-    <!-- Signed in or not is what picks the root stack: the login screen has no tabs. -->
-    <NavigationContainer {linking}>
-        {#if app.account}
-            <MainTabs />
-        {:else}
-            <WelcomeStack />
-        {/if}
-    </NavigationContainer>
-{/if}
-
-<Toast />
+    {:else}
+        <!-- Signed in or not is what picks the root stack: the login screen has no tabs. -->
+        <div class="h-full bg-light text-dark">
+            <NavigationContainer {linking}>
+                {#if app.account}
+                    <MainTabs />
+                {:else}
+                    <WelcomeStack />
+                {/if}
+            </NavigationContainer>
+        </div>
+    {/if}
+</TooltipProvider>

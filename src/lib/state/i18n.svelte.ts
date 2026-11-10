@@ -1,4 +1,5 @@
 import type {Bundle, Locale} from '#lib/i18n/bundle';
+import {syncTranslations} from '#lib/immich/translations';
 
 const KEY = 'source-locale';
 
@@ -27,9 +28,11 @@ class I18n {
         this.locale = next;
         localStorage.setItem(KEY, next);
         document.documentElement.lang = TAGS[next];
+        syncTranslations(next);
     }
 }
 
 export const i18n = new I18n();
 
 document.documentElement.lang = i18n.tag;
+syncTranslations(i18n.locale);

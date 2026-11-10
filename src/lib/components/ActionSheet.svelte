@@ -1,5 +1,6 @@
 <script lang="ts">
     import type {Component} from 'svelte';
+    import Overlay from './Overlay.svelte';
 
     type ActionSheetItem = {
         label: string;
@@ -21,19 +22,9 @@
     const itemClass = 'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-gray';
 </script>
 
-{#if open}
-    <div class="fixed inset-0 z-40 bg-black/40" role="presentation">
-        <button
-            type="button"
-            class="absolute inset-0 size-full cursor-default"
-            aria-label={closeLabel}
-            onclick={() => (open = false)}
-        ></button>
-        <div
-            class="absolute inset-x-3 bottom-[calc(1rem+var(--safe-bottom))] rounded-2xl bg-light p-2 shadow-2xl"
-            role="menu"
-            tabindex="-1"
-        >
+<Overlay bind:open label={closeLabel}>
+    <div class="pointer-events-none flex h-full flex-col justify-end px-3 pb-[calc(1rem+var(--safe-bottom))]">
+        <div class="pointer-events-auto rounded-2xl bg-light p-2 shadow-2xl" role="menu" tabindex="-1">
             {#each actions as action (action.label)}
                 {@const Icon = action.icon}
                 <button
@@ -50,4 +41,4 @@
             {/each}
         </div>
     </div>
-{/if}
+</Overlay>

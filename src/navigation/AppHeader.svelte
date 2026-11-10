@@ -1,15 +1,13 @@
 <script lang="ts">
-    import type {ScreenEntry, StackController} from '../navigation.svelte';
-    import type {StackOptions} from '../types';
+    import {IconButton} from '@immich/ui';
+    import {mdiChevronLeft} from '@mdi/js';
+    import type {StackHeaderProps} from 'svelte-navigation';
+    import {common} from '#lib/i18n/common.i18n';
+    import {i18n} from '#lib/state/i18n.svelte';
 
-    let {
-        controller,
-        entry,
-        options,
-    }: {controller: StackController; entry: ScreenEntry; options: StackOptions} = $props();
+    let {options, canBack, back}: StackHeaderProps = $props();
 
-    // While a mode takes the back key, the bar must not offer a second way out.
-    const canBack = $derived(controller.entries.length > 1 && !controller.root.hasMode(entry));
+    const c = $derived(i18n.pick(common));
     const transparent = $derived(options.headerTransparent === true);
 </script>
 
@@ -25,24 +23,13 @@
     {/if}
     <div class="flex w-full items-center gap-2 px-2" style:height="var(--navbar-height, 3.5rem)">
         {#if canBack}
-            <button
-                onclick={() => controller.root.back(controller)}
-                class="grid size-9 place-items-center rounded-full text-dark transition-colors hover:bg-gray"
-                aria-label={options.headerBackLabel ?? 'Back'}
-            >
-                <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                >
-                    <path d="m15 18-6-6 6-6" />
-                </svg>
-            </button>
+            <IconButton
+                icon={mdiChevronLeft}
+                variant="ghost"
+                size="small"
+                aria-label={options.headerBackLabel ?? c.back}
+                onclick={back}
+            />
         {/if}
         {#if options.headerContent}
             <div class="min-w-0 flex-1">{@render options.headerContent()}</div>

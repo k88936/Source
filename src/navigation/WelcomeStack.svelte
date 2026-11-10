@@ -9,6 +9,6 @@
     const c = $derived(i18n.pick(common));
 </script>
 
-<Stack.Navigator initialRouteName="Welcome" screenOptions={{headerBackLabel: c.back}}>
+<Stack.Navigator initialRouteName="Welcome" screenOptions={{headerBackLabel: c.back}} layerClass="bg-light text-dark">
     <Stack.Screen name="Welcome" component={Welcome} options={{headerShown: false}} />
 </Stack.Navigator>

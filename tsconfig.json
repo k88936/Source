@@ -19,7 +19,10 @@
         "paths": {
             "#lib/*": ["./src/lib/*"],
             "#screens/*": ["./src/screens/*"],
-            "#navigation/*": ["./src/navigation/*"]
+            "#navigation/*": ["./src/navigation/*"],
+            "$app/env": ["./src/lib/immich/env.ts"],
+            "$app/navigation": ["./src/lib/immich/navigation.ts"],
+            "$app/state": ["./src/lib/immich/state.ts"]
         },
         "types": ["node", "vite/client"]
     }

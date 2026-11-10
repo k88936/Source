@@ -1,6 +1,6 @@
 import {untrack} from 'svelte';
 import type {Component} from 'svelte';
-import type {Navigation, ParamListBase, Route, StackOptions, TabOptions} from './types';
+import type {Navigation, ParamListBase, Route, StackOptions} from './types';
 
 /** How long a popped layer stays around to play its exit transition. */
 export const TRANSITION_MS = 280;
@@ -30,7 +30,6 @@ export type StackScreenConfig = {
 export type TabScreenConfig = {
     name: string;
     component: Component<Record<string, never>>;
-    options?: TabOptions | ((route: Route<ParamListBase>) => TabOptions);
 };
 
 /** Tab name -> screen name -> URL pattern. A screen without a pattern keeps the URL. */
@@ -72,15 +71,6 @@ function resolveOptions<T>(
     route: Route<ParamListBase>,
 ): T {
     return typeof value === 'function' ? (value as (route: Route<ParamListBase>) => T)(route) : (value as T);
-}
-
-/** The options of one tab bar entry: navigator level first, then the tab's own. */
-export function resolveTabOptions(
-    config: TabScreenConfig,
-    screenOptions: TabOptions | ((route: Route<ParamListBase>) => TabOptions) | undefined,
-): TabOptions {
-    const route: Route<ParamListBase> = {key: config.name, name: config.name, params: undefined};
-    return {...resolveOptions(screenOptions, route), ...resolveOptions(config.options, route)};
 }
 
 let counter = 0;

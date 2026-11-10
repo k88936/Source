@@ -10,9 +10,10 @@ export type {
     ParamListBase,
     Route,
     StackOptions,
+    StackHeaderProps,
     StackScreenProps,
     StackNavigatorProps,
-    TabOptions,
+    TabBarProps,
     TabScreenProps,
     TabNavigatorProps,
 } from './types';

@@ -32,14 +32,28 @@ export type StackOptions = HeaderOptions & {
     animation?: Animation;
 };
 
-export type TabOptions = {
-    title?: string;
-    icon?: Component<{size?: number}>;
+/** What a header needs from the navigator: the navigator decides, the app paints. */
+export type StackHeaderProps = {
+    options: StackOptions;
+    /** False while the stack has a single screen or a mode owns the back key. */
+    canBack: boolean;
+    back: () => void;
+};
+
+/** What a tab bar needs from the navigator. */
+export type TabBarProps = {
+    tabs: string[];
+    active: string;
+    activate: (name: string) => void;
 };
 
 export type StackNavigatorProps<ParamList extends ParamListBase> = {
     initialRouteName: keyof ParamList & string;
     screenOptions?: StackOptions | ((route: Route<ParamList>) => StackOptions);
+    /** Painted per layer, above the scroll container and below the status bar. */
+    header?: Snippet<[StackHeaderProps]>;
+    /** Classes for the layer itself, so the app owns its surface colour. */
+    layerClass?: string;
     children: Snippet;
 };
 
@@ -50,16 +64,14 @@ export type StackScreenProps<ParamList extends ParamListBase> = {
 };
 
 export type TabNavigatorProps<ParamList extends ParamListBase> = {
-    screenOptions?: TabOptions | ((route: Route<ParamList>) => TabOptions);
-    /** Aria label of the bar, in the app's language. */
-    ariaLabel?: string;
+    /** Painted below the tab content. */
+    tabBar: Snippet<[TabBarProps]>;
     children: Snippet;
 };
 
 export type TabScreenProps<ParamList extends ParamListBase> = {
     name: keyof ParamList & string;
     component: Component<Record<string, never>>;
-    options?: TabOptions | ((route: Route<ParamList>) => TabOptions);
 };
 
 export type Navigation<ParamList extends ParamListBase = ParamListBase> = {

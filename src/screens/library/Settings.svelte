@@ -1,14 +1,14 @@
 <script lang="ts">
+    import {Avatar, Button, FormatBytes, Meter, Select, Switch, ThemePreference, themeManager} from '@immich/ui';
+    import {mdiLogout, mdiRefresh} from '@mdi/js';
     import {onMount} from 'svelte';
     import {api} from '#lib/api/client';
     import type {AppInfo} from '#lib/api/bindings/AppInfo';
     import type {CacheStats} from '#lib/api/bindings/CacheStats';
     import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
-    import {LogOut} from '@lucide/svelte';
-    import {formatBytes} from '#lib/format';
+    import type {Locale} from '#lib/i18n/bundle';
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
-    import type {Locale} from '#lib/i18n/bundle';
     import ScreenOptions from '#navigation/ScreenOptions.svelte';
     import {settings} from './Settings.i18n';
 
@@ -16,7 +16,6 @@
 
     let cache = $state<CacheStats | null>(null);
     let info = $state<AppInfo | null>(null);
-    let theme = $state<'dark' | 'light'>('dark');
     let clearing = $state(false);
     let confirmAction = $state<ConfirmAction | null>(null);
 
@@ -27,11 +26,16 @@
         {value: 'en', label: 'English'},
     ];
 
+    const THEMES = $derived([
+        {value: ThemePreference.System, label: t.system},
+        {value: ThemePreference.Light, label: t.light},
+        {value: ThemePreference.Dark, label: t.dark},
+    ]);
+
     const confirmCopy = $derived(confirmAction === null ? null : t.confirm[confirmAction]);
 
     onMount(() => {
         void load();
-        if (document.documentElement.classList.contains('light')) theme = 'light';
     });
 
     async function load() {
@@ -55,13 +59,6 @@
         }
     }
 
-    function setTheme(next: 'dark' | 'light') {
-        theme = next;
-        localStorage.setItem('immich-ui-theme', JSON.stringify(next));
-        document.documentElement.classList.toggle('dark', next === 'dark');
-        document.documentElement.classList.toggle('light', next === 'light');
-    }
-
     async function logout() {
         await app.logout();
     }
@@ -81,9 +78,7 @@
 <div class="mx-auto max-w-3xl px-4 pb-28 pt-3">
     <section class="rounded-2xl bg-gray p-4">
         <div class="flex items-center gap-3">
-            <div class="grid size-12 place-items-center rounded-full bg-primary text-lg font-semibold text-on-primary">
-                {app.account?.user.name?.slice(0, 1).toUpperCase() ?? '?'}
-            </div>
+            <Avatar name={app.account?.user.name ?? ''} size="large" />
             <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold">{app.account?.user.name}</p>
                 <p class="truncate text-xs text-muted">{app.account?.user.email}</p>
@@ -91,112 +86,91 @@
             </div>
         </div>
         <div class="mt-3 flex gap-2">
-            <button
+            <Button
+                size="small"
+                variant="ghost"
+                fullWidth
+                leadingIcon={mdiRefresh}
                 onclick={() => void app.refreshAccount()}
-                class="flex-1 rounded-xl border border-line py-2 text-xs font-medium transition-colors hover:bg-line/40"
             >
                 {t.refresh}
-            </button>
-            <button
+            </Button>
+            <Button
+                size="small"
+                variant="ghost"
+                color="danger"
+                fullWidth
+                leadingIcon={mdiLogout}
                 onclick={() => (confirmAction = 'logout')}
-                class="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-danger transition-colors hover:bg-danger/10"
             >
-                <LogOut size={15} />
                 {t.logout}
-            </button>
+            </Button>
         </div>
     </section>
 
-    <section class="mt-3 overflow-hidden rounded-2xl bg-gray">
-        <div class="flex items-center justify-between px-4 py-3">
-            <p class="text-sm font-medium">{t.appearance}</p>
-            <div class="flex rounded-lg bg-light p-0.5">
-                <button
-                    onclick={() => setTheme('dark')}
-                    class="rounded-md px-3 py-1 text-xs transition-colors {theme === 'dark'
-                        ? 'bg-primary text-on-primary'
-                        : 'text-muted'}"
-                >
-                    {t.dark}
-                </button>
-                <button
-                    onclick={() => setTheme('light')}
-                    class="rounded-md px-3 py-1 text-xs transition-colors {theme === 'light'
-                        ? 'bg-primary text-on-primary'
-                        : 'text-muted'}"
-                >
-                    {t.light}
-                </button>
-            </div>
-        </div>
-    </section>
-
-    <section class="mt-3 overflow-hidden rounded-2xl bg-gray">
-        <div class="flex items-center justify-between px-4 py-3">
-            <p class="text-sm font-medium">{t.language}</p>
-            <div class="flex rounded-lg bg-light p-0.5">
-                {#each LOCALES as locale (locale.value)}
-                    <button
-                        onclick={() => i18n.set(locale.value)}
-                        class="rounded-md px-3 py-1 text-xs transition-colors {i18n.locale === locale.value
-                            ? 'bg-primary text-on-primary'
-                            : 'text-muted'}"
-                    >
-                        {locale.label}
-                    </button>
-                {/each}
-            </div>
-        </div>
-    </section>
-
-    <section class="mt-3 overflow-hidden rounded-2xl bg-gray px-4 py-3">
+    <section class="mt-3 rounded-2xl bg-gray px-4 py-3">
         <div class="flex items-center justify-between gap-3">
-            <p class="text-sm font-medium">{t.background}</p>
-            <div class="flex shrink-0 rounded-lg bg-light p-0.5">
-                <button
-                    onclick={() => void app.setJobsPaused(false)}
-                    class="rounded-md px-3 py-1 text-xs transition-colors {!app.jobsPaused
-                        ? 'bg-primary text-on-primary'
-                        : 'text-muted'}"
-                >
-                    {t.running}
-                </button>
-                <button
-                    onclick={() => void app.setJobsPaused(true)}
-                    class="rounded-md px-3 py-1 text-xs transition-colors {app.jobsPaused
-                        ? 'bg-primary text-on-primary'
-                        : 'text-muted'}"
-                >
-                    {t.paused}
-                </button>
-            </div>
+            <p class="shrink-0 text-sm font-medium">{t.appearance}</p>
+            <Select
+                class="w-28"
+                size="small"
+                options={THEMES}
+                value={themeManager.preference}
+                onChange={(preference) => themeManager.setPreference(preference)}
+            />
+        </div>
+    </section>
+
+    <section class="mt-3 rounded-2xl bg-gray px-4 py-3">
+        <div class="flex items-center justify-between gap-3">
+            <p class="shrink-0 text-sm font-medium">{t.language}</p>
+            <Select
+                class="w-28"
+                size="small"
+                options={LOCALES}
+                value={i18n.locale}
+                onChange={(locale) => i18n.set(locale)}
+            />
+        </div>
+    </section>
+
+    <section class="mt-3 rounded-2xl bg-gray px-4 py-3">
+        <div class="flex items-center justify-between gap-3">
+            <p class="shrink-0 text-sm font-medium">{t.background}</p>
+            <Switch
+                checked={!app.jobsPaused}
+                aria-label={t.background}
+                onCheckedChange={(running) => void app.setJobsPaused(!running)}
+            />
         </div>
     </section>
 
     <section class="mt-3 rounded-2xl bg-gray p-4">
         <div class="flex items-center justify-between">
             <p class="text-sm font-medium">{t.cache}</p>
-            <span class="text-xs font-medium text-muted">{formatBytes(cache?.thumbBytes ?? 0)}</span>
+            <p class="text-xs font-medium text-muted"><FormatBytes bytes={cache?.thumbBytes ?? 0} /></p>
         </div>
-        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-muted/25">
-            <div
-                class="h-full rounded-full bg-primary"
-                style:width="{cache && cache.budgetBytes > 0
-                    ? Math.min(100, Math.round((cache.thumbBytes / cache.budgetBytes) * 100))
-                    : 0}%"
-            ></div>
-        </div>
+        <Meter
+            class="mt-2"
+            size="small"
+            value={cache?.thumbBytes ?? 0}
+            max={Math.max(1, cache?.budgetBytes ?? 1)}
+        />
         <div class="mt-1 flex justify-between text-[11px] text-muted">
             <span>{t.files(cache?.thumbFiles ?? 0)}</span>
-            <span>{t.limit(formatBytes(cache?.budgetBytes ?? 512 * 1024 * 1024))}</span>
+            <span>{t.limitPrefix} <FormatBytes bytes={cache?.budgetBytes ?? 512 * 1024 * 1024} /></span>
         </div>
-        <button
+        <Button
+            class="mt-3"
+            size="small"
+            variant="ghost"
+            color="danger"
+            fullWidth
+            loading={clearing}
             onclick={() => (confirmAction = 'clearCache')}
-            disabled={clearing}
-            class="mt-3 w-full rounded-xl border border-line py-2 text-xs font-medium text-danger transition-colors hover:bg-light disabled:opacity-50"
         >
             {clearing ? t.clearing : t.clearCache}
-        </button>
+        </Button>
     </section>
 
     <section class="mt-3 rounded-2xl bg-gray px-4 py-3 text-xs text-muted">

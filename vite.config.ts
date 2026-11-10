@@ -35,9 +35,20 @@ const writeDevUrl = (): Plugin => ({
 export default defineConfig({
     plugins: [tailwindcss(), svelte(), writeDevUrl()],
 
+    // `@immich/ui` is written for SvelteKit and imports `$app/*`; the app is a
+    // plain Vite build, so those virtual modules resolve to thin shims.
+    resolve: {
+        alias: {
+            '$app/env': resolve(process.cwd(), 'src/lib/immich/env.ts'),
+            '$app/navigation': resolve(process.cwd(), 'src/lib/immich/navigation.ts'),
+            '$app/state': resolve(process.cwd(), 'src/lib/immich/state.ts'),
+        },
+    },
+
     // The navigator imports `.svelte.ts` state out of the linked package, which
-    // Vite must compile as source instead of pre-bundling.
-    optimizeDeps: {exclude: ['svelte-navigation']},
+    // Vite must compile as source instead of pre-bundling. The UI package needs
+    // the same treatment so its `$app/*` imports go through the aliases.
+    optimizeDeps: {exclude: ['svelte-navigation', '@immich/ui']},
 
     // prevent Vite from obscuring Rust errors
     clearScreen: false,

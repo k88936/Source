@@ -2,6 +2,7 @@
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/state/i18n.svelte';
     import {description} from './DescriptionDialog.i18n';
+    import Overlay from './Overlay.svelte';
 
     let {
         open = $bindable(false),
@@ -19,9 +20,9 @@
     const c = $derived(i18n.pick(common));
 </script>
 
-{#if open}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-        <div class="w-full max-w-md rounded-3xl bg-light p-5 shadow-2xl">
+<Overlay bind:open label={t.title}>
+    <div class="pointer-events-none flex h-full items-center justify-center p-4">
+        <div class="pointer-events-auto w-full max-w-md rounded-3xl bg-light p-5 shadow-2xl">
             <h2 class="text-lg font-medium">{t.title}</h2>
             <textarea bind:value={draft} rows="4" placeholder={t.placeholder} class="field mt-3 resize-none"></textarea>
             <div class="mt-4 flex justify-end gap-2">
@@ -41,4 +42,4 @@
             </div>
         </div>
     </div>
-{/if}
+</Overlay>

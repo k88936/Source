@@ -1,15 +1,15 @@
 @import 'tailwindcss';
 @import '@immich/ui/theme/default.css';
 
+/* The components carry their own utilities, and Tailwind does not scan node_modules by default. */
+@source '../node_modules/@immich/ui/dist';
+
 @custom-variant dark (&:where(.dark, .dark *):not(.light));
 
 @theme {
     --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-mono: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 }
-
-/* The navigation package renders the header and the tab bar, so its classes count too. */
-@source '../../packages/nav/src';
 
 @theme inline {
     /* Theme tokens that are not exposed as utilities on their own. */

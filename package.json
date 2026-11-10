@@ -26,6 +26,7 @@
     "dependencies": {
         "@immich/ui": "0.91.1",
         "@lucide/svelte": "1.68.0",
+        "@mdi/js": "7.4.47",
         "@saurl/tauri-plugin-safe-area-insets-css-api": "0.1.0",
         "@tauri-apps/api": "^2.9.0",
         "@tauri-apps/plugin-log": "~2.10.1",

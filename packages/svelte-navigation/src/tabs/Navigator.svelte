@@ -1,18 +1,15 @@
-<script lang="ts" generics="ParamList extends ParamListBase">
+<script lang="ts">
     import {getContext, setContext, type Snippet} from 'svelte';
     import {rootKey, tabScreensKey} from '../context';
     import type {NavigationRoot, TabScreenConfig} from '../navigation.svelte';
-    import type {ParamListBase, Route, TabOptions} from '../types';
-    import Bar from './Bar.svelte';
+    import type {TabBarProps} from '../types';
     import Content from './Content.svelte';
 
     let {
-        screenOptions = {},
-        ariaLabel,
+        tabBar,
         children,
     }: {
-        screenOptions?: TabOptions | ((route: Route<ParamList>) => TabOptions);
-        ariaLabel?: string;
+        tabBar: Snippet<[TabBarProps]>;
         children: Snippet;
     } = $props();
 
@@ -33,16 +30,26 @@
 
 {@render children()}
 
-<div class="flex h-full flex-col bg-light text-dark">
+<div class="flex h-full flex-col">
     <div class="relative min-h-0 flex-1">
         {#each registry.screens as screen (screen.name)}
-            <!-- Only mounted once visited, then kept: a tab keeps its stack, its scroll and its data. -->
-            <div class="absolute inset-0" class:invisible={active !== screen.name}>
+            <!-- Only mounted once visited, then kept: a tab keeps its stack, its scroll and its data.
+                 A hidden tab is not painted at all, so nothing of it can linger on the tab
+                 that is being shown instead. -->
+            <div
+                class="absolute inset-0"
+                class:invisible={active !== screen.name}
+                style:contain={active === screen.name ? undefined : 'paint'}
+            >
                 {#if screen.name === active || mounted.includes(screen.name)}
                     <Content name={screen.name} View={screen.component} />
                 {/if}
             </div>
         {/each}
     </div>
-    <Bar screens={registry.screens} {active} {ariaLabel} screenOptions={screenOptions as TabOptions | ((route: Route) => TabOptions)} />
+    {@render tabBar({
+        tabs: registry.screens.map((screen) => screen.name),
+        active,
+        activate: (name) => root.activate(name),
+    })}
 </div>

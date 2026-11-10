@@ -1,7 +1,6 @@
 <script lang="ts">
-    import {CircleAlert, Info} from '@lucide/svelte';
-    import {i18n} from '#lib/state/i18n.svelte';
-    import {common} from '#lib/i18n/common.i18n';
+    import {ConfirmModal} from '@immich/ui';
+    import {mdiAlertCircleOutline} from '@mdi/js';
 
     let {
         open,
@@ -16,56 +15,22 @@
         title: string;
         message: string;
         confirmLabel: string;
-        /** Destructive actions tint the icon and confirm button with the danger token. */
+        /** Destructive actions tint the confirm button with the danger token. */
         danger?: boolean;
         onClose: () => void;
         onConfirm: () => void;
     } = $props();
-
-    const t = $derived(i18n.pick(common));
 </script>
 
-<svelte:window
-    onkeydown={(event) => {
-        if (open && event.key === 'Escape') onClose();
-    }}
-/>
-
 <!-- WebKitGTK's own `confirm()` is unthemeable and blocks the webview, so actions
-     route through this dialog instead. -->
+     route through the library's confirm dialog instead. -->
 {#if open}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-        <button type="button" class="absolute inset-0 cursor-default" aria-label={t.close} onclick={onClose}></button>
-        <div class="relative w-full max-w-sm rounded-3xl bg-gray p-5 shadow-2xl ring-1 ring-line">
-            <span
-                class="grid size-10 place-items-center rounded-full {danger
-                    ? 'bg-danger/10 text-danger'
-                    : 'bg-primary/10 text-primary'}"
-            >
-                {#if danger}
-                    <CircleAlert size={20} />
-                {:else}
-                    <Info size={20} />
-                {/if}
-            </span>
-            <h2 class="mt-3 text-base font-semibold">{title}</h2>
-            <p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-muted">{message}</p>
-            <div class="mt-5 flex justify-end gap-2">
-                <button
-                    onclick={onClose}
-                    class="rounded-xl px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-line/40"
-                >
-                    {t.cancel}
-                </button>
-                <button
-                    onclick={onConfirm}
-                    class="rounded-xl px-4 py-2 text-sm font-medium transition-colors {danger
-                        ? 'bg-danger/10 text-danger hover:bg-danger/20'
-                        : 'bg-primary text-on-primary hover:opacity-90'}"
-                >
-                    {confirmLabel}
-                </button>
-            </div>
-        </div>
-    </div>
+    <ConfirmModal
+        {title}
+        prompt={message}
+        confirmText={confirmLabel}
+        confirmColor={danger ? 'danger' : 'primary'}
+        icon={danger ? mdiAlertCircleOutline : true}
+        onClose={(confirmed) => (confirmed ? onConfirm() : onClose())}
+    />
 {/if}
