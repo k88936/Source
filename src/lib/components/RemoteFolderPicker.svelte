@@ -6,6 +6,7 @@
     import {app} from '#lib/state/app.svelte';
     import {i18n} from '#lib/state/i18n.svelte';
     import {ChevronLeft, ChevronRight, Folder, X} from '@lucide/svelte';
+    import Sheet from './Sheet.svelte';
     import {remotePicker} from './RemoteFolderPicker.i18n';
 
     /// Browses the remote folder tree and hands back the folder the user settled
@@ -92,100 +93,92 @@
     }
 </script>
 
-{#if open}
-    <div
-        class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
-        role="dialog"
-        aria-modal="true"
-    >
-        <div class="flex h-[80dvh] w-full max-w-lg flex-col rounded-t-3xl bg-light sm:h-[70dvh] sm:rounded-3xl">
-            <div class="flex items-center justify-between px-4 pb-2 pt-3">
-                <div class="min-w-0">
-                    <h2 class="text-base font-semibold">{t.title}</h2>
-                    <p class="truncate text-xs text-muted">{t.current(browse?.current.path ?? '/')}</p>
-                </div>
-                <div class="flex items-center gap-1">
-                    <button
-                        onclick={() => (creating = !creating)}
-                        class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
-                        aria-label={t.newFolder}
-                    >
-                        <Folder size={18} />
-                    </button>
-                    <button
-                        onclick={() => (open = false)}
-                        class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
-                        aria-label={c.close}
-                    >
-                        <X size={18} />
-                    </button>
-                </div>
-            </div>
-
-            {#if creating}
-                <form
-                    class="flex items-center gap-2 px-4 py-1"
-                    onsubmit={(event) => {
-                        event.preventDefault();
-                        void create();
-                    }}
-                >
-                    <input
-                        bind:value={newName}
-                        placeholder={t.folderName}
-                        class="min-w-0 flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/60"
-                    />
-                    <button
-                        type="submit"
-                        disabled={!newName.trim() || busy}
-                        class="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-on-primary disabled:opacity-40"
-                    >
-                        {t.create}
-                    </button>
-                </form>
-            {/if}
-
-            <div class="flex-1 overflow-y-auto px-2">
-                {#if trail.length > 0}
-                    <button
-                        onclick={up}
-                        class="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
-                    >
-                        <ChevronLeft size={18} class="text-muted" />
-                        {c.up}
-                    </button>
-                {/if}
-                {#if loading}
-                    <div class="flex justify-center py-12">
-                        <div class="size-6 animate-spin rounded-full border-2 border-line border-t-primary"></div>
-                    </div>
-                {:else if error}
-                    <p class="px-3 py-6 text-center text-xs text-red-500">{error}</p>
-                {:else if browse && browse.folders.length === 0}
-                    <p class="px-3 py-8 text-center text-xs text-muted">{t.empty}</p>
-                {:else}
-                    {#each browse?.folders ?? [] as folder (folder.id)}
-                        <button
-                            onclick={() => enter(folder)}
-                            class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
-                        >
-                            <Folder size={20} class="text-amber-500" />
-                            <span class="min-w-0 flex-1 truncate">{folder.name}</span>
-                            <ChevronRight size={15} class="text-muted" />
-                        </button>
-                    {/each}
-                {/if}
-            </div>
-
-            <div class="border-t border-line p-4 pb-[calc(1rem+var(--safe-bottom))]">
-                <button
-                    onclick={() => void pick()}
-                    disabled={!browse || busy}
-                    class="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
-                >
-                    {browse ? t.add(browse.current.name) : c.loading}
-                </button>
-            </div>
+<Sheet bind:open label={t.title} panelClass="h-[80dvh] max-w-lg sm:h-[70dvh]">
+    <div class="flex items-center justify-between px-4 pb-2 pt-3">
+        <div class="min-w-0">
+            <h2 class="text-base font-semibold">{t.title}</h2>
+            <p class="truncate text-xs text-muted">{t.current(browse?.current.path ?? '/')}</p>
+        </div>
+        <div class="flex items-center gap-1">
+            <button
+                onclick={() => (creating = !creating)}
+                class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
+                aria-label={t.newFolder}
+            >
+                <Folder size={18} />
+            </button>
+            <button
+                onclick={() => (open = false)}
+                class="grid size-9 place-items-center rounded-full bg-gray text-dark hover:bg-line/40"
+                aria-label={c.close}
+            >
+                <X size={18} />
+            </button>
         </div>
     </div>
-{/if}
+
+    {#if creating}
+        <form
+            class="flex items-center gap-2 px-4 py-1"
+            onsubmit={(event) => {
+                event.preventDefault();
+                void create();
+            }}
+        >
+            <input
+                bind:value={newName}
+                placeholder={t.folderName}
+                class="min-w-0 flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/60"
+            />
+            <button
+                type="submit"
+                disabled={!newName.trim() || busy}
+                class="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-on-primary disabled:opacity-40"
+            >
+                {t.create}
+            </button>
+        </form>
+    {/if}
+
+    <div class="flex-1 overflow-y-auto px-2">
+        {#if trail.length > 0}
+            <button
+                onclick={up}
+                class="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
+            >
+                <ChevronLeft size={18} class="text-muted" />
+                {c.up}
+            </button>
+        {/if}
+        {#if loading}
+            <div class="flex justify-center py-12">
+                <div class="size-6 animate-spin rounded-full border-2 border-line border-t-primary"></div>
+            </div>
+        {:else if error}
+            <p class="px-3 py-6 text-center text-xs text-red-500">{error}</p>
+        {:else if browse && browse.folders.length === 0}
+            <p class="px-3 py-8 text-center text-xs text-muted">{t.empty}</p>
+        {:else}
+            {#each browse?.folders ?? [] as folder (folder.id)}
+                <button
+                    onclick={() => enter(folder)}
+                    class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
+                >
+                    <Folder size={20} class="text-amber-500" />
+                    <span class="min-w-0 flex-1 truncate">{folder.name}</span>
+                    <ChevronRight size={15} class="text-muted" />
+                </button>
+            {/each}
+        {/if}
+    </div>
+
+    <div class="border-t border-line p-4">
+        <button
+            onclick={() => void pick()}
+            disabled={!browse || busy}
+            class="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
+        >
+            {browse ? t.add(browse.current.name) : c.loading}
+        </button>
+    </div>
+</Sheet>

@@ -6,6 +6,7 @@
     import {i18n} from '#lib/state/i18n.svelte';
     import {X} from '@lucide/svelte';
     import MediaImage from './MediaImage.svelte';
+    import Sheet from './Sheet.svelte';
     import {picker} from './AlbumPickerSheet.i18n';
 
     let {
@@ -54,67 +55,54 @@
     });
 </script>
 
-{#if open}
-    <div
-        class="fixed inset-0 z-50 flex items-end justify-center bg-black/45 sm:items-center sm:p-6"
-        role="dialog"
-        aria-modal="true"
-        tabindex="-1"
-        onclick={(event) => {
-            if (event.target === event.currentTarget) open = false;
-        }}
-        onkeydown={(event) => {
-            if (event.key === 'Escape') open = false;
-        }}
-    >
-        <div class="flex max-h-[80vh] w-full max-w-md flex-col rounded-t-3xl bg-light p-4 shadow-2xl sm:rounded-3xl">
-            <div class="mb-2 flex items-center justify-between">
-                <h2 class="text-base font-semibold">{heading}</h2>
-                <button onclick={() => (open = false)} class="rounded-full p-2 hover:bg-gray" aria-label={t.close}>
-                    <X size={20} />
-                </button>
-            </div>
-            <input bind:value={filter} type="search" placeholder={t.filter} class="field mb-2 h-9" />
-            <div class="min-h-0 flex-1 overflow-y-auto">
-                {#if loading}
-                    <div class="flex justify-center py-8">
-                        <div class="size-5 animate-spin rounded-full border-2 border-line border-t-primary"></div>
-                    </div>
-                {:else if visible.length === 0}
-                    <p class="py-8 text-center text-sm text-muted">{t.empty}</p>
-                {:else}
-                    <ul class="flex flex-col">
-                        {#each visible as album (album.id)}
-                            <li>
-                                <button
-                                    onclick={() => {
-                                        open = false;
-                                        onPick(album);
-                                    }}
-                                    class="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray"
-                                >
-                                    <span class="size-10 shrink-0 overflow-hidden rounded-lg bg-gray">
-                                        {#if album.coverAssetIds[0]}
-                                            <MediaImage
-                                                source={{kind: 'thumb', assetId: album.coverAssetIds[0]}}
-                                                alt=""
-                                                loading="lazy"
-                                                class="size-full object-cover"
-                                            />
-                                        {/if}
-                                    </span>
-                                    <span class="min-w-0 flex-1">
-                                        <span class="block truncate text-sm font-medium">{album.name}</span>
-                                        <span class="block truncate text-[11px] text-muted"
-                                            >{t.items(album.assetCount)}</span
-                                        >
-                                    </span>
-                                </button>
-                            </li>
-                        {/each}
-                    </ul>
-                {/if}
-            </div>
+<Sheet bind:open label={heading} panelClass="max-h-[80vh] max-w-md">
+    <div class="flex min-h-0 flex-1 flex-col p-4">
+        <div class="mb-2 flex items-center justify-between">
+            <h2 class="text-base font-semibold">{heading}</h2>
+            <button onclick={() => (open = false)} class="rounded-full p-2 hover:bg-gray" aria-label={t.close}>
+                <X size={20} />
+            </button>
+        </div>
+        <input bind:value={filter} type="search" placeholder={t.filter} class="field mb-2 h-9" />
+        <div class="min-h-0 flex-1 overflow-y-auto">
+            {#if loading}
+                <div class="flex justify-center py-8">
+                    <div class="size-5 animate-spin rounded-full border-2 border-line border-t-primary"></div>
+                </div>
+            {:else if visible.length === 0}
+                <p class="py-8 text-center text-sm text-muted">{t.empty}</p>
+            {:else}
+                <ul class="flex flex-col">
+                    {#each visible as album (album.id)}
+                        <li>
+                            <button
+                                onclick={() => {
+                                    open = false;
+                                    onPick(album);
+                                }}
+                                class="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray"
+                            >
+                                <span class="size-10 shrink-0 overflow-hidden rounded-lg bg-gray">
+                                    {#if album.coverAssetIds[0]}
+                                        <MediaImage
+                                            source={{kind: 'thumb', assetId: album.coverAssetIds[0]}}
+                                            alt=""
+                                            loading="lazy"
+                                            class="size-full object-cover"
+                                        />
+                                    {/if}
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-medium">{album.name}</span>
+                                    <span class="block truncate text-[11px] text-muted"
+                                        >{t.items(album.assetCount)}</span
+                                    >
+                                </span>
+                            </button>
+                        </li>
+                    {/each}
+                </ul>
+            {/if}
         </div>
     </div>
-{/if}
+</Sheet>

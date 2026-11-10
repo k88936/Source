@@ -4,6 +4,7 @@
     import {mosaicBackground} from '#lib/mosaic';
     import {i18n} from '#lib/state/i18n.svelte';
     import AssetThumb from './AssetThumb.svelte';
+    import Sheet from './Sheet.svelte';
     import {grid} from './AssetGrid.i18n';
     import {Calendar, ChevronUp} from '@lucide/svelte';
 
@@ -234,32 +235,19 @@
     </button>
 {/if}
 
-{#if monthSheet}
-    <div
-        class="fixed inset-0 z-50 flex items-end justify-center bg-black/45"
-        role="dialog"
-        aria-modal="true"
-        tabindex="-1"
-        onclick={(event) => {
-            if (event.target === event.currentTarget) monthSheet = false;
-        }}
-        onkeydown={(event) => {
-            if (event.key === 'Escape') monthSheet = false;
-        }}
-    >
-        <div class="flex max-h-[60vh] w-full max-w-md flex-col rounded-t-3xl bg-light p-3 shadow-2xl">
-            <p class="px-2 pb-2 text-xs font-medium text-muted">{t.jumpToMonth}</p>
-            <div class="min-h-0 flex-1 overflow-y-auto">
-                {#each months as month (month.key)}
-                    <button
-                        onclick={() => jump(month)}
-                        class="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
-                    >
-                        <span>{month.label}</span>
-                        <span class="text-[11px] text-muted">{month.count}</span>
-                    </button>
-                {/each}
-            </div>
+<Sheet bind:open={monthSheet} label={t.jumpToMonth} panelClass="max-h-[60vh] max-w-md">
+    <div class="flex min-h-0 flex-1 flex-col p-3">
+        <p class="px-2 pb-2 text-xs font-medium text-muted">{t.jumpToMonth}</p>
+        <div class="min-h-0 flex-1 overflow-y-auto">
+            {#each months as month (month.key)}
+                <button
+                    onclick={() => jump(month)}
+                    class="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm hover:bg-gray"
+                >
+                    <span>{month.label}</span>
+                    <span class="text-[11px] text-muted">{month.count}</span>
+                </button>
+            {/each}
         </div>
     </div>
-{/if}
+</Sheet>
