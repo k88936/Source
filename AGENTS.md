@@ -11,7 +11,7 @@ scripts/dev_cloudreve.py
 # frontend
 pnpm dev
 # app (run in a virtual display to avoid disturbing user)
-xvfb-run -a -s "-screen 0 1400x1000x24" ./target/debug/source --debug-cdp-port {CDP_PORT}
+xvfb-run -a -s "-screen 0 430x932x24" ./target/debug/source --debug-cdp-port {CDP_PORT}
 
 ```
 
