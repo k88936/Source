@@ -17,7 +17,7 @@
     });
 </script>
 
-<div class="relative mx-auto w-full max-w-md">
+<div class="relative w-full">
     <span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted">
         <SearchIcon size={17} />
     </span>

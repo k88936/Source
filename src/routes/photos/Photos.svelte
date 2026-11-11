@@ -111,6 +111,7 @@
     title={browser.selection.active ? c.selected(browser.selection.count) : c.photos}
     subtitle={browser.selection.active ? '' : (app.account?.siteName ?? '')}
     content={browser.search.open && !browser.selection.active ? searchContent : undefined}
+    contentCentered
     {actions}
 />
 

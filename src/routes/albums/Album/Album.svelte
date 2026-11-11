@@ -253,6 +253,7 @@
     {title}
     {subtitle}
     content={browser.search.open ? searchContent : undefined}
+    contentCentered
     {actions}
 />
 

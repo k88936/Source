@@ -23,6 +23,8 @@ export type HeaderOptions = {
     headerBanner?: Snippet;
     /** Replaces the title and the subtitle, e.g. by a search field. */
     headerContent?: Snippet;
+    /** Centres `headerContent` between equal-width sides, e.g. a search field. */
+    headerContentCentered?: boolean;
     headerActions?: Snippet;
 };
 
