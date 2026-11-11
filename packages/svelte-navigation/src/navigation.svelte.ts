@@ -83,7 +83,11 @@ export class NavigationRoot {
     private pending: {tab: string; name: string; params: Record<string, unknown>} | null = null;
     private current: HistoryEntry | null = null;
     private currentUrl = '';
-    private modes: {entryKey: string; listener: () => void}[] = [];
+    // The header reads `hasMode` while it renders, so the modes have to be state: a
+    // plain array leaves the back button hidden after the mode is gone. They are
+    // untracked everywhere else, because the effect that opens a mode must not
+    // depend on the modes it writes.
+    private modes = $state.raw<{entryKey: string; listener: () => void}[]>([]);
     private started = false;
 
     /**
@@ -198,7 +202,7 @@ export class NavigationRoot {
      */
     enterMode(entry: ScreenEntry, listener: () => void): () => void {
         const mode = {entryKey: entry.key, listener};
-        this.modes.push(mode);
+        this.modes = [...untrack(() => this.modes), mode];
         const state = {...this.current, mode: true} as HistoryEntry;
         this.current = state;
         history.pushState(state, '', this.currentUrl);
@@ -220,8 +224,9 @@ export class NavigationRoot {
 
         if (leaving?.mode) {
             // Back out of a mode: it closes, and neither the stack nor the URL moves.
-            const mode = this.modes.pop();
+            const mode = this.modes.at(-1);
             if (mode) {
+                this.modes = this.modes.slice(0, -1);
                 mode.listener();
                 return;
             }
@@ -261,9 +266,9 @@ export class NavigationRoot {
 
     /** A mode that closes on its own takes its entry with it, unless it was the one popped. */
     private leaveMode(mode: {entryKey: string; listener: () => void}): void {
-        const index = this.modes.indexOf(mode);
-        if (index < 0) return;
-        this.modes.splice(index, 1);
+        const modes = untrack(() => this.modes);
+        if (!modes.includes(mode)) return;
+        this.modes = modes.filter((current) => current !== mode);
         if (!(history.state as HistoryEntry | null)?.mode) return;
         history.back();
     }
@@ -294,9 +299,10 @@ export class NavigationRoot {
     }
 
     private dropOtherModes(keepKey: string): void {
-        const stale = this.modes.filter((mode) => mode.entryKey !== keepKey);
+        const modes = untrack(() => this.modes);
+        const stale = modes.filter((mode) => mode.entryKey !== keepKey);
         if (stale.length === 0) return;
-        this.modes = this.modes.filter((mode) => mode.entryKey === keepKey);
+        this.modes = modes.filter((mode) => mode.entryKey === keepKey);
         for (const mode of stale) mode.listener();
     }
 }
