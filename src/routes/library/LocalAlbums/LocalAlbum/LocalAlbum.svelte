@@ -147,7 +147,7 @@
 
 {#if loading}
     <div class="grid grid-cols-3 gap-[2px]">
-        {#each Array(12) as _}
+        {#each Array(12) as _, i (i)}
             <div class="aspect-square animate-pulse bg-gray"></div>
         {/each}
     </div>

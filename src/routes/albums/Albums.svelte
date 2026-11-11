@@ -113,7 +113,7 @@
 
 {#if loading && albums.length === 0}
     <div class="grid grid-cols-2 gap-3 p-4">
-        {#each Array(4) as _}
+        {#each Array(4) as _, i (i)}
             <div class="aspect-square animate-pulse rounded-2xl bg-gray"></div>
         {/each}
     </div>

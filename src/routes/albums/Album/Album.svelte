@@ -284,7 +284,7 @@
     <SearchMode search={browser.search} selection={browser.selection} scoped onOpen={open} />
 {:else if browser.timeline.loading && browser.timeline.items.length === 0 && !browser.timeline.loaded}
     <div class="grid grid-cols-3 gap-0.5">
-        {#each Array(12) as _}
+        {#each Array(12) as _, i (i)}
             <div class="aspect-square animate-pulse bg-gray"></div>
         {/each}
     </div>

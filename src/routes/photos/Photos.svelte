@@ -118,7 +118,7 @@
     <SearchMode search={browser.search} selection={browser.selection} onOpen={open} />
 {:else if !browser.timeline.loaded}
     <div class="grid gap-[2px]" style:grid-template-columns="repeat({app.columns}, minmax(0, 1fr))">
-        {#each Array(app.columns * 6) as _}
+        {#each Array(app.columns * 6) as _, i (i)}
             <div class="aspect-square animate-pulse bg-gray"></div>
         {/each}
     </div>

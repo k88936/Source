@@ -5,7 +5,6 @@
 
     let {children}: {children: Snippet} = $props();
 
-    // svelte-ignore state_referenced_locally
     const root = new NavigationRoot();
     setContext(rootKey, root);
 

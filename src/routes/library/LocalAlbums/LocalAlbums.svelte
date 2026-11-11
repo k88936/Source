@@ -7,7 +7,7 @@
     import type {LocalEntry} from '#lib/api/bindings/LocalEntry';
     import AlbumPickerSheet from '#lib/components/albums/AlbumPickerSheet/AlbumPickerSheet.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
-    import {ChevronRight, Folder, Plus, Upload} from '@lucide/svelte';
+    import {ChevronRight, Folder, Plus} from '@lucide/svelte';
     import LocalDirPicker from '#lib/components/albums/LocalDirPicker/LocalDirPicker.svelte';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte';
@@ -92,7 +92,7 @@
 
 {#if loading}
     <div class="space-y-2 px-4 py-3">
-        {#each Array(3) as _}
+        {#each Array(3) as _, i (i)}
             <div class="h-16 animate-pulse rounded-2xl bg-gray"></div>
         {/each}
     </div>

@@ -1,6 +1,6 @@
 {
     "include": ["src", "packages/*/src", "*"],
-    "exclude": ["src/service-worker"],
+    "exclude": ["src/service-worker", "eslint.config.js"],
     "compilerOptions": {
         "allowJs": true,
         "checkJs": true,
