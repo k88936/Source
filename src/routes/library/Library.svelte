@@ -1,5 +1,4 @@
 <script lang="ts">
-    import {onMount} from 'svelte';
     import {useNavigation} from 'svelte-navigation';
     import {api} from '#lib/api/client';
     import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
@@ -16,11 +15,9 @@
         LibraryBig,
         Play,
         RefreshCw,
-        Settings,
         Square,
         Trash,
     } from '@lucide/svelte';
-    import JobQueueCard from '#lib/components/library/JobQueueCard/JobQueueCard.svelte';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
@@ -58,14 +55,6 @@
         {icon: Eye, label: t.upcoming.lockedFolders},
         {icon: LayoutGrid, label: t.upcoming.partners},
     ]);
-
-    async function loadLocal() {
-        try {
-            localAlbums = await api.localAlbumList();
-        } catch {
-            localAlbums = [];
-        }
-    }
 
     async function toggleSync() {
         try {
@@ -121,8 +110,6 @@
             {/if}
         </button>
     </div>
-
-    <JobQueueCard />
 
     <div>
         <p class="mb-1.5 px-1 text-xs font-medium text-muted">{c.more}</p>
