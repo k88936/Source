@@ -58,9 +58,20 @@ export default defineConfig({
         strictPort: false,
         host: host || false,
         hmr: host ? {protocol: 'ws', host, port: 1421} : undefined,
-        // `tmp/home` is the app's data directory: the WebView writes caches
-        // there while it runs, and a watcher on it would reload the app forever.
-        // Cargo and Tauri output under `target` is huge and unrelated to the frontend.
-        watch: {ignored: ['**/target/**', '**/src-tauri/**', '**/tmp/**']},
+        // Kept in sync with the IDE's excluded folders in `.idea/Source.iml`:
+        // build output and local tool state there are unrelated to the frontend,
+        // and a watcher on them would reload the app on every write. `tmp/home`
+        // is the app's data directory, written by the WebView while it runs.
+        watch: {
+            ignored: [
+                '**/target/**',
+                '**/src-tauri/**',
+                '**/tmp/**',
+                '**/.junie/**',
+                '**/.playwright-cli/**',
+                '**/dist-demo/**',
+                '**/.awb/**',
+            ],
+        },
     },
 });

@@ -41,6 +41,17 @@ export default defineConfig({
         // The site proxies this port under its own origin, so the port is fixed.
         port: 5174,
         strictPort: true,
-        watch: {ignored: ['**/target/**', '**/src-tauri/**']},
+        // Same excludes as `vite.config.ts`; this server shares the project root.
+        watch: {
+            ignored: [
+                '**/target/**',
+                '**/src-tauri/**',
+                '**/tmp/**',
+                '**/.junie/**',
+                '**/.playwright-cli/**',
+                '**/dist-demo/**',
+                '**/.awb/**',
+            ],
+        },
     },
 });
