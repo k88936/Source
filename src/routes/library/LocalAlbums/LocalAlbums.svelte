@@ -8,7 +8,7 @@
     import AlbumPickerSheet from '#lib/components/albums/AlbumPickerSheet/AlbumPickerSheet.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
     import {ChevronRight, Folder, Plus} from '@lucide/svelte';
-    import LocalDirPicker from '#lib/components/albums/LocalDirPicker/LocalDirPicker.svelte';
+    import LocalDirPicker from '../components/LocalDirPicker/LocalDirPicker.svelte';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';

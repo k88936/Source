@@ -6,7 +6,7 @@
     import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
     import {ChevronLeft, ChevronRight, Folder, X} from '@lucide/svelte';
-    import Sheet from '../../overlay/Sheet/Sheet.svelte';
+    import Sheet from '#lib/components/overlay/Sheet/Sheet.svelte';
     import {remotePicker} from './RemoteFolderPicker.i18n';
 
     /// Browses the remote folder tree and hands back the folder the user settled

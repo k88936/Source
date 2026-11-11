@@ -3,7 +3,7 @@ import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
 import {viewer} from '../../../modals/Viewer/viewer.svelte';
 import {Search} from '../search/search.svelte';
 import {Selection} from '../selection/selection.svelte';
-import {timelineItem} from '../viewer/Viewer/viewer-item';
+import {timelineItem} from '../viewer/viewer-item';
 import {Timeline, type PageLoader} from './timeline.svelte';
 
 /** The viewer screen every list opens; a tab's own param list narrows to this. */

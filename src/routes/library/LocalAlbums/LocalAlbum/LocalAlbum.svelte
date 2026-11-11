@@ -6,8 +6,8 @@
     import AssetThumb from '#lib/components/assets/AssetThumb/AssetThumb.svelte';
     import ConfirmDialog from '#lib/components/overlay/ConfirmDialog/ConfirmDialog.svelte';
     import LoadMoreSentinel from '#lib/components/assets/LoadMoreSentinel/LoadMoreSentinel.svelte';
-    import LocalAlbumMenu from '#lib/components/albums/LocalAlbumMenu/LocalAlbumMenu.svelte';
-    import {localItem} from '#lib/components/viewer/Viewer/viewer-item';
+    import LocalAlbumMenu from '../../components/LocalAlbumMenu/LocalAlbumMenu.svelte';
+    import {localItem} from '#lib/components/viewer/viewer-item';
     import {Ellipsis, Folder, RefreshCw} from '@lucide/svelte';
     import {formatBytes} from '#lib/format';
     import {common} from '#lib/i18n/common.i18n';

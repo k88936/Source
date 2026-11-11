@@ -1,6 +1,6 @@
 <script lang="ts">
     import {useNavigation} from 'svelte-navigation';
-    import Viewer from '#lib/components/viewer/Viewer/Viewer.svelte';
+    import Viewer from './Viewer.svelte';
     import {viewer} from './viewer.svelte';
 
     const navigation = useNavigation();

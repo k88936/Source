@@ -2,7 +2,7 @@
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
     import {description} from './DescriptionDialog.i18n';
-    import Overlay from '../Overlay/Overlay.svelte';
+    import Overlay from '#lib/components/overlay/Overlay/Overlay.svelte';
 
     let {
         open = $bindable(false),

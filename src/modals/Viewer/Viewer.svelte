@@ -4,9 +4,9 @@
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
     import {ChevronLeft, ChevronRight, Play, X} from '@lucide/svelte';
-    import MediaImage from '../../assets/MediaImage/MediaImage.svelte';
+    import MediaImage from '#lib/components/assets/MediaImage/MediaImage.svelte';
     import {viewer} from './Viewer.i18n';
-    import type {ViewerItem} from './viewer-item';
+    import type {ViewerItem} from '#lib/components/viewer/viewer-item';
 
     let {
         items,

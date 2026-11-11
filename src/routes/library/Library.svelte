@@ -2,7 +2,7 @@
     import {useNavigation} from 'svelte-navigation';
     import {api} from '#lib/api/client';
     import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
-    import CapacityCard from '#lib/components/library/CapacityCard/CapacityCard.svelte';
+    import CapacityCard from './components/CapacityCard/CapacityCard.svelte';
     import {
         Calendar,
         ChevronRight,

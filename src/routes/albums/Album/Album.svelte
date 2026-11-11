@@ -3,10 +3,10 @@
     import {api} from '#lib/api/client';
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
-    import AlbumMenu from '#lib/components/albums/AlbumMenu/AlbumMenu.svelte';
+    import AlbumMenu from '../components/AlbumMenu/AlbumMenu.svelte';
     import AssetList from '#lib/components/assets/AssetList/AssetList.svelte';
     import ConfirmDialog from '#lib/components/overlay/ConfirmDialog/ConfirmDialog.svelte';
-    import DescriptionDialog from '#lib/components/overlay/DescriptionDialog/DescriptionDialog.svelte';
+    import DescriptionDialog from '../components/DescriptionDialog/DescriptionDialog.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
     import {Ellipsis, Image, RefreshCw, Search as SearchIcon, WifiOff, X} from '@lucide/svelte';
     import SearchInput from '#lib/components/search/SearchInput/SearchInput.svelte';

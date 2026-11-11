@@ -7,7 +7,7 @@
     import {i18n} from '#lib/i18n/i18n.svelte';
     import type {Timeline} from '#lib/components/assets/timeline.svelte';
     import {Download, Heart, Info} from '@lucide/svelte';
-    import {viewer} from '../Viewer/Viewer.i18n';
+    import {viewer} from '../../../../modals/Viewer/Viewer.i18n';
 
     /**
      * The timeline's own controls, injected into the viewer's header. The viewer

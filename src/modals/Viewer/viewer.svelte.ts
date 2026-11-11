@@ -1,5 +1,5 @@
 import type {Snippet} from 'svelte';
-import type {ViewerItem} from '#lib/components/viewer/Viewer/viewer-item';
+import type {ViewerItem} from '#lib/components/viewer/viewer-item';
 
 /**
  * What the viewer screen shows. The page that opens it hands over its own list,

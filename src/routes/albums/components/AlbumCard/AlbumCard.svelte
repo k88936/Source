@@ -1,7 +1,7 @@
 <script lang="ts">
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import {Images} from '@lucide/svelte';
-    import MediaImage from '../../assets/MediaImage/MediaImage.svelte';
+    import MediaImage from '#lib/components/assets/MediaImage/MediaImage.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
     import {card} from './AlbumCard.i18n';
 

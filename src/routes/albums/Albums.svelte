@@ -4,10 +4,10 @@
     import {api} from '#lib/api/client';
     import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
     import type {FolderRef} from '#lib/api/bindings/FolderRef';
-    import AlbumCard from '#lib/components/albums/AlbumCard/AlbumCard.svelte';
+    import AlbumCard from './components/AlbumCard/AlbumCard.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
     import {Images, Plus, RefreshCw, Square, WifiOff} from '@lucide/svelte';
-    import RemoteFolderPicker from '#lib/components/albums/RemoteFolderPicker/RemoteFolderPicker.svelte';
+    import RemoteFolderPicker from './components/RemoteFolderPicker/RemoteFolderPicker.svelte';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte';
     import {changes} from '#lib/api/changes';
