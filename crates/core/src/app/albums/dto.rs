@@ -1,4 +1,4 @@
-//! Parameters the album use cases accept, and the summaries they return.
+//! Parameters the album use cases accept, and the metadata they return.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -57,7 +57,7 @@ pub struct MoveAssetsParams {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct LocalAlbumSummary {
+pub struct LocalAlbumMetadata {
     pub id: String,
     pub uri: String,
     pub name: String,
@@ -65,6 +65,8 @@ pub struct LocalAlbumSummary {
     pub album_name: String,
     /// Direct media files, counted on the device every time it is asked.
     pub asset_count: u32,
+    /// Up to four newest local files, for the mosaic tile.
+    pub cover_uris: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

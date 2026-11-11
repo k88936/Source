@@ -44,7 +44,9 @@ pub trait AccountStore: Send + Sync {
     async fn reset_catalog(&self) -> Result<(), CatalogError>;
 }
 
-pub(crate) async fn get_current_account(cat: &SqliteCatalog) -> Result<Option<Account>, CatalogError> {
+pub(crate) async fn get_current_account(
+    cat: &SqliteCatalog,
+) -> Result<Option<Account>, CatalogError> {
     let mut conn = cat.conn().await?;
     let base_url = app_state::table
         .filter(app_state::key.eq(CURRENT_ACCOUNT))

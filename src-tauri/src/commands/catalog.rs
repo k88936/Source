@@ -43,7 +43,9 @@ pub(crate) async fn set_favorite(
 }
 
 #[tauri::command]
-pub(crate) async fn album_list(state: State<'_, AppState>) -> Result<Vec<AlbumSummary>, AlbumError> {
+pub(crate) async fn album_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<AlbumMetadata>, AlbumError> {
     state.core.albums.list_albums().await
 }
 
@@ -51,7 +53,7 @@ pub(crate) async fn album_list(state: State<'_, AppState>) -> Result<Vec<AlbumSu
 pub(crate) async fn album_get(
     state: State<'_, AppState>,
     params: AlbumParams,
-) -> Result<Option<AlbumSummary>, AlbumError> {
+) -> Result<Option<AlbumMetadata>, AlbumError> {
     state.core.albums.get_album(&params.album_id.0).await
 }
 
@@ -69,7 +71,7 @@ pub(crate) async fn album_page(
 pub(crate) async fn album_add(
     state: State<'_, AppState>,
     params: AddAlbumParams,
-) -> Result<AlbumSummary, AlbumError> {
+) -> Result<AlbumMetadata, AlbumError> {
     state.core.albums.add_album(params).await
 }
 
@@ -86,7 +88,7 @@ pub(crate) async fn album_remove(
 pub(crate) async fn album_refresh(
     state: State<'_, AppState>,
     params: AlbumParams,
-) -> Result<AlbumSummary, AlbumError> {
+) -> Result<AlbumMetadata, AlbumError> {
     state.core.albums.refresh_album(&params.album_id.0).await
 }
 
@@ -110,7 +112,7 @@ pub(crate) async fn set_album_cover(
     app: AppHandle,
     state: State<'_, AppState>,
     params: SetAlbumCoverParams,
-) -> Result<AlbumSummary, AlbumError> {
+) -> Result<AlbumMetadata, AlbumError> {
     let album = state
         .core
         .albums
@@ -125,7 +127,7 @@ pub(crate) async fn set_album_description(
     app: AppHandle,
     state: State<'_, AppState>,
     params: SetAlbumDescriptionParams,
-) -> Result<AlbumSummary, AlbumError> {
+) -> Result<AlbumMetadata, AlbumError> {
     let album = state
         .core
         .albums
@@ -178,7 +180,7 @@ fn emit_assets(app: &AppHandle, assets: Vec<AssetSummary>) {
     );
 }
 
-fn emit_albums(app: &AppHandle, albums: Vec<AlbumSummary>) {
+fn emit_albums(app: &AppHandle, albums: Vec<AlbumMetadata>) {
     let _ = app.emit(
         "catalog://changed",
         CatalogChangedEvent {

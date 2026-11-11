@@ -3,4 +3,8 @@
 /**
  * Reading the account quota.
  */
-export type CapacityError = { "kind": "unreachable", cause: string, } | { "kind": "unauthorized" } | { "kind": "rejected", status: number, message: string, } | { "kind": "protocol", cause: string, };
+export type CapacityError =
+    | {kind: 'unreachable'; cause: string}
+    | {kind: 'unauthorized'}
+    | {kind: 'rejected'; status: number; message: string}
+    | {kind: 'protocol'; cause: string};

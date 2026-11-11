@@ -46,7 +46,9 @@ impl SqliteCatalog {
         let migrate_url = url.clone();
         tokio::task::spawn_blocking(move || migrate(&migrate_url))
             .await
-            .map_err(|e| CatalogError::Unavailable { cause: format!("catalog migrate: {e}") })??;
+            .map_err(|e| CatalogError::Unavailable {
+                cause: format!("catalog migrate: {e}"),
+            })??;
         Self::from_url(url)
     }
 
@@ -67,7 +69,9 @@ impl SqliteCatalog {
         let pool = Pool::builder(manager)
             .max_size(POOL_SIZE)
             .build()
-            .map_err(|e| CatalogError::Unavailable { cause: format!("catalog pool: {e}") })?;
+            .map_err(|e| CatalogError::Unavailable {
+                cause: format!("catalog pool: {e}"),
+            })?;
         Ok(Self { pool })
     }
 
@@ -75,7 +79,9 @@ impl SqliteCatalog {
         self.pool
             .get()
             .await
-            .map_err(|e| CatalogError::Unavailable { cause: format!("catalog: {e}") })
+            .map_err(|e| CatalogError::Unavailable {
+                cause: format!("catalog: {e}"),
+            })
     }
 }
 
@@ -85,16 +91,22 @@ fn migrate(url: &str) -> Result<(), CatalogError> {
     let mut conn = SqliteConnection::establish(url).map_err(conn_err)?;
     conn.batch_execute(PRAGMAS).map_err(db_err)?;
     conn.run_pending_migrations(MIGRATIONS)
-        .map_err(|e| CatalogError::Unavailable { cause: format!("catalog: {e}") })?;
+        .map_err(|e| CatalogError::Unavailable {
+            cause: format!("catalog: {e}"),
+        })?;
     Ok(())
 }
 
 pub(crate) fn db_err(err: diesel::result::Error) -> CatalogError {
-    CatalogError::QueryFailed { cause: format!("catalog: {err}") }
+    CatalogError::QueryFailed {
+        cause: format!("catalog: {err}"),
+    }
 }
 
 fn conn_err(err: diesel::result::ConnectionError) -> CatalogError {
-    CatalogError::Unavailable { cause: format!("catalog: {err}") }
+    CatalogError::Unavailable {
+        cause: format!("catalog: {err}"),
+    }
 }
 
 /// Transaction bodies must fail with an error diesel can convert into a

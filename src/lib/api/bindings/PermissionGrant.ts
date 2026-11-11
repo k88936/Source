@@ -3,4 +3,4 @@
 /**
  * How much of the device library the app may read.
  */
-export type PermissionGrant = "full" | "partial" | "denied";
+export type PermissionGrant = 'full' | 'partial' | 'denied';

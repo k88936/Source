@@ -6,9 +6,11 @@
  * The queue never computes these numbers; it only carries them. For a listing
  * the unit is a page, for an upload a chunk - one job, one unit.
  */
-export type Progress = { done: number, 
-/**
- * `None` while the job has not counted its work yet, which is the usual
- * case: a listing does not know how many pages the server will return.
- */
-total: number | null, };
+export type Progress = {
+    done: number;
+    /**
+     * `None` while the job has not counted its work yet, which is the usual
+     * case: a listing does not know how many pages the server will return.
+     */
+    total: number | null;
+};

@@ -10,7 +10,7 @@ pub(crate) use source_core::app::account::{
 };
 pub(crate) use source_core::app::albums::{
     AddAlbumParams, AddLocalAlbumParams, AlbumError, AlbumPageParams, AlbumParams,
-    LocalAlbumParams, LocalAlbumSummary, LocalBrowseParams, MoveAssetsParams, SetAlbumCoverParams,
+    LocalAlbumMetadata, LocalAlbumParams, LocalBrowseParams, MoveAssetsParams, SetAlbumCoverParams,
     SetAlbumDescriptionParams,
 };
 pub(crate) use source_core::app::browse::{
@@ -31,7 +31,7 @@ pub(crate) use source_core::media::{
 };
 pub(crate) use source_core::remote::{Capacity, SiteInfo};
 pub(crate) use source_core::store::{
-    AlbumSummary, AssetSummary, CatalogError, FolderRef, TimelinePage,
+    AlbumMetadata, AssetSummary, CatalogError, FolderRef, TimelinePage,
 };
 
 pub(crate) use source_core::app::Job;

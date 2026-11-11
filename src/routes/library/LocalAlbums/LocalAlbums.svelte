@@ -2,8 +2,8 @@
     import {onMount} from 'svelte';
     import {useNavigation} from 'svelte-navigation';
     import {api} from '#lib/api/client';
-    import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
-    import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
+    import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
+    import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
     import type {LocalEntry} from '#lib/api/bindings/LocalEntry';
     import AlbumPickerSheet from '#lib/components/albums/AlbumPickerSheet/AlbumPickerSheet.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
@@ -16,7 +16,7 @@
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
     import {local as text} from './LocalAlbums.i18n';
 
-    let albums = $state<LocalAlbumSummary[]>([]);
+    let albums = $state<LocalAlbumMetadata[]>([]);
     let loading = $state(true);
     let pickerOpen = $state(false);
     let targetOpen = $state(false);
@@ -55,7 +55,7 @@
 
     /// A local album only exists to sync somewhere, so registering one and
     /// pointing it at an album are a single step.
-    async function register(album: AlbumSummary) {
+    async function register(album: AlbumMetadata) {
         const entry = pending;
         if (!entry || saving) return;
         saving = true;

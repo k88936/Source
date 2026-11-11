@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::store::{AlbumSummary, AssetSummary};
+use crate::store::{AlbumMetadata, AssetSummary};
 
 /// What `app_info` reports about the running build.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -44,5 +44,5 @@ pub struct CatalogChangedEvent {
     #[serde(default)]
     pub assets: Vec<AssetSummary>,
     #[serde(default)]
-    pub albums: Vec<AlbumSummary>,
+    pub albums: Vec<AlbumMetadata>,
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
     import {useNavigation} from 'svelte-navigation';
     import {api} from '#lib/api/client';
-    import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
+    import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
     import CapacityCard from './components/CapacityCard/CapacityCard.svelte';
     import {
         Calendar,
@@ -25,7 +25,7 @@
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
     import {library as text} from './Library.i18n';
 
-    let localAlbums = $state<LocalAlbumSummary[]>([]);
+    let localAlbums = $state<LocalAlbumMetadata[]>([]);
 
     const navigation = useNavigation<LibraryNavParamList>();
 

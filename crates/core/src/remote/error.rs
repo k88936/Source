@@ -106,11 +106,20 @@ pub(crate) fn map_api_error(err: ApiError) -> RemoteError {
 #[serde(tag = "kind", rename_all = "camelCase")]
 #[ts(export)]
 pub enum ProbeError {
-    Unreachable { cause: String },
+    Unreachable {
+        cause: String,
+    },
     /// The address answered, but not like a Cloudreve server.
-    NotCloudreve { detail: String },
-    Rejected { status: i32, message: String },
-    Protocol { cause: String },
+    NotCloudreve {
+        detail: String,
+    },
+    Rejected {
+        status: i32,
+        message: String,
+    },
+    Protocol {
+        cause: String,
+    },
 }
 
 /// Entering a password or a one-time code.
@@ -118,14 +127,25 @@ pub enum ProbeError {
 #[serde(tag = "kind", rename_all = "camelCase")]
 #[ts(export)]
 pub enum SignInError {
-    Unreachable { cause: String },
+    Unreachable {
+        cause: String,
+    },
     /// The password (or the account) was refused.
-    CredentialsRejected { message: Option<String> },
+    CredentialsRejected {
+        message: Option<String>,
+    },
     /// The one-time code was refused.
-    CodeRejected { message: Option<String> },
-    Rejected { status: i32, message: String },
+    CodeRejected {
+        message: Option<String>,
+    },
+    Rejected {
+        status: i32,
+        message: String,
+    },
     /// The answer was not something this client can read.
-    Protocol { cause: String },
+    Protocol {
+        cause: String,
+    },
 }
 
 /// Restoring or dropping a stored session.
@@ -155,8 +175,12 @@ pub enum CapacityError {
 #[ts(export)]
 pub enum ListError {
     /// The folder was deleted, renamed or moved on the server.
-    FolderGone { uri: String },
-    Transport { cause: RemoteError },
+    FolderGone {
+        uri: String,
+    },
+    Transport {
+        cause: RemoteError,
+    },
 }
 
 /// Fetching the bytes (or the signed address) of one media file.
@@ -165,9 +189,15 @@ pub enum ListError {
 #[ts(export)]
 pub enum MediaFetchError {
     /// The file was deleted, renamed or moved on the server.
-    AssetGone { uri: String },
-    Permission { uri: String },
-    Transport { cause: RemoteError },
+    AssetGone {
+        uri: String,
+    },
+    Permission {
+        uri: String,
+    },
+    Transport {
+        cause: RemoteError,
+    },
 }
 
 /// Patching metadata of one file.
@@ -187,12 +217,20 @@ pub enum MetadataError {
 pub enum CreateFolderError {
     /// The server refused the name itself.
     NameRejected,
-    ParentGone { path: String },
-    AlreadyExists { path: String },
+    ParentGone {
+        path: String,
+    },
+    AlreadyExists {
+        path: String,
+    },
     QuotaExceeded,
     Permission,
-    Unreachable { cause: String },
-    Protocol { cause: String },
+    Unreachable {
+        cause: String,
+    },
+    Protocol {
+        cause: String,
+    },
 }
 
 /// Moving files into a folder.
@@ -215,16 +253,26 @@ pub enum MoveError {
 #[ts(export)]
 pub enum UploadUriError {
     /// The upload session record could not be written or read.
-    Store { cause: crate::store::CatalogError },
+    Store {
+        cause: crate::store::CatalogError,
+    },
     /// The local bytes could not be opened or read.
-    SourceUnreadable { cause: String },
+    SourceUnreadable {
+        cause: String,
+    },
     /// The upload session is gone and has to start from zero.
     SessionExpired,
     /// A chunk was refused or the connection dropped mid-transfer.
-    ChunkFailed { cause: String },
+    ChunkFailed {
+        cause: String,
+    },
     QuotaExceeded,
-    Conflict { path: String },
-    Unreachable { cause: String },
+    Conflict {
+        path: String,
+    },
+    Unreachable {
+        cause: String,
+    },
     /// The attempt stopped between two chunks because the caller asked it to.
     Interrupted,
 }
@@ -245,11 +293,12 @@ impl UploadUriError {
             UploadError::ProviderError { provider, message } => UploadUriError::ChunkFailed {
                 cause: format!("{provider}: {message}"),
             },
-            UploadError::MaxRetriesExceeded { chunk_index, max_retries } => {
-                UploadUriError::ChunkFailed {
-                    cause: format!("chunk {chunk_index} after {max_retries} retries"),
-                }
-            }
+            UploadError::MaxRetriesExceeded {
+                chunk_index,
+                max_retries,
+            } => UploadUriError::ChunkFailed {
+                cause: format!("chunk {chunk_index} after {max_retries} retries"),
+            },
             other => UploadUriError::ChunkFailed {
                 cause: other.to_string(),
             },

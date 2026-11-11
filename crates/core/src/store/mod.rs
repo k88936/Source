@@ -42,8 +42,8 @@ pub(crate) fn display_path(path: &str) -> String {
 
 pub use account::*;
 pub use album::*;
-pub use error::CatalogError;
 pub use asset::*;
+pub use error::CatalogError;
 pub use folder::*;
 pub(crate) use id::id_type;
 pub use local::*;

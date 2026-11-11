@@ -3,4 +3,4 @@
 /**
  * Why a typed-in server address is not usable.
  */
-export type UrlError = "empty" | "invalid";
+export type UrlError = 'empty' | 'invalid';

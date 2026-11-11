@@ -34,7 +34,7 @@ pub(crate) async fn local_browse(
 #[tauri::command]
 pub(crate) async fn local_album_list(
     state: State<'_, AppState>,
-) -> Result<Vec<LocalAlbumSummary>, AlbumError> {
+) -> Result<Vec<LocalAlbumMetadata>, AlbumError> {
     state.core.albums.local_album_list().await
 }
 
@@ -42,7 +42,7 @@ pub(crate) async fn local_album_list(
 pub(crate) async fn local_album_add(
     state: State<'_, AppState>,
     params: AddLocalAlbumParams,
-) -> Result<LocalAlbumSummary, AlbumError> {
+) -> Result<LocalAlbumMetadata, AlbumError> {
     state.core.albums.add_local_album(params).await
 }
 

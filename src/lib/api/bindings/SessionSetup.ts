@@ -6,4 +6,4 @@
  * The page opens on the account row from sqlite; this says whether the client
  * behind that row is already usable, still being checked, or gave up.
  */
-export type SessionSetup = "restoring" | "live" | "offline";
+export type SessionSetup = 'restoring' | 'live' | 'offline';

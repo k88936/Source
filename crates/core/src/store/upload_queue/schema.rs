@@ -4,6 +4,7 @@ diesel::table! {
     upload_queue (id) {
         id -> Text,
         local_asset_id -> Text,
+        local_album_id -> Nullable<Text>,
         dest_uri -> Text,
         dest_name -> Nullable<Text>,
         name -> Text,

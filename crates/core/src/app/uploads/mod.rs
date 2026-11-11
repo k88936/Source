@@ -247,7 +247,7 @@ where
                 assets.push(asset);
             }
         }
-        let tasks = self.enqueue_assets(&params.album_id, &assets).await?;
+        let tasks = self.enqueue_assets(&params.album_id, None, &assets).await?;
         // A file the user picked starts now, pause or not: the queue ranks it
         // above the backlog a scan leaves behind.
         for task in &tasks {
@@ -261,9 +261,13 @@ where
     /// A file already in the queue is not queued twice: sync hands over every
     /// file it finds, pass after pass, and a second row would mean a second
     /// upload of the same bytes.
+    ///
+    /// `source` is the local album row that asked for the batch, so the queue
+    /// can be read back per mapping; a batch the user hand-picked has none.
     pub(super) async fn enqueue_assets(
         &self,
         album_id: &AlbumId,
+        source: Option<&str>,
         assets: &[LocalAsset],
     ) -> Result<Vec<UploadTask>, UploadError> {
         if assets.is_empty() {
@@ -300,6 +304,7 @@ where
                     TASK_SEQ.fetch_add(1, Ordering::Relaxed)
                 )),
                 local_asset_id: asset.id.clone(),
+                local_album_id: source.map(str::to_owned),
                 name: asset.name.clone(),
                 dest_uri: dest.uri.clone(),
                 dest_name: Some(dest.name.clone()),

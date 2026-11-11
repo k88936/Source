@@ -1,6 +1,6 @@
 <script lang="ts">
     import {api} from '#lib/api/client';
-    import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
+    import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
@@ -20,7 +20,7 @@
         excludeId?: string;
         /** The sheet is also used to pick a sync target, where nothing moves. */
         title?: string;
-        onPick: (album: AlbumSummary) => void;
+        onPick: (album: AlbumMetadata) => void;
     } = $props();
 
     const t = $derived(i18n.pick(picker));
@@ -28,7 +28,7 @@
 
     const heading = $derived(title ?? c.moveToAlbum);
 
-    let albums = $state<AlbumSummary[]>([]);
+    let albums = $state<AlbumMetadata[]>([]);
     let loading = $state(false);
     let filter = $state('');
 

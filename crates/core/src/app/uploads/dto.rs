@@ -4,9 +4,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::store::{
-    AlbumId, LocalAssetId, UploadState, UploadTask, UploadTaskId,
-};
+use crate::store::{AlbumId, LocalAssetId, UploadState, UploadTask, UploadTaskId};
 
 use super::UploadError;
 
@@ -37,6 +35,8 @@ pub struct UploadTaskParams {
 pub struct QueuedUpload {
     pub id: UploadTaskId,
     pub local_asset_id: LocalAssetId,
+    /// The local album row that queued this file, when a mapping did.
+    pub local_album_id: Option<String>,
     pub name: String,
     pub dest_uri: String,
     pub dest_name: Option<String>,
@@ -54,6 +54,7 @@ impl From<UploadTask> for QueuedUpload {
         QueuedUpload {
             id: row.id,
             local_asset_id: row.local_asset_id,
+            local_album_id: row.local_album_id,
             name: row.name,
             dest_uri: row.dest_uri,
             dest_name: row.dest_name,

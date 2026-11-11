@@ -27,6 +27,11 @@ pub enum UploadState {
 pub struct UploadTask {
     pub id: UploadTaskId,
     pub local_asset_id: LocalAssetId,
+    /// The local album row that queued these bytes, when a mapping did.
+    ///
+    /// A file the user picked by hand has no mapping, so it only counts toward
+    /// the album queue.
+    pub local_album_id: Option<String>,
     pub name: String,
     pub dest_uri: String,
     pub dest_name: Option<String>,

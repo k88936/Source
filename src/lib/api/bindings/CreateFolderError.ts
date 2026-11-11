@@ -3,4 +3,11 @@
 /**
  * Creating one folder.
  */
-export type CreateFolderError = { "kind": "nameRejected" } | { "kind": "parentGone", path: string, } | { "kind": "alreadyExists", path: string, } | { "kind": "quotaExceeded" } | { "kind": "permission" } | { "kind": "unreachable", cause: string, } | { "kind": "protocol", cause: string, };
+export type CreateFolderError =
+    | {kind: 'nameRejected'}
+    | {kind: 'parentGone'; path: string}
+    | {kind: 'alreadyExists'; path: string}
+    | {kind: 'quotaExceeded'}
+    | {kind: 'permission'}
+    | {kind: 'unreachable'; cause: string}
+    | {kind: 'protocol'; cause: string};

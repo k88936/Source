@@ -14,6 +14,7 @@ use crate::store::LocalAssetId;
 pub(crate) struct UploadRow {
     pub(crate) id: String,
     pub(crate) local_asset_id: String,
+    pub(crate) local_album_id: Option<String>,
     pub(crate) dest_uri: String,
     pub(crate) dest_name: Option<String>,
     pub(crate) name: String,
@@ -31,6 +32,7 @@ impl From<UploadRow> for UploadTask {
         UploadTask {
             id: UploadTaskId(row.id),
             local_asset_id: LocalAssetId(row.local_asset_id),
+            local_album_id: row.local_album_id,
             dest_uri: row.dest_uri,
             dest_name: row.dest_name,
             name: row.name,

@@ -25,7 +25,12 @@ pub trait LocalStore: Send + Sync {
     async fn list_local_albums(&self) -> Result<Vec<LocalAlbumRecord>, CatalogError>;
     async fn get_local_album(&self, id: &str) -> Result<Option<LocalAlbumRecord>, CatalogError>;
     /// Register `uri` as a local album syncing into `album_id`.
-    async fn add_local_album(&self, uri: &str, name: &str, album_id: &str) -> Result<(), CatalogError>;
+    async fn add_local_album(
+        &self,
+        uri: &str,
+        name: &str,
+        album_id: &str,
+    ) -> Result<(), CatalogError>;
     /// Forget a local album and its staging rows; the remote album stays.
     async fn remove_local_album(&self, id: &str) -> Result<(), CatalogError>;
 }
@@ -201,7 +206,12 @@ impl LocalStore for SqliteCatalog {
         get_local_album(self, id).await
     }
 
-    async fn add_local_album(&self, uri: &str, name: &str, album_id: &str) -> Result<(), CatalogError> {
+    async fn add_local_album(
+        &self,
+        uri: &str,
+        name: &str,
+        album_id: &str,
+    ) -> Result<(), CatalogError> {
         add_local_album(self, uri, name, album_id).await
     }
 

@@ -3,4 +3,8 @@
 /**
  * Probing a server before signing in: its name and thumbnail edge.
  */
-export type ProbeError = { "kind": "unreachable", cause: string, } | { "kind": "notCloudreve", detail: string, } | { "kind": "rejected", status: number, message: string, } | { "kind": "protocol", cause: string, };
+export type ProbeError =
+    | {kind: 'unreachable'; cause: string}
+    | {kind: 'notCloudreve'; detail: string}
+    | {kind: 'rejected'; status: number; message: string}
+    | {kind: 'protocol'; cause: string};

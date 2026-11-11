@@ -173,7 +173,7 @@ where
             // tens of thousands of files is never held in memory whole, and a
             // stop between pages keeps everything queued so far.
             self.uploads
-                .enqueue_assets(&album_id, &missing)
+                .enqueue_assets(&album_id, Some(&album.id), &missing)
                 .await
                 .map_err(|cause| SyncError::QueueFailed { cause })?;
             ctx.advance(1);

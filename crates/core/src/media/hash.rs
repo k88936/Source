@@ -14,11 +14,9 @@ pub fn sha256_file(path: &Path) -> Result<String, MediaError> {
     let mut hasher = Sha256::new();
     let mut buf = [0u8; 64 * 1024];
     loop {
-        let n = file
-            .read(&mut buf)
-            .map_err(|cause| MediaError::Platform {
-                cause: format!("hash read: {cause}"),
-            })?;
+        let n = file.read(&mut buf).map_err(|cause| MediaError::Platform {
+            cause: format!("hash read: {cause}"),
+        })?;
         if n == 0 {
             break;
         }

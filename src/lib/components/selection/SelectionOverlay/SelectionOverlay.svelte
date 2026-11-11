@@ -1,6 +1,6 @@
 <script lang="ts">
     import {api} from '#lib/api/client';
-    import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
+    import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
@@ -36,7 +36,7 @@
         }
     }
 
-    async function move(target: AlbumSummary) {
+    async function move(target: AlbumMetadata) {
         const ids = [...selection.ids];
         moving = true;
         try {

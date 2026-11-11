@@ -5,7 +5,7 @@ import type {AddAlbumParams} from './bindings/AddAlbumParams';
 import type {AddLocalAlbumParams} from './bindings/AddLocalAlbumParams';
 import type {AlbumPageParams} from './bindings/AlbumPageParams';
 import type {AlbumParams} from './bindings/AlbumParams';
-import type {AlbumSummary} from './bindings/AlbumSummary';
+import type {AlbumMetadata} from './bindings/AlbumMetadata';
 import type {AssetDetail} from './bindings/AssetDetail';
 import type {AssetDetailParams} from './bindings/AssetDetailParams';
 import type {AssetSummary} from './bindings/AssetSummary';
@@ -16,7 +16,7 @@ import type {CreateFolderParams} from './bindings/CreateFolderParams';
 import type {FolderRef} from './bindings/FolderRef';
 import type {ListRemoteFoldersParams} from './bindings/ListRemoteFoldersParams';
 import type {LocalAlbumParams} from './bindings/LocalAlbumParams';
-import type {LocalAlbumSummary} from './bindings/LocalAlbumSummary';
+import type {LocalAlbumMetadata} from './bindings/LocalAlbumMetadata';
 import type {LocalAssetPage} from './bindings/LocalAssetPage';
 import type {LocalAssetPageParams} from './bindings/LocalAssetPageParams';
 import type {LocalBrowsePage} from './bindings/LocalBrowsePage';
@@ -67,12 +67,12 @@ export const api = {
     createFolder: (params: CreateFolderParams) => call<FolderRef>('create_folder', params),
 
     timelinePage: (params: TimelinePageParams) => call<TimelinePage>('timeline_page', params),
-    albumList: () => call<AlbumSummary[]>('album_list'),
-    albumGet: (params: AlbumParams) => call<AlbumSummary | null>('album_get', params),
+    albumList: () => call<AlbumMetadata[]>('album_list'),
+    albumGet: (params: AlbumParams) => call<AlbumMetadata | null>('album_get', params),
     albumPage: (params: AlbumPageParams) => call<TimelinePage>('album_page', params),
-    addAlbum: (params: AddAlbumParams) => call<AlbumSummary>('album_add', params),
+    addAlbum: (params: AddAlbumParams) => call<AlbumMetadata>('album_add', params),
     removeAlbum: (params: AlbumParams) => call<void>('album_remove', params),
-    refreshAlbum: (params: AlbumParams) => call<AlbumSummary>('album_refresh', params),
+    refreshAlbum: (params: AlbumParams) => call<AlbumMetadata>('album_refresh', params),
     indexStart: () => call<number>('index_start'),
     indexStop: () => call<void>('index_stop'),
     jobList: () => call<Job<JobKind>[]>('job_list'),
@@ -82,15 +82,15 @@ export const api = {
     mediaSource: (params: MediaSourceParams) => call<string>('media_source', params),
     searchAssets: (params: SearchParams) => call<TimelinePage>('search_assets', params),
     setFavorite: (params: SetFavoriteParams) => call<AssetSummary>('set_favorite', params),
-    setAlbumCover: (params: SetAlbumCoverParams) => call<AlbumSummary>('set_album_cover', params),
-    setAlbumDescription: (params: SetAlbumDescriptionParams) => call<AlbumSummary>('set_album_description', params),
+    setAlbumCover: (params: SetAlbumCoverParams) => call<AlbumMetadata>('set_album_cover', params),
+    setAlbumDescription: (params: SetAlbumDescriptionParams) => call<AlbumMetadata>('set_album_description', params),
     moveAssetsToAlbum: (params: MoveAssetsParams) => call<AssetSummary[]>('move_assets_to_album', params),
 
     mediaPermissionState: () => call<MediaPermissionState>('media_permission_state'),
     requestMediaPermission: () => call<MediaPermissionState>('request_media_permission'),
     localBrowse: (params: LocalBrowseParams) => call<LocalBrowsePage>('local_browse', params),
-    localAlbumList: () => call<LocalAlbumSummary[]>('local_album_list'),
-    addLocalAlbum: (params: AddLocalAlbumParams) => call<LocalAlbumSummary>('local_album_add', params),
+    localAlbumList: () => call<LocalAlbumMetadata[]>('local_album_list'),
+    addLocalAlbum: (params: AddLocalAlbumParams) => call<LocalAlbumMetadata>('local_album_add', params),
     removeLocalAlbum: (params: LocalAlbumParams) => call<void>('local_album_remove', params),
     localAssetPage: (params: LocalAssetPageParams) => call<LocalAssetPage>('local_asset_page', params),
     syncStart: () => call<number>('sync_start'),

@@ -12,7 +12,11 @@
     /// Walks the device directories one level at a time. Desktop starts at the
     /// home directory and can go back; a phone library only offers a flat list
     /// of buckets, so there the same view is a picker: no parent, no descent.
-    let {open = $bindable(false), onPick}: {open?: boolean; onPick?: (entry: LocalEntry) => void} = $props();
+    let {
+        open = $bindable(false),
+        onPick,
+        destName,
+    }: {open?: boolean; onPick?: (entry: LocalEntry) => void; destName?: string} = $props();
 
     const t = $derived(i18n.pick(dirPicker));
     const c = $derived(i18n.pick(common));
@@ -63,6 +67,14 @@
         onPick?.(entry);
         open = false;
     }
+
+    /// A destination means the album is already known, so only a folder is
+    /// missing and the prompt asks for one instead of asking for an album.
+    const action = $derived.by(() => {
+        const entry = current();
+        if (entry) return destName ? t.syncTo(entry.name, destName) : t.sync(entry.name);
+        return destName ? t.to(destName) : flat ? t.syncPromptLibrary : t.syncPrompt;
+    });
 </script>
 
 <Sheet bind:open label={c.syncLocalAlbum} panelClass="h-[80dvh] max-w-lg sm:h-[70dvh]">
@@ -122,7 +134,7 @@
             disabled={!current()}
             class="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
         >
-            {current() ? t.sync(current()?.name ?? '') : flat ? t.syncPromptLibrary : t.syncPrompt}
+            {action}
         </button>
     </div>
 </Sheet>

@@ -1,7 +1,7 @@
 <script lang="ts">
     import {useBackHandler, useIsFocused, useNavigation, useRoute, useScrollContainer} from 'svelte-navigation';
     import {api} from '#lib/api/client';
-    import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
+    import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
     import AlbumMenu from '../components/AlbumMenu/AlbumMenu.svelte';
     import AssetList from '#lib/components/assets/AssetList/AssetList.svelte';
@@ -38,7 +38,7 @@
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
 
-    let album = $state<AlbumSummary | null>(null);
+    let album = $state<AlbumMetadata | null>(null);
     let metaError = $state('');
     let menuOpen = $state(false);
     let removeOpen = $state(false);

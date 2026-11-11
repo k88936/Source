@@ -41,7 +41,10 @@ pub(crate) struct UploadSessionRow {
 
 impl UploadSessionRow {
     /// Rebuild the session, with `upload_urls` in chunk order.
-    pub(crate) fn into_session(self, upload_urls: Vec<String>) -> Result<UploadSession, CatalogError> {
+    pub(crate) fn into_session(
+        self,
+        upload_urls: Vec<String>,
+    ) -> Result<UploadSession, CatalogError> {
         let encrypt_metadata = self.encrypt_metadata()?;
         let storage_policy = self
             .policy_type

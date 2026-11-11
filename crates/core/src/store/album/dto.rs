@@ -11,7 +11,7 @@ id_type!(AlbumId);
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct AlbumSummary {
+pub struct AlbumMetadata {
     pub id: AlbumId,
     pub name: String,
     pub uri: String,

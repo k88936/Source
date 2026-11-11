@@ -2,7 +2,7 @@
     import {onMount} from 'svelte';
     import {useNavigation} from 'svelte-navigation';
     import {api} from '#lib/api/client';
-    import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
+    import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import type {FolderRef} from '#lib/api/bindings/FolderRef';
     import AlbumCard from './components/AlbumCard/AlbumCard.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
@@ -18,7 +18,7 @@
 
     const navigation = useNavigation<AlbumsNavParamList>();
 
-    let albums = $state<AlbumSummary[]>([]);
+    let albums = $state<AlbumMetadata[]>([]);
     let loading = $state(true);
     let error = $state('');
     let pickerOpen = $state(false);

@@ -3,4 +3,9 @@
 /**
  * Entering a password or a one-time code.
  */
-export type SignInError = { "kind": "unreachable", cause: string, } | { "kind": "credentialsRejected", message: string | null, } | { "kind": "codeRejected", message: string | null, } | { "kind": "rejected", status: number, message: string, } | { "kind": "protocol", cause: string, };
+export type SignInError =
+    | {kind: 'unreachable'; cause: string}
+    | {kind: 'credentialsRejected'; message: string | null}
+    | {kind: 'codeRejected'; message: string | null}
+    | {kind: 'rejected'; status: number; message: string}
+    | {kind: 'protocol'; cause: string};

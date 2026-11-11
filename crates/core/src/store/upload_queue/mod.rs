@@ -31,12 +31,18 @@ pub trait UploadQueueStore: Send + Sync {
     /// Put in-flight rows back in the queue and report what is waiting.
     async fn recover_uploads(&self) -> Result<Vec<UploadTask>, CatalogError>;
     /// The local files already waiting for a slot in one destination folder.
-    async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, CatalogError>;
+    async fn list_queued_local_ids(
+        &self,
+        dest_uri: &str,
+    ) -> Result<Vec<LocalAssetId>, CatalogError>;
     /// The oldest rows still waiting for a slot, oldest first.
     async fn next_queued(&self, limit: i64) -> Result<Vec<UploadTask>, CatalogError>;
 }
 
-pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), CatalogError> {
+pub(crate) async fn enqueue_upload(
+    cat: &SqliteCatalog,
+    task: &UploadTask,
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     let error = serialize_error(task.error.as_ref())?;
     let now = now_ms();
@@ -44,6 +50,7 @@ pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Re
         .values((
             queue::id.eq(task.id.0.clone()),
             queue::local_asset_id.eq(task.local_asset_id.0.clone()),
+            queue::local_album_id.eq(task.local_album_id.clone()),
             queue::dest_uri.eq(task.dest_uri.clone()),
             queue::dest_name.eq(task.dest_name.clone()),
             queue::name.eq(task.name.clone()),
@@ -63,7 +70,10 @@ pub(crate) async fn enqueue_upload(cat: &SqliteCatalog, task: &UploadTask) -> Re
     Ok(())
 }
 
-pub(crate) async fn update_upload(cat: &SqliteCatalog, task: &UploadTask) -> Result<(), CatalogError> {
+pub(crate) async fn update_upload(
+    cat: &SqliteCatalog,
+    task: &UploadTask,
+) -> Result<(), CatalogError> {
     let mut conn = cat.conn().await?;
     let error = serialize_error(task.error.as_ref())?;
     diesel::update(queue::table.filter(queue::id.eq(task.id.0.clone())))
@@ -103,7 +113,9 @@ pub(crate) async fn get_upload_task(
 /// A first sync can enqueue tens of thousands of files; the queue card shows
 /// what is left, not every row ever written, so this never grows with the
 /// history and never hands the UI a payload it cannot render.
-pub(crate) async fn list_upload_tasks(cat: &SqliteCatalog) -> Result<Vec<UploadTask>, CatalogError> {
+pub(crate) async fn list_upload_tasks(
+    cat: &SqliteCatalog,
+) -> Result<Vec<UploadTask>, CatalogError> {
     let mut conn = cat.conn().await?;
     let rows = queue::table
         .filter(queue::state.ne(upload_state_to_str(UploadState::Done)))
@@ -208,7 +220,10 @@ impl UploadQueueStore for SqliteCatalog {
         recover_uploads(self).await
     }
 
-    async fn list_queued_local_ids(&self, dest_uri: &str) -> Result<Vec<LocalAssetId>, CatalogError> {
+    async fn list_queued_local_ids(
+        &self,
+        dest_uri: &str,
+    ) -> Result<Vec<LocalAssetId>, CatalogError> {
         list_queued_local_ids(self, dest_uri).await
     }
 

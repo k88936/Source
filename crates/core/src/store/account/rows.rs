@@ -30,20 +30,18 @@ pub(crate) fn encode<T: Serialize>(value: &Option<T>) -> Result<Option<String>, 
     value
         .as_ref()
         .map(|value| {
-            serde_json::to_string(value)
-                .map_err(|error| CatalogError::EncodeFailed {
-                    cause: format!("无法序列化账号字段: {error}"),
-                })
+            serde_json::to_string(value).map_err(|error| CatalogError::EncodeFailed {
+                cause: format!("无法序列化账号字段: {error}"),
+            })
         })
         .transpose()
 }
 
 fn decode<T: DeserializeOwned>(raw: Option<String>, what: &str) -> Result<Option<T>, CatalogError> {
     raw.map(|raw| {
-        serde_json::from_str(&raw)
-            .map_err(|error| CatalogError::DecodeFailed {
-                cause: format!("无法解析账号{what}: {error}"),
-            })
+        serde_json::from_str(&raw).map_err(|error| CatalogError::DecodeFailed {
+            cause: format!("无法解析账号{what}: {error}"),
+        })
     })
     .transpose()
 }

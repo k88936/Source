@@ -33,18 +33,21 @@ pub(crate) async fn raw_post<T: serde::de::DeserializeOwned>(
     url: &str,
     body: &serde_json::Value,
 ) -> Result<Envelope<T>, RemoteError> {
-    let response = http
-        .post(url)
-        .json(body)
-        .send()
+    let response =
+        http.post(url)
+            .json(body)
+            .send()
+            .await
+            .map_err(|error| RemoteError::Unreachable {
+                cause: format!("连接服务器失败: {error}"),
+            })?;
+    let status = response.status();
+    let text = response
+        .text()
         .await
         .map_err(|error| RemoteError::Unreachable {
-            cause: format!("连接服务器失败: {error}"),
+            cause: format!("读取服务器响应失败: {error}"),
         })?;
-    let status = response.status();
-    let text = response.text().await.map_err(|error| RemoteError::Unreachable {
-        cause: format!("读取服务器响应失败: {error}"),
-    })?;
     if status.as_u16() == 401 || status.as_u16() == 403 {
         return Err(RemoteError::Rejected {
             status: i32::from(status.as_u16()),

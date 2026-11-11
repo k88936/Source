@@ -20,14 +20,11 @@ pub struct CloudreveStorage {
 /// The server answered 404 for one particular file.
 fn media_fetch(uri: &str, cause: RemoteError) -> MediaFetchError {
     match cause {
-        RemoteError::Rejected {
-            status: 404, ..
-        } => MediaFetchError::AssetGone {
+        RemoteError::Rejected { status: 404, .. } => MediaFetchError::AssetGone {
             uri: uri.to_string(),
         },
         RemoteError::Rejected {
-            status: 401 | 403,
-            ..
+            status: 401 | 403, ..
         } => MediaFetchError::Permission {
             uri: uri.to_string(),
         },
@@ -38,9 +35,7 @@ fn media_fetch(uri: &str, cause: RemoteError) -> MediaFetchError {
 /// The server answered 404 for one particular folder.
 fn listing(uri: &str, cause: RemoteError) -> ListError {
     match cause {
-        RemoteError::Rejected {
-            status: 404, ..
-        } => ListError::FolderGone {
+        RemoteError::Rejected { status: 404, .. } => ListError::FolderGone {
             uri: uri.to_string(),
         },
         cause => ListError::Transport { cause },
@@ -49,14 +44,11 @@ fn listing(uri: &str, cause: RemoteError) -> ListError {
 
 fn patching(uri: &str, cause: RemoteError) -> MetadataError {
     match cause {
-        RemoteError::Rejected {
-            status: 404, ..
-        } => MetadataError::AssetGone {
+        RemoteError::Rejected { status: 404, .. } => MetadataError::AssetGone {
             uri: uri.to_string(),
         },
         RemoteError::Rejected {
-            status: 401 | 403,
-            ..
+            status: 401 | 403, ..
         } => MetadataError::Permission {
             uri: uri.to_string(),
         },
@@ -132,12 +124,14 @@ impl CloudreveStorage {
     /// Whole body of a signed URL, refusing anything the server did not
     /// answer with 2xx.
     async fn get_bytes(&self, url: &str, uri: &str) -> Result<Vec<u8>, MediaFetchError> {
-        let response = self
-            .http
-            .get(url)
-            .send()
-            .await
-            .map_err(|cause| media_fetch(uri, RemoteError::Unreachable { cause: cause.to_string() }))?;
+        let response = self.http.get(url).send().await.map_err(|cause| {
+            media_fetch(
+                uri,
+                RemoteError::Unreachable {
+                    cause: cause.to_string(),
+                },
+            )
+        })?;
         let status = response.status();
         if !status.is_success() {
             return Err(media_fetch(
@@ -152,7 +146,14 @@ impl CloudreveStorage {
             .bytes()
             .await
             .map(|bytes| bytes.to_vec())
-            .map_err(|cause| media_fetch(uri, RemoteError::Unreachable { cause: cause.to_string() }))
+            .map_err(|cause| {
+                media_fetch(
+                    uri,
+                    RemoteError::Unreachable {
+                        cause: cause.to_string(),
+                    },
+                )
+            })
     }
 
     /// One `Range` request, kept verbatim so the caller can replay the answer.
@@ -166,10 +167,14 @@ impl CloudreveStorage {
         if let Some(range) = range {
             request = request.header(reqwest::header::RANGE, range);
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|cause| media_fetch(uri, RemoteError::Unreachable { cause: cause.to_string() }))?;
+        let response = request.send().await.map_err(|cause| {
+            media_fetch(
+                uri,
+                RemoteError::Unreachable {
+                    cause: cause.to_string(),
+                },
+            )
+        })?;
         let status = response.status().as_u16();
         let content_range = response
             .headers()
@@ -184,7 +189,14 @@ impl CloudreveStorage {
         let body = response
             .bytes()
             .await
-            .map_err(|cause| media_fetch(uri, RemoteError::Unreachable { cause: cause.to_string() }))?
+            .map_err(|cause| {
+                media_fetch(
+                    uri,
+                    RemoteError::Unreachable {
+                        cause: cause.to_string(),
+                    },
+                )
+            })?
             .to_vec();
         Ok(MediaRange {
             status,

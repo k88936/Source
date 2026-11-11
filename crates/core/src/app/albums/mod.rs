@@ -24,7 +24,7 @@ use crate::remote::{
     ListError, MediaFetchError, MetadataError, MoveError, RemoteError, RemoteStorage,
 };
 use crate::store::{
-    AlbumId, AlbumStore, AlbumSummary, AssetRecord, AssetStore, AssetSummary, CatalogError,
+    AlbumId, AlbumMetadata, AlbumStore, AssetRecord, AssetStore, AssetSummary, CatalogError,
     FolderId, FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, SYNC_DONE,
     SYNC_FAILED, TimelinePage, TimelineStore,
 };
@@ -135,11 +135,11 @@ where
     C: AlbumStore + AssetStore + FolderStore + TimelineStore + LocalStore + Clone + 'static,
     M: LocalMediaPort + 'static,
 {
-    pub async fn list_albums(&self) -> Result<Vec<AlbumSummary>, AlbumError> {
+    pub async fn list_albums(&self) -> Result<Vec<AlbumMetadata>, AlbumError> {
         self.list_albums_impl().await
     }
 
-    pub async fn get_album(&self, album_id: &str) -> Result<Option<AlbumSummary>, AlbumError> {
+    pub async fn get_album(&self, album_id: &str) -> Result<Option<AlbumMetadata>, AlbumError> {
         self.get_album_impl(album_id).await
     }
 
@@ -152,7 +152,7 @@ where
 
     /// Add a folder as an album and list it once, so it is never shown empty
     /// while the server has media in it.
-    pub async fn add_album(&self, params: AddAlbumParams) -> Result<AlbumSummary, AlbumError> {
+    pub async fn add_album(&self, params: AddAlbumParams) -> Result<AlbumMetadata, AlbumError> {
         self.add_album_impl(params).await
     }
 
@@ -167,7 +167,7 @@ where
     /// A folder that was deleted or renamed on the server keeps its row and its
     /// assets: the failure is recorded on the album so the UI can offer to point
     /// it somewhere else, instead of the album silently disappearing.
-    pub async fn refresh_album(&self, album_id: &str) -> Result<AlbumSummary, AlbumError> {
+    pub async fn refresh_album(&self, album_id: &str) -> Result<AlbumMetadata, AlbumError> {
         self.refresh_album_impl(album_id).await
     }
 
@@ -191,7 +191,7 @@ where
         &self,
         album_id: &str,
         asset_id: &str,
-    ) -> Result<AlbumSummary, AlbumError> {
+    ) -> Result<AlbumMetadata, AlbumError> {
         self.set_album_cover_impl(album_id, asset_id).await
     }
 
@@ -199,7 +199,7 @@ where
         &self,
         album_id: &str,
         description: &str,
-    ) -> Result<AlbumSummary, AlbumError> {
+    ) -> Result<AlbumMetadata, AlbumError> {
         self.set_album_description_impl(album_id, description).await
     }
 
@@ -220,7 +220,7 @@ where
     // Local albums
     // ---------------------------------------------------------------------
 
-    pub async fn local_album_list(&self) -> Result<Vec<LocalAlbumSummary>, AlbumError> {
+    pub async fn local_album_list(&self) -> Result<Vec<LocalAlbumMetadata>, AlbumError> {
         self.local_album_list_impl().await
     }
 
@@ -249,7 +249,7 @@ where
     pub async fn add_local_album(
         &self,
         params: AddLocalAlbumParams,
-    ) -> Result<LocalAlbumSummary, AlbumError> {
+    ) -> Result<LocalAlbumMetadata, AlbumError> {
         self.add_local_album_impl(params).await
     }
 
@@ -270,14 +270,14 @@ where
     C: AlbumStore + AssetStore + FolderStore + TimelineStore + LocalStore + Clone + 'static,
     M: LocalMediaPort + 'static,
 {
-    async fn list_albums_impl(&self) -> Result<Vec<AlbumSummary>, AlbumError> {
+    async fn list_albums_impl(&self) -> Result<Vec<AlbumMetadata>, AlbumError> {
         self.catalog
             .list_albums()
             .await
             .map_err(AlbumError::catalog)
     }
 
-    async fn get_album_impl(&self, album_id: &str) -> Result<Option<AlbumSummary>, AlbumError> {
+    async fn get_album_impl(&self, album_id: &str) -> Result<Option<AlbumMetadata>, AlbumError> {
         self.catalog
             .get_album(album_id)
             .await
@@ -298,7 +298,7 @@ where
             .map_err(AlbumError::catalog)
     }
 
-    async fn add_album_impl(&self, params: AddAlbumParams) -> Result<AlbumSummary, AlbumError> {
+    async fn add_album_impl(&self, params: AddAlbumParams) -> Result<AlbumMetadata, AlbumError> {
         let info = self
             .cloud
             .get_folder_info(&params.uri)
@@ -325,7 +325,7 @@ where
             .map_err(AlbumError::catalog)
     }
 
-    async fn refresh_album_impl(&self, album_id: &str) -> Result<AlbumSummary, AlbumError> {
+    async fn refresh_album_impl(&self, album_id: &str) -> Result<AlbumMetadata, AlbumError> {
         self.refresh_once(album_id).await
     }
 
@@ -360,7 +360,7 @@ where
         &self,
         album_id: &str,
         asset_id: &str,
-    ) -> Result<AlbumSummary, AlbumError> {
+    ) -> Result<AlbumMetadata, AlbumError> {
         let folder = self
             .catalog
             .get_folder(album_id)
@@ -381,14 +381,14 @@ where
             .set_album_cover(album_id, Some(asset_id))
             .await
             .map_err(AlbumError::catalog)?;
-        self.album_summary(album_id).await
+        self.album_metadata(album_id).await
     }
 
     async fn set_album_description_impl(
         &self,
         album_id: &str,
         description: &str,
-    ) -> Result<AlbumSummary, AlbumError> {
+    ) -> Result<AlbumMetadata, AlbumError> {
         let folder = self
             .catalog
             .get_folder(album_id)
@@ -413,7 +413,7 @@ where
             .set_album_description(album_id, value.as_deref())
             .await
             .map_err(AlbumError::catalog)?;
-        self.album_summary(album_id).await
+        self.album_metadata(album_id).await
     }
 
     async fn move_assets_to_album_impl(
@@ -468,17 +468,17 @@ where
         Ok(moved)
     }
 
-    async fn local_album_list_impl(&self) -> Result<Vec<LocalAlbumSummary>, AlbumError> {
+    async fn local_album_list_impl(&self) -> Result<Vec<LocalAlbumMetadata>, AlbumError> {
         let albums = self
             .catalog
             .list_local_albums()
             .await
             .map_err(AlbumError::catalog)?;
-        let mut summaries = Vec::with_capacity(albums.len());
+        let mut metadata = Vec::with_capacity(albums.len());
         for album in albums {
-            summaries.push(self.local_album_to_summary(album).await?);
+            metadata.push(self.local_album_to_metadata(album).await?);
         }
-        Ok(summaries)
+        Ok(metadata)
     }
 
     async fn browse_local_impl(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AlbumError> {
@@ -512,7 +512,7 @@ where
     async fn add_local_album_impl(
         &self,
         params: AddLocalAlbumParams,
-    ) -> Result<LocalAlbumSummary, AlbumError> {
+    ) -> Result<LocalAlbumMetadata, AlbumError> {
         let album = self
             .catalog
             .get_album(&params.album_id.0)
@@ -533,7 +533,7 @@ where
             .ok_or_else(|| AlbumError::LocalAlbumMissing {
                 uri: params.uri.clone(),
             })?;
-        self.local_album_to_summary(record).await
+        self.local_album_to_metadata(record).await
     }
 
     async fn remove_local_album_impl(&self, id: &str) -> Result<(), AlbumError> {
@@ -543,26 +543,32 @@ where
             .map_err(AlbumError::catalog)
     }
 
-    async fn local_album_to_summary(
+    async fn local_album_to_metadata(
         &self,
         album: LocalAlbumRecord,
-    ) -> Result<LocalAlbumSummary, AlbumError> {
+    ) -> Result<LocalAlbumMetadata, AlbumError> {
         let asset_count = self
             .local
             .count_assets(&album.uri)
             .await
             .map_err(|cause| AlbumError::LocalMedia { cause })?;
-        Ok(LocalAlbumSummary {
+        let covers = self
+            .local
+            .list_assets(&album.uri, None, 4)
+            .await
+            .map_err(|cause| AlbumError::LocalMedia { cause })?;
+        Ok(LocalAlbumMetadata {
             id: album.id,
             uri: album.uri,
             name: album.name,
             album_id: AlbumId(album.album_id),
             album_name: album.album_name,
             asset_count,
+            cover_uris: covers.items.into_iter().map(|asset| asset.uri).collect(),
         })
     }
 
-    async fn album_summary(&self, album_id: &str) -> Result<AlbumSummary, AlbumError> {
+    async fn album_metadata(&self, album_id: &str) -> Result<AlbumMetadata, AlbumError> {
         self.catalog
             .get_album(album_id)
             .await
@@ -574,7 +580,7 @@ where
 
     /// One interactive listing: no job, so it reports no progress and stops
     /// only when the caller drops the future.
-    async fn refresh_once(&self, album_id: &str) -> Result<AlbumSummary, AlbumError> {
+    async fn refresh_once(&self, album_id: &str) -> Result<AlbumMetadata, AlbumError> {
         let cancel = CancellationToken::new();
         self.refresh(album_id, &cancel, None).await
     }
@@ -613,7 +619,7 @@ where
         album_id: &str,
         cancel: &CancellationToken,
         ctx: Option<&Ctx<JobKind>>,
-    ) -> Result<AlbumSummary, AlbumError> {
+    ) -> Result<AlbumMetadata, AlbumError> {
         let album = self
             .catalog
             .get_folder(album_id)
@@ -623,7 +629,7 @@ where
                 album: album_id.to_string(),
             })?;
         match self.sync_album(&album, cancel, ctx).await {
-            Ok(Listing::Stopped) => return self.album_summary(album_id).await,
+            Ok(Listing::Stopped) => return self.album_metadata(album_id).await,
             Ok(Listing::Complete) => {}
             Err(error) => {
                 // Only a folder the server no longer gives us is a lasting
@@ -638,7 +644,7 @@ where
                 return Err(error);
             }
         }
-        self.album_summary(album_id).await
+        self.album_metadata(album_id).await
     }
 
     async fn sync_album(

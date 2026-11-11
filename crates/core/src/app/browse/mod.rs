@@ -26,7 +26,10 @@ pub enum BrowseError {
     /// The row the UI asked for is no longer in the index.
     AssetMissing { asset: String },
     /// The server could not hand over this file.
-    Media { asset: String, cause: MediaFetchError },
+    Media {
+        asset: String,
+        cause: MediaFetchError,
+    },
     /// The server refused the metadata patch.
     Metadata { asset: String, cause: MetadataError },
     /// The device media library failed.
@@ -124,7 +127,10 @@ where
     }
 
     /// Blur-up mosaic already stored for an asset, if any.
-    pub async fn get_asset_thumb_hash(&self, asset_id: &str) -> Result<Option<String>, BrowseError> {
+    pub async fn get_asset_thumb_hash(
+        &self,
+        asset_id: &str,
+    ) -> Result<Option<String>, BrowseError> {
         self.get_asset_thumb_hash_impl(asset_id).await
     }
 
@@ -136,9 +142,7 @@ where
         self.set_asset_thumb_hash_impl(asset_id, value).await
     }
 
-    pub async fn get_media_permission_state(
-        &self,
-    ) -> Result<MediaPermissionState, BrowseError> {
+    pub async fn get_media_permission_state(&self) -> Result<MediaPermissionState, BrowseError> {
         self.get_media_permission_state_impl().await
     }
 
@@ -302,7 +306,10 @@ where
         })
     }
 
-    async fn get_asset_thumb_hash_impl(&self, asset_id: &str) -> Result<Option<String>, BrowseError> {
+    async fn get_asset_thumb_hash_impl(
+        &self,
+        asset_id: &str,
+    ) -> Result<Option<String>, BrowseError> {
         Ok(self
             .catalog
             .get_asset(asset_id)

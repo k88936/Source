@@ -34,7 +34,11 @@ pub trait FolderStore: Send + Sync {
     /// Write one listing page, keeping the rows the album already has.
     async fn upsert_album_assets(&self, assets: &[AssetRecord]) -> Result<(), CatalogError>;
     /// Drop the assets a complete listing no longer holds, given every id it listed.
-    async fn prune_album_assets(&self, folder_id: &str, listed: &[String]) -> Result<(), CatalogError>;
+    async fn prune_album_assets(
+        &self,
+        folder_id: &str,
+        listed: &[String],
+    ) -> Result<(), CatalogError>;
     /// The names of the media files the album currently holds.
     async fn list_album_asset_names(&self, folder_id: &str) -> Result<Vec<String>, CatalogError>;
 }
@@ -280,7 +284,11 @@ impl FolderStore for SqliteCatalog {
         upsert_album_assets(self, asset_records).await
     }
 
-    async fn prune_album_assets(&self, folder_id: &str, listed: &[String]) -> Result<(), CatalogError> {
+    async fn prune_album_assets(
+        &self,
+        folder_id: &str,
+        listed: &[String],
+    ) -> Result<(), CatalogError> {
         prune_album_assets(self, folder_id, listed).await
     }
 

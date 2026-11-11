@@ -6,4 +6,8 @@
  * `cause` is the leaf the adapter cannot name: a diesel error, a JSON error or
  * an OS error. It is kept for diagnosis and is never shown as the main text.
  */
-export type CatalogError = { "kind": "unavailable", cause: string, } | { "kind": "queryFailed", cause: string, } | { "kind": "decodeFailed", cause: string, } | { "kind": "encodeFailed", cause: string, };
+export type CatalogError =
+    | {kind: 'unavailable'; cause: string}
+    | {kind: 'queryFailed'; cause: string}
+    | {kind: 'decodeFailed'; cause: string}
+    | {kind: 'encodeFailed'; cause: string};

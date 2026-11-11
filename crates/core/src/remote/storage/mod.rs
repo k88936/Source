@@ -6,11 +6,11 @@
 
 use async_trait::async_trait;
 
+use crate::remote::auth::CurrentAccount;
 use crate::remote::{
     CapacityError, CreateFolderError, ListError, MediaFetchError, MetadataError, MoveError,
     UploadUriError,
 };
-use crate::remote::auth::CurrentAccount;
 
 mod cloudreve;
 mod dto;

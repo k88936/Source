@@ -15,9 +15,7 @@ impl CloudreveStorage {
         request: UploadRequest,
     ) -> Result<RemoteEntry, UploadUriError> {
         let source = build_upload_source(&request.source_uri, request.size)?;
-        let client = self
-            .client()
-            .map_err(UploadUriError::from_remote)?;
+        let client = self.client().map_err(UploadUriError::from_remote)?;
         let remote_uri = join_uri(&request.dest_uri, &request.name);
         let uploader = Uploader::new(Arc::clone(&client), UploaderConfig::default());
         let params = UploadParams {

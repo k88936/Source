@@ -1,7 +1,7 @@
 <script lang="ts">
     import {useNavigation, useRoute} from 'svelte-navigation';
     import {api} from '#lib/api/client';
-    import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
+    import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
     import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
     import AssetThumb from '#lib/components/assets/AssetThumb/AssetThumb.svelte';
     import ConfirmDialog from '#lib/components/overlay/ConfirmDialog/ConfirmDialog.svelte';
@@ -24,7 +24,7 @@
     // One stack entry is one local album, so the id never changes under this screen.
     const albumId = $derived(useRoute<LibraryNavParamList>().params?.id ?? '');
 
-    let album = $state<LocalAlbumSummary | null>(null);
+    let album = $state<LocalAlbumMetadata | null>(null);
     let items = $state<LocalAsset[]>([]);
     let next = $state<string | null>(null);
     let loading = $state(true);

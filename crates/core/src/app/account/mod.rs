@@ -30,12 +30,24 @@ pub use dto::*;
 #[ts(export)]
 pub enum AccountError {
     /// The address typed in was empty or not a URL.
-    ServerAddressInvalid { cause: super::UrlError },
-    ProbeFailed { cause: ProbeError },
-    SignInFailed { cause: SignInError },
-    SessionFailed { cause: SessionError },
-    CapacityFailed { cause: CapacityError },
-    Catalog { cause: CatalogError },
+    ServerAddressInvalid {
+        cause: super::UrlError,
+    },
+    ProbeFailed {
+        cause: ProbeError,
+    },
+    SignInFailed {
+        cause: SignInError,
+    },
+    SessionFailed {
+        cause: SessionError,
+    },
+    CapacityFailed {
+        cause: CapacityError,
+    },
+    Catalog {
+        cause: CatalogError,
+    },
     /// Signing in without a server chosen first.
     ServerMissing,
     /// A 2FA step whose original sign-in is gone.
@@ -101,7 +113,11 @@ where
         self.login_impl(email, password).await
     }
 
-    pub async fn login_2fa(&self, session_id: &str, otp: &str) -> Result<AccountState, AccountError> {
+    pub async fn login_2fa(
+        &self,
+        session_id: &str,
+        otp: &str,
+    ) -> Result<AccountState, AccountError> {
         self.login_2fa_impl(session_id, otp).await
     }
 
@@ -206,7 +222,11 @@ where
         }
     }
 
-    async fn login_2fa_impl(&self, session_id: &str, otp: &str) -> Result<AccountState, AccountError> {
+    async fn login_2fa_impl(
+        &self,
+        session_id: &str,
+        otp: &str,
+    ) -> Result<AccountState, AccountError> {
         let account = self.require_session().await?;
         let signed_in = self
             .auth

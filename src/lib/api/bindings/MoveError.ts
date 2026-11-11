@@ -3,4 +3,11 @@
 /**
  * Moving files into a folder.
  */
-export type MoveError = { "kind": "sourceGone", uri: string, } | { "kind": "destinationGone", uri: string, } | { "kind": "conflict", uri: string, } | { "kind": "quotaExceeded" } | { "kind": "permission" } | { "kind": "unreachable", cause: string, } | { "kind": "protocol", cause: string, };
+export type MoveError =
+    | {kind: 'sourceGone'; uri: string}
+    | {kind: 'destinationGone'; uri: string}
+    | {kind: 'conflict'; uri: string}
+    | {kind: 'quotaExceeded'}
+    | {kind: 'permission'}
+    | {kind: 'unreachable'; cause: string}
+    | {kind: 'protocol'; cause: string};

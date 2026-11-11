@@ -1,5 +1,5 @@
 import type {AccountState} from '#lib/api/bindings/AccountState';
-import type {AlbumSummary} from '#lib/api/bindings/AlbumSummary';
+import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
 import type {AppInfo} from '#lib/api/bindings/AppInfo';
 import type {AssetDetail} from '#lib/api/bindings/AssetDetail';
 import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
@@ -8,7 +8,7 @@ import type {Capacity} from '#lib/api/bindings/Capacity';
 import type {FolderRef} from '#lib/api/bindings/FolderRef';
 import type {Job} from '#lib/api/bindings/Job';
 import type {JobKind} from '#lib/api/bindings/JobKind';
-import type {LocalAlbumSummary} from '#lib/api/bindings/LocalAlbumSummary';
+import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
 import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
 import type {LocalEntry} from '#lib/api/bindings/LocalEntry';
 import type {MediaType} from '#lib/api/bindings/MediaType';
@@ -143,7 +143,7 @@ function itemsOf(def: AlbumDef): AssetSummary[] {
     return assets.slice(def.from, def.from + 6);
 }
 
-export const albums: AlbumSummary[] = ALBUM_DEFS.map((def, order) => {
+export const albums: AlbumMetadata[] = ALBUM_DEFS.map((def, order) => {
     const items = itemsOf(def);
     return {
         id: def.id,
@@ -158,7 +158,7 @@ export const albums: AlbumSummary[] = ALBUM_DEFS.map((def, order) => {
     };
 });
 
-export function album(id: string): AlbumSummary {
+export function album(id: string): AlbumMetadata {
     const found = albums.find((item) => item.id === id);
     if (!found) throw new Error(`demo: unknown album ${id}`);
     return found;
@@ -170,11 +170,11 @@ export function albumAssets(id: string): AssetSummary[] {
     return itemsOf(def);
 }
 
-const albumOf = new Map<string, AlbumSummary>(
+const albumOf = new Map<string, AlbumMetadata>(
     ALBUM_DEFS.flatMap((def) => itemsOf(def).map((item) => [item.id, album(def.id)] as const)),
 );
 
-export function albumOfAsset(id: string): AlbumSummary | null {
+export function albumOfAsset(id: string): AlbumMetadata | null {
     return albumOf.get(id) ?? null;
 }
 
@@ -198,7 +198,7 @@ export function assetDetail(id: string): AssetDetail {
     };
 }
 
-export function buildAlbum(uri: string): AlbumSummary {
+export function buildAlbum(uri: string): AlbumMetadata {
     const name = decodeURIComponent(uri.slice(uri.lastIndexOf('/') + 1));
     return {
         id: `album-${albums.length + 1}`,
@@ -237,6 +237,10 @@ export const localEntries: LocalEntry[] = [
     {uri: 'content://media/external/images/bucket/1001', name: 'Camera', path: 'DCIM/Camera'},
     {uri: 'content://media/external/images/bucket/1002', name: 'Screenshots', path: 'Pictures/Screenshots'},
     {uri: 'content://media/external/images/bucket/1003', name: 'WeiXin', path: 'Pictures/WeiXin'},
+    {uri: 'content://media/external/images/bucket/1004', name: 'Instagram', path: 'Pictures/Instagram'},
+    {uri: 'content://media/external/images/bucket/1005', name: 'Downloads', path: 'Download'},
+    {uri: 'content://media/external/images/bucket/1006', name: 'Telegram', path: 'Telegram'},
+    {uri: 'content://media/external/images/bucket/1007', name: 'Saved', path: 'Pictures/Saved'},
 ];
 
 const localThumbs = new Map<string, string>();
@@ -263,6 +267,11 @@ function buildLocalAssets(seed: number, count: number): LocalAsset[] {
 const LOCAL_ASSETS = new Map<string, LocalAsset[]>([
     ['content://media/external/images/bucket/1001', buildLocalAssets(1, 6)],
     ['content://media/external/images/bucket/1002', buildLocalAssets(2, 4)],
+    ['content://media/external/images/bucket/1003', buildLocalAssets(3, 3)],
+    ['content://media/external/images/bucket/1004', buildLocalAssets(4, 3)],
+    ['content://media/external/images/bucket/1005', buildLocalAssets(5, 2)],
+    ['content://media/external/images/bucket/1006', buildLocalAssets(6, 5)],
+    ['content://media/external/images/bucket/1007', buildLocalAssets(7, 2)],
 ]);
 
 export function localAssets(albumUri: string): LocalAsset[] {
@@ -277,7 +286,13 @@ export function localThumb(uri: string): string {
     return found;
 }
 
-export const localAlbums: LocalAlbumSummary[] = [
+function coversOf(uri: string): string[] {
+    return localAssets(uri)
+        .slice(0, 4)
+        .map((asset) => asset.uri);
+}
+
+export const localAlbums: LocalAlbumMetadata[] = [
     {
         id: 'local-album-1',
         uri: 'content://media/external/images/bucket/1001',
@@ -285,6 +300,7 @@ export const localAlbums: LocalAlbumSummary[] = [
         albumId: 'album-1',
         albumName: album('album-1').name,
         assetCount: 6,
+        coverUris: coversOf('content://media/external/images/bucket/1001'),
     },
     {
         id: 'local-album-2',
@@ -293,10 +309,57 @@ export const localAlbums: LocalAlbumSummary[] = [
         albumId: 'album-2',
         albumName: album('album-2').name,
         assetCount: 4,
+        coverUris: coversOf('content://media/external/images/bucket/1002'),
+    },
+    {
+        id: 'local-album-3',
+        uri: 'content://media/external/images/bucket/1003',
+        name: 'WeiXin',
+        albumId: 'album-1',
+        albumName: album('album-1').name,
+        assetCount: 3,
+        coverUris: coversOf('content://media/external/images/bucket/1003'),
+    },
+    // Six folders feeding one album: the narrow case the graph has to survive.
+    {
+        id: 'local-album-4',
+        uri: 'content://media/external/images/bucket/1004',
+        name: 'Instagram',
+        albumId: 'album-1',
+        albumName: album('album-1').name,
+        assetCount: 3,
+        coverUris: coversOf('content://media/external/images/bucket/1004'),
+    },
+    {
+        id: 'local-album-5',
+        uri: 'content://media/external/images/bucket/1005',
+        name: 'Downloads',
+        albumId: 'album-1',
+        albumName: album('album-1').name,
+        assetCount: 2,
+        coverUris: coversOf('content://media/external/images/bucket/1005'),
+    },
+    {
+        id: 'local-album-6',
+        uri: 'content://media/external/images/bucket/1006',
+        name: 'Telegram',
+        albumId: 'album-1',
+        albumName: album('album-1').name,
+        assetCount: 5,
+        coverUris: coversOf('content://media/external/images/bucket/1006'),
+    },
+    {
+        id: 'local-album-7',
+        uri: 'content://media/external/images/bucket/1007',
+        name: 'Saved',
+        albumId: 'album-1',
+        albumName: album('album-1').name,
+        assetCount: 2,
+        coverUris: coversOf('content://media/external/images/bucket/1007'),
     },
 ];
 
-export function buildLocalAlbum(uri: string, name: string, albumId: string): LocalAlbumSummary {
+export function buildLocalAlbum(uri: string, name: string, albumId: string): LocalAlbumMetadata {
     return {
         id: `local-album-${localAlbums.length + 1}`,
         uri,
@@ -304,13 +367,16 @@ export function buildLocalAlbum(uri: string, name: string, albumId: string): Loc
         albumId,
         albumName: album(albumId).name,
         assetCount: 0,
+        coverUris: [],
     };
 }
 
 export const uploads: UploadTask[] = [
+    // Camera, two files moving at a comfortable speed.
     {
         id: 'upload-1',
         localAssetId: 'local-1-1',
+        localAlbumId: 'local-album-1',
         name: 'IMG_3100.jpg',
         destUri: 'cloudreve://my/Photos/coast',
         destName: null,
@@ -325,12 +391,91 @@ export const uploads: UploadTask[] = [
     {
         id: 'upload-2',
         localAssetId: 'local-1-2',
+        localAlbumId: 'local-album-1',
         name: 'IMG_3101.jpg',
+        destUri: 'cloudreve://my/Photos/coast',
+        destName: null,
+        state: 'uploading',
+        uploaded: 900_000,
+        total: 2_884_120,
+        speed: 180_000,
+        etaSeconds: 11,
+        attempts: 1,
+        error: null,
+    },
+    // WeiXin: one file broke and one is still waiting behind it.
+    {
+        id: 'upload-3',
+        localAssetId: 'local-3-1',
+        localAlbumId: 'local-album-3',
+        name: 'IMG_3301.jpg',
+        destUri: 'cloudreve://my/Photos/coast',
+        destName: null,
+        state: 'failed',
+        uploaded: 1_048_576,
+        total: 2_048_576,
+        speed: 0,
+        etaSeconds: null,
+        attempts: 3,
+        error: 'localFileMissing: local-3-1',
+    },
+    {
+        id: 'upload-4',
+        localAssetId: 'local-3-2',
+        localAlbumId: 'local-album-3',
+        name: 'IMG_3302.jpg',
         destUri: 'cloudreve://my/Photos/coast',
         destName: null,
         state: 'queued',
         uploaded: 0,
-        total: 2_884_120,
+        total: 2_204_800,
+        speed: 0,
+        etaSeconds: null,
+        attempts: 1,
+        error: null,
+    },
+    // Instagram is slow, so its line flows slower than the rest.
+    {
+        id: 'upload-5',
+        localAssetId: 'local-4-1',
+        localAlbumId: 'local-album-4',
+        name: 'IMG_3401.jpg',
+        destUri: 'cloudreve://my/Photos/coast',
+        destName: null,
+        state: 'uploading',
+        uploaded: 240_000,
+        total: 1_600_000,
+        speed: 90_000,
+        etaSeconds: 15,
+        attempts: 1,
+        error: null,
+    },
+    // Downloads only waits; Telegram and Saved have nothing left to send.
+    {
+        id: 'upload-6',
+        localAssetId: 'local-5-1',
+        localAlbumId: 'local-album-5',
+        name: 'IMG_3501.jpg',
+        destUri: 'cloudreve://my/Photos/coast',
+        destName: null,
+        state: 'queued',
+        uploaded: 0,
+        total: 1_884_213,
+        speed: 0,
+        etaSeconds: null,
+        attempts: 1,
+        error: null,
+    },
+    {
+        id: 'upload-7',
+        localAssetId: 'local-2-1',
+        localAlbumId: 'local-album-2',
+        name: 'IMG_3200.jpg',
+        destUri: 'cloudreve://my/Photos/city',
+        destName: null,
+        state: 'queued',
+        uploaded: 0,
+        total: 1_884_213,
         speed: 0,
         etaSeconds: null,
         attempts: 1,
