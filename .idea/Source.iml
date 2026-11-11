@@ -17,6 +17,9 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/tauri-plugin-mediastore/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/src-tauri/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/.junie" />
+      <excludeFolder url="file://$MODULE_DIR$/.playwright-cli" />
+      <excludeFolder url="file://$MODULE_DIR$/dist-demo" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
