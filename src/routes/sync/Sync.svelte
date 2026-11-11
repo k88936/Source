@@ -110,6 +110,13 @@
 <ScreenOptions title={c.sync} />
 
 <div class="mx-auto w-full max-w-2xl px-4 pb-4 pt-3">
+    <!-- The overview is the page's dock: it opens at the top of the content and
+         pins to the top of the viewport once the rows scroll under it, so it
+         never leaves the screen and never eats a row. -->
+    <div class="sticky top-0 z-20 pb-3">
+        <SyncOverview queue={board.queue} />
+    </div>
+
     {#if board.albums.length === 0}
         <EmptyState icon={CloudUpload} title={t.empty} />
     {:else}
@@ -121,14 +128,6 @@
             onAdd={addMapping}
         />
     {/if}
-</div>
-
-<!-- The overview hovers at the bottom of the viewport while the rows scroll
-     under it. It stays a sibling after the content instead of being fixed, so
-     the room it takes in the flow is the placeholder that lets the last row
-     scroll clear of it, and the page still ends where the card ends. -->
-<div class="sticky bottom-0 z-20 mx-auto w-full max-w-2xl px-4 pb-3">
-    <SyncOverview queue={board.queue} />
 </div>
 
 <AlbumSheet bind:open={albumOpen} group={selectedGroup} onOpen={openAlbumPage} />

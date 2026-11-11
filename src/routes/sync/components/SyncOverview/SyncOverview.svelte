@@ -35,9 +35,7 @@
     </span>
 {/snippet}
 
-<!-- The overview is the page's dock: the totals float over the rows while they
-     scroll, and the space it takes in the flow is what keeps the last row
-     reachable above it. -->
+<!-- The totals of the whole queue, for every album on the page at once. -->
 <section
     class="relative overflow-hidden rounded-3xl border border-line/60 bg-gradient-to-br from-gray via-light to-light px-4 py-4 shadow-xl shadow-black/10 dark:shadow-black/40"
 >
