@@ -1,0 +1,16 @@
+{
+    "name": "subscription-client",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "svelte": "./src/index.ts",
+    "exports": {
+        ".": {
+            "svelte": "./src/index.ts",
+            "default": "./src/index.ts"
+        }
+    },
+    "peerDependencies": {
+        "svelte": "^5.0.0"
+    }
+}

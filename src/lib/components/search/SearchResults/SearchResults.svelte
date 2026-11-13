@@ -82,5 +82,5 @@
         onToggle={(asset) => selection.toggle(asset.id)}
         onColumns={(columns) => app.setColumns(columns)}
     />
-    <LoadMoreSentinel hasMore={search.timeline.next !== null} onLoad={() => void search.timeline.loadMore()} />
+    <LoadMoreSentinel hasMore={search.timeline.hasMore} onLoad={() => void search.timeline.loadMore()} />
 {/if}

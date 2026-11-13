@@ -1,9 +1,12 @@
 import type {Transport} from '../lib/api/transport';
+import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
 import type {AlbumParams} from '#lib/api/bindings/AlbumParams';
-import type {AlbumPageParams} from '#lib/api/bindings/AlbumPageParams';
 import type {AddAlbumParams} from '#lib/api/bindings/AddAlbumParams';
 import type {AddLocalAlbumParams} from '#lib/api/bindings/AddLocalAlbumParams';
+import type {AssetCountParams} from '#lib/api/bindings/AssetCountParams';
+import type {AssetEdgeParams} from '#lib/api/bindings/AssetEdgeParams';
 import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
+import type {AssetsQuery} from '#lib/api/bindings/AssetsQuery';
 import type {CreateFolderParams} from '#lib/api/bindings/CreateFolderParams';
 import type {ExportAssetsParams} from '#lib/api/bindings/ExportAssetsParams';
 import type {LocalAssetPage} from '#lib/api/bindings/LocalAssetPage';
@@ -19,7 +22,7 @@ import type {SetAlbumDescriptionParams} from '#lib/api/bindings/SetAlbumDescript
 import type {SetFavoriteParams} from '#lib/api/bindings/SetFavoriteParams';
 import type {TimelineCursor} from '#lib/api/bindings/TimelineCursor';
 import type {TimelinePage} from '#lib/api/bindings/TimelinePage';
-import type {TimelinePageParams} from '#lib/api/bindings/TimelinePageParams';
+import type {ClientMessage, ServerMessage} from 'subscription-client';
 import * as demo from './fixtures';
 
 function paged(items: AssetSummary[], cursor: TimelineCursor | null, limit: number): TimelinePage {
@@ -35,6 +38,33 @@ function pagedLocal(items: LocalAsset[], cursor: string | null, limit: number): 
     const page = items.slice(from, from + limit);
     return {items: page, next: from + limit < items.length ? String(from + limit) : null};
 }
+
+/**
+ * One scope of the timeline, newest first.
+ *
+ * An asset window is an interval: `from` inclusive, `to` exclusive, so the
+ * fixture set answers exactly like the catalog does.
+ */
+function orderedAssets(query: AssetsQuery): AssetSummary[] {
+    const all = query.albumId === null ? demo.assets : demo.albumAssets(query.albumId);
+    return [...all]
+        .sort((a, b) => b.takenAt - a.takenAt || b.id.localeCompare(a.id))
+        .filter((asset) => {
+            const key = cursorOf(asset);
+            return (!query.from || !isOlder(key, query.from)) && (!query.to || isOlder(key, query.to));
+        });
+}
+
+function cursorOf(asset: AssetSummary): TimelineCursor {
+    return {takenAt: asset.takenAt, id: asset.id};
+}
+
+function isOlder(a: TimelineCursor, b: TimelineCursor): boolean {
+    return a.takenAt < b.takenAt || (a.takenAt === b.takenAt && a.id < b.id);
+}
+
+/** Pages subscribed to a view, one set per view name. */
+const subscribers = new Map<string, Set<(payload: unknown) => void>>();
 
 /**
  * The demo runs the real app against fixtures instead of the Rust side. Writes
@@ -103,9 +133,19 @@ function run(command: string, params: Record<string, unknown>): unknown {
             return {id: `folder-${name}`, uri, name, path: `${parent.path}/${name}`};
         }
 
-        case 'timeline_page': {
-            const {cursor, limit} = params as TimelinePageParams;
-            return paged(demo.assets, cursor, limit);
+        case 'asset_count': {
+            const {albumId} = params as AssetCountParams;
+            return albumId === null ? demo.assets.length : demo.albumAssets(albumId).length;
+        }
+
+        case 'asset_edge': {
+            const {albumId, after, depth} = params as AssetEdgeParams;
+            const ordered = orderedAssets({albumId, from: null, to: null});
+            const start = after
+                ? ordered.findIndex((item) => item.takenAt === after.takenAt && item.id === after.id) + 1
+                : 0;
+            const edge = ordered[start + depth - 1];
+            return edge ? cursorOf(edge) : null;
         }
 
         case 'album_list':
@@ -114,11 +154,6 @@ function run(command: string, params: Record<string, unknown>): unknown {
         case 'album_get': {
             const {albumId} = params as AlbumParams;
             return demo.albums.find((item) => item.id === albumId) ?? null;
-        }
-
-        case 'album_page': {
-            const {albumId, cursor, limit} = params as AlbumPageParams;
-            return paged(demo.albumAssets(albumId), cursor, limit);
         }
 
         case 'album_add': {
@@ -229,6 +264,26 @@ function run(command: string, params: Record<string, unknown>): unknown {
         case 'retry_upload':
             return demo.uploads[0]!;
 
+        case 'subscription_connect':
+            return undefined;
+
+        case 'subscription_send': {
+            // The page addresses a view; the demo answers it from fixtures.
+            const addressed = (params as {message: ClientMessage<null | AssetsQuery> & {view: string}}).message;
+            if (addressed.type !== 'subscribe') return undefined;
+            const snapshot: ServerMessage<null | AssetsQuery, AlbumMetadata | AssetSummary> = {
+                type: 'subscribeApplied',
+                requestId: addressed.requestId,
+                querySetId: addressed.querySetId,
+                queries: addressed.queries.map((query) => ({
+                    query,
+                    rows: query === null ? demo.albums : orderedAssets(query),
+                })),
+            };
+            for (const subscriber of subscribers.get(addressed.view) ?? []) subscriber(snapshot);
+            return undefined;
+        }
+
         default:
             throw new Error(`demo: ${command}(${Object.keys(params).join(', ')}) is not mocked`);
     }
@@ -239,8 +294,15 @@ export const transport: Transport = {
         return run(command, params ?? {}) as T;
     },
 
-    /** Nothing in the demo emits; the app just needs a cancel handle back. */
-    async listen<T>(_event: string, _handler: (payload: T) => void): Promise<() => void> {
-        return () => {};
+    /** A subscription is answered with its snapshot; other events never fire. */
+    async listen<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
+        const lookup = /^subscription:\/\/(\w+)$/.exec(event);
+        if (!lookup) return () => {};
+        const view = lookup[1]!;
+        const subscriber = handler as (payload: unknown) => void;
+        const listeners = subscribers.get(view) ?? new Set();
+        listeners.add(subscriber);
+        subscribers.set(view, listeners);
+        return () => listeners.delete(subscriber);
     },
 };

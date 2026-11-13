@@ -1,16 +1,14 @@
 <script lang="ts">
-    import {onMount} from 'svelte';
     import {useNavigation} from 'svelte-navigation';
     import {api} from '#lib/api/client';
-    import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import type {FolderRef} from '#lib/api/bindings/FolderRef';
+    import {albumsView} from '#lib/api/views';
     import AlbumCard from './components/AlbumCard/AlbumCard.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
     import {Images, Plus, RefreshCw, Square, WifiOff} from '@lucide/svelte';
     import RemoteFolderPicker from './components/RemoteFolderPicker/RemoteFolderPicker.svelte';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte';
-    import {changes} from '#lib/api/changes';
     import {i18n} from '#lib/i18n/i18n.svelte';
     import type {AlbumsNavParamList} from './route';
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
@@ -18,9 +16,10 @@
 
     const navigation = useNavigation<AlbumsNavParamList>();
 
-    let albums = $state<AlbumMetadata[]>([]);
-    let loading = $state(true);
-    let error = $state('');
+    // Live: one snapshot when the page subscribes, then the rows each catalog
+    // write changed, so a running index pass keeps the counts and mosaics moving
+    // without reloading the grid.
+    const view = albumsView.use();
     let pickerOpen = $state(false);
     let adding = $state(false);
 
@@ -35,32 +34,12 @@
         ),
     );
 
-    $effect(() => {
-        // Counts and mosaics come from assets too, so any catalog write refreshes
-        // this grid; keyed each-blocks keep the scroll position intact.
-        return changes.subscribe(() => void load());
-    });
-
-    onMount(() => {
-        void load();
-    });
-
-    async function load() {
-        error = '';
-        try {
-            albums = await api.albumList();
-        } catch (err) {
-            error = app.describeError(err);
-        } finally {
-            loading = false;
-        }
-    }
-
     async function add(folder: FolderRef) {
         adding = true;
         try {
+            // The row arrives through the subscription once the folder row is
+            // committed, so the grid is not patched here.
             const album = await api.addAlbum({uri: folder.uri});
-            albums = [album, ...albums.filter((entry) => entry.id !== album.id)];
             app.showToast(t.added(album.name), 'success');
         } catch (err) {
             app.showToast(app.describeError(err), 'error');
@@ -109,28 +88,22 @@
     </button>
 {/snippet}
 
-<ScreenOptions title={c.albums} subtitle={loading ? c.loading : t.count(albums.length)} {actions} />
+<ScreenOptions title={c.albums} subtitle={view.loading ? c.loading : t.count(view.rows.length)} {actions} />
 
-{#if loading && albums.length === 0}
+{#if view.loading && view.rows.length === 0}
     <div class="grid grid-cols-2 gap-3 p-4">
         {#each Array(4) as _, i (i)}
             <div class="aspect-square animate-pulse rounded-2xl bg-gray"></div>
         {/each}
     </div>
-{:else if error}
-    <EmptyState
-        icon={WifiOff}
-        title={t.failed}
-        description={error}
-        actionLabel={c.retry}
-        onAction={() => void load()}
-    />
-{:else if albums.length === 0}
+{:else if view.error}
+    <EmptyState icon={WifiOff} title={t.failed} description={view.error} actionLabel={c.retry} onAction={view.retry} />
+{:else if view.rows.length === 0}
     <EmptyState icon={Images} title={t.empty} actionLabel={c.addAlbum} onAction={() => (pickerOpen = true)} />
 {:else}
     <div class="px-4 pb-24 pt-2">
         <div class="grid grid-cols-2 gap-3">
-            {#each albums as album (album.id)}
+            {#each view.rows as album (album.id)}
                 <AlbumCard {album} onOpen={() => navigation.navigate('Album', {id: album.id})} />
             {/each}
         </div>

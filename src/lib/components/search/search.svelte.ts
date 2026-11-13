@@ -73,9 +73,14 @@ export class Search {
         this.selection = selection;
         this.scroll = scroll;
         // Replaced by `run()` before the first request; an idle mode loads nothing.
-        this.timeline = new Timeline((cursor, limit) =>
-            this.request({query: '', mediaType: null, favorite: false, from: '', to: ''}, cursor, limit),
-        );
+        this.timeline = new Timeline({
+            page: (cursor, limit) =>
+                this.request(
+                    {query: '', mediaType: null, favorite: false, from: '', to: ''},
+                    cursor,
+                    limit,
+                ),
+        });
     }
 
     /** True while some condition narrows the library; an empty mode is idle. */
@@ -152,7 +157,7 @@ export class Search {
             this.timeline.reset();
             return;
         }
-        this.timeline.setLoader((cursor, limit) => this.request(filters, cursor, limit));
+        this.timeline.setPageLoader((cursor, limit) => this.request(filters, cursor, limit));
         await this.timeline.reload();
         this.started = true;
     }

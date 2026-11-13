@@ -15,7 +15,7 @@
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
         "format": "prettier --write .",
-        "bindings": "cargo test -p source-core -p source-jobs && pnpm exec prettier --write 'src/lib/api/bindings/*.ts'",
+        "bindings": "cargo test -p source-core -p source-jobs -p source-subscription && pnpm exec prettier --write 'src/lib/api/bindings/*.ts' 'packages/subscription-client/src/bindings/*.ts'",
         "tauri": "tauri",
         "demo:dev": "vite dev --config vite.config.demo.ts",
         "demo:build": "vite build --config vite.config.demo.ts",
@@ -31,6 +31,7 @@
         "@tauri-apps/api": "^2.9.0",
         "@tauri-apps/plugin-log": "~2.10.1",
         "@tauri-apps/plugin-opener": "^2.5.0",
+        "subscription-client": "workspace:*",
         "svelte": "5.57.3",
         "svelte-navigation": "workspace:*"
     },

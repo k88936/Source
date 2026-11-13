@@ -29,6 +29,9 @@ importers:
       '@tauri-apps/plugin-opener':
         specifier: ^2.5.0
         version: 2.7.2
+      subscription-client:
+        specifier: workspace:*
+        version: link:packages/subscription-client
       svelte:
         specifier: 5.57.3
         version: 5.57.3(@typescript-eslint/types@8.72.2)
@@ -87,6 +90,12 @@ importers:
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.5)(jiti@2.7.0)
+
+  packages/subscription-client:
+    dependencies:
+      svelte:
+        specifier: ^5.0.0
+        version: 5.57.3(@typescript-eslint/types@8.72.2)
 
   packages/svelte-navigation:
     dependencies:

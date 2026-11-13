@@ -59,7 +59,7 @@
                 assetId: asset.id,
                 value: !asset.favorite,
             });
-            timeline.items[index] = updated;
+            timeline.upsert(updated);
             if (detail) detail = {...detail, asset: updated};
         } catch (error) {
             app.showToast(app.describeError(error), 'error');

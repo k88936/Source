@@ -30,4 +30,4 @@
     {onColumns}
 />
 
-<LoadMoreSentinel hasMore={timeline.next !== null} onLoad={() => void timeline.loadMore()} />
+<LoadMoreSentinel hasMore={timeline.hasMore} onLoad={() => void timeline.loadMore()} />

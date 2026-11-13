@@ -6,6 +6,7 @@
     import AssetList from '#lib/components/assets/AssetList/AssetList.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
     import {AssetBrowser} from '#lib/components/assets/browser.svelte';
+    import {assetsView} from '#lib/api/views';
     import {Image, Search as SearchIcon, X} from '@lucide/svelte';
     import SearchInput from '#lib/components/search/SearchInput/SearchInput.svelte';
     import SearchMode from '#lib/components/search/SearchMode/SearchMode.svelte';
@@ -13,8 +14,8 @@
     import SelectionOverlay from '#lib/components/selection/SelectionOverlay/SelectionOverlay.svelte';
     import TimelineActions from '#lib/components/viewer/TimelineActions/TimelineActions.svelte';
     import {common} from '#lib/i18n/common.i18n';
-    import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
+    import {app} from '#lib/app/app.svelte';
     import {changes} from '#lib/api/changes';
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
     import type {PhotosNavParamList} from './route';
@@ -25,20 +26,25 @@
     const scroll = useScrollContainer();
     const takeBack = useBackHandler();
 
-    const browser = new AssetBrowser((cursor, limit) => api.timelinePage({cursor, limit}), {scroll});
+    const browser = new AssetBrowser(
+        {
+            window: ({from, to}, listeners) => assetsView.watch({albumId: null, from, to}, listeners),
+            edge: (after, depth) => api.assetEdge({albumId: null, after, depth}),
+            count: () => api.assetCount({albumId: null}),
+        },
+        {scroll},
+    );
 
     const t = $derived(i18n.pick(photos));
     const c = $derived(i18n.pick(common));
 
     $effect(() => {
-        // Patch on writes, refetch only when a listing pass moved the ground.
+        // The rows arrive through the window; a listing pass only moves the
+        // length the counter prints.
         return changes.subscribe((change) => {
-            if (change.kind === 'albums') {
-                void browser.timeline.reload();
-                if (browser.search.open) void browser.search.run();
-                return;
-            }
-            for (const asset of change.assets) browser.timeline.upsert(asset);
+            if (change.kind !== 'albums') return;
+            void browser.timeline.refreshTotal();
+            if (browser.search.open) void browser.search.run();
         });
     });
 
@@ -129,8 +135,7 @@
         title={browser.timeline.error ? t.failed : t.empty}
         description={browser.timeline.error}
         actionLabel={browser.timeline.error ? c.retry : c.addAlbum}
-        onAction={() =>
-            browser.timeline.error ? void browser.timeline.reload() : navigation.navigate('Albums')}
+        onAction={() => (browser.timeline.error ? void browser.timeline.reload() : navigation.navigate('Albums'))}
     />
 {:else}
     <AssetList

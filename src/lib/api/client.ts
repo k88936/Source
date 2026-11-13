@@ -3,11 +3,12 @@ import type {Capacity} from './bindings/Capacity';
 import type {CacheStats} from './bindings/CacheStats';
 import type {AddAlbumParams} from './bindings/AddAlbumParams';
 import type {AddLocalAlbumParams} from './bindings/AddLocalAlbumParams';
-import type {AlbumPageParams} from './bindings/AlbumPageParams';
-import type {AlbumParams} from './bindings/AlbumParams';
 import type {AlbumMetadata} from './bindings/AlbumMetadata';
+import type {AlbumParams} from './bindings/AlbumParams';
+import type {AssetCountParams} from './bindings/AssetCountParams';
 import type {AssetDetail} from './bindings/AssetDetail';
 import type {AssetDetailParams} from './bindings/AssetDetailParams';
+import type {AssetEdgeParams} from './bindings/AssetEdgeParams';
 import type {AssetSummary} from './bindings/AssetSummary';
 import type {EnqueueUploadsParams} from './bindings/EnqueueUploadsParams';
 import type {ExportAssetsParams} from './bindings/ExportAssetsParams';
@@ -39,9 +40,9 @@ import type {SetJobsPausedParams} from './bindings/SetJobsPausedParams';
 import type {SetServerParams} from './bindings/SetServerParams';
 import type {SessionState} from './bindings/SessionState';
 import type {SiteInfo} from './bindings/SiteInfo';
-import type {TimelinePage} from './bindings/TimelinePage';
-import type {TimelinePageParams} from './bindings/TimelinePageParams';
 import type {QueuedUpload} from './bindings/QueuedUpload';
+import type {TimelineCursor} from './bindings/TimelineCursor';
+import type {TimelinePage} from './bindings/TimelinePage';
 import type {UploadTaskParams} from './bindings/UploadTaskParams';
 import {transport} from '#lib/api/transport';
 
@@ -66,10 +67,10 @@ export const api = {
     listRemoteFolders: (params: ListRemoteFoldersParams) => call<RemoteFolderPage>('list_remote_folders', params),
     createFolder: (params: CreateFolderParams) => call<FolderRef>('create_folder', params),
 
-    timelinePage: (params: TimelinePageParams) => call<TimelinePage>('timeline_page', params),
+    assetCount: (params: AssetCountParams) => call<number>('asset_count', params),
+    assetEdge: (params: AssetEdgeParams) => call<TimelineCursor | null>('asset_edge', params),
     albumList: () => call<AlbumMetadata[]>('album_list'),
     albumGet: (params: AlbumParams) => call<AlbumMetadata | null>('album_get', params),
-    albumPage: (params: AlbumPageParams) => call<TimelinePage>('album_page', params),
     addAlbum: (params: AddAlbumParams) => call<AlbumMetadata>('album_add', params),
     removeAlbum: (params: AlbumParams) => call<void>('album_remove', params),
     refreshAlbum: (params: AlbumParams) => call<AlbumMetadata>('album_refresh', params),

@@ -15,6 +15,7 @@
     import SelectionOverlay from '#lib/components/selection/SelectionOverlay/SelectionOverlay.svelte';
     import TimelineActions from '#lib/components/viewer/TimelineActions/TimelineActions.svelte';
     import {AssetBrowser} from '#lib/components/assets/browser.svelte';
+    import {assetsView} from '#lib/api/views';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte';
     import {changes} from '#lib/api/changes';
@@ -30,10 +31,14 @@
     const albumId = $derived(useRoute<AlbumsNavParamList>().params?.id ?? '');
 
     /** Confined to this album, so a result can never come from another one. */
-    const browser = new AssetBrowser((cursor, limit) => api.albumPage({albumId, cursor, limit}), {
-        scroll,
-        folder: () => albumId,
-    });
+    const browser = new AssetBrowser(
+        {
+            window: ({from, to}, listeners) => assetsView.watch({albumId, from, to}, listeners),
+            edge: (after, depth) => api.assetEdge({albumId, after, depth}),
+            count: () => api.assetCount({albumId}),
+        },
+        {scroll, folder: () => albumId},
+    );
 
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
@@ -77,23 +82,20 @@
     });
 
     $effect(() => {
+        // The rows are a subscription; only the album header still comes from a
+        // command, so a commit patches it and leaves the list alone.
         return changes.subscribe((change) => {
-            if (change.kind === 'albums') {
-                const updated = change.albums.find((entry) => entry.id === albumId);
-                if (updated) album = updated;
-                if (browser.search.open) void browser.search.run();
-                return;
-            }
-            for (const asset of change.assets) {
-                if (asset.folderId === albumId) browser.timeline.upsert(asset);
-            }
+            if (change.kind !== 'albums') return;
+            const updated = change.albums.find((entry) => entry.id === albumId);
+            if (updated) album = updated;
+            if (browser.search.open) void browser.search.run();
         });
     });
 
     $effect(() => () => browser.dispose());
 
-    async function load(id: string, keepItems = false) {
-        if (!keepItems) browser.timeline.reset();
+    async function load(id: string) {
+        browser.timeline.reset();
         metaError = '';
         try {
             album = await api.albumGet({albumId: id});
@@ -116,10 +118,12 @@
         refreshing = true;
         try {
             album = await api.refreshAlbum({albumId});
-            await browser.timeline.reload();
+            // The rows arrive through the subscription; only the length a viewer
+            // prints comes from the listing itself.
+            browser.timeline.total = album.assetCount;
             app.showToast(t.refreshed, 'success');
         } catch (err) {
-            await load(albumId, true);
+            await load(albumId);
             app.showToast(app.describeError(err), 'error');
         } finally {
             refreshing = false;
@@ -214,10 +218,7 @@
             <X size={21} />
         </button>
     {:else if browser.search.open}
-        <button
-            onclick={() => browser.search.exit()}
-            class="rounded-full px-3 py-2 text-xs font-medium text-muted"
-        >
+        <button onclick={() => browser.search.exit()} class="rounded-full px-3 py-2 text-xs font-medium text-muted">
             {c.cancel}
         </button>
     {:else}
@@ -249,13 +250,7 @@
     {/if}
 {/snippet}
 
-<ScreenOptions
-    {title}
-    {subtitle}
-    content={browser.search.open ? searchContent : undefined}
-    contentCentered
-    {actions}
-/>
+<ScreenOptions {title} {subtitle} content={browser.search.open ? searchContent : undefined} contentCentered {actions} />
 
 {#if album?.sync?.failed && !coverMode && !browser.search.open}
     <div class="mx-4 mt-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
@@ -315,11 +310,7 @@
     />
 {/if}
 
-<SelectionOverlay
-    selection={browser.selection}
-    excludeId={albumId}
-    onMoved={(ids) => browser.shown.remove(ids)}
-/>
+<SelectionOverlay selection={browser.selection} excludeId={albumId} onMoved={(ids) => browser.shown.remove(ids)} />
 
 <AlbumMenu
     bind:open={menuOpen}

@@ -4,7 +4,7 @@ import {viewer} from '../../../modals/Viewer/viewer.svelte';
 import {Search} from '../search/search.svelte';
 import {Selection} from '../selection/selection.svelte';
 import {timelineItem} from '../viewer/viewer-item';
-import {Timeline, type PageLoader} from './timeline.svelte';
+import {Timeline, type TimelineSource} from './timeline.svelte';
 
 /** The viewer screen every list opens; a tab's own param list narrows to this. */
 type ViewerNavigation = {navigate(name: 'Viewer'): void};
@@ -22,7 +22,7 @@ export class AssetBrowser {
     readonly search: Search;
 
     constructor(
-        loader: PageLoader,
+        source: TimelineSource,
         {
             scroll,
             folder = () => null,
@@ -33,7 +33,7 @@ export class AssetBrowser {
             folder?: () => string | null;
         },
     ) {
-        this.timeline = new Timeline(loader);
+        this.timeline = new Timeline(source);
         this.search = new Search(folder, this.selection, scroll);
     }
 
@@ -64,5 +64,6 @@ export class AssetBrowser {
 
     dispose(): void {
         this.search.dispose();
+        this.timeline.stop();
     }
 }
