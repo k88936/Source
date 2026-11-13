@@ -6,6 +6,7 @@
 //! sub-folders and no non-media entries.
 
 mod dto;
+mod locals;
 mod view;
 
 use std::sync::Arc;
@@ -26,9 +27,8 @@ use crate::remote::{
     ListError, MediaFetchError, MetadataError, MoveError, RemoteError, RemoteStorage,
 };
 use crate::store::{
-    AlbumId, AlbumMetadata, AlbumStore, AssetRecord, AssetStore, AssetSummary, CatalogError,
-    FolderId, FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, SYNC_DONE,
-    SYNC_FAILED, TimelineStore,
+    AlbumMetadata, AlbumStore, AssetRecord, AssetStore, AssetSummary, CatalogError, FolderId,
+    FolderRecord, FolderStore, LocalStore, MediaType, SYNC_DONE, SYNC_FAILED, TimelineStore,
 };
 use crate::task::{Attempt, Retry, Step, attempt};
 use crate::time::now_ms;
@@ -36,6 +36,7 @@ use crate::time::now_ms;
 use super::{clamp_limit, folder_record, folder_ref};
 
 pub use dto::*;
+pub use locals::Locals;
 pub use view::Albums;
 
 /// What an album operation can fail with.
@@ -116,7 +117,8 @@ enum Listing {
 
 pub struct AlbumsService<R, C, M>
 where
-    C: AlbumStore + Clone + 'static,
+    C: AlbumStore + LocalStore + Clone + 'static,
+    M: LocalMediaPort + Clone + 'static,
 {
     cloud: R,
     catalog: C,
@@ -126,16 +128,24 @@ where
     /// derivation of the catalog this service manages, not a separate component
     /// that has to be wired to it.
     subscriptions: Arc<SubscriptionManager<Albums<C>>>,
+    /// The other side of the same page: the device directories syncing into
+    /// those albums. They answer from the same catalog, so they live here too.
+    locals: Arc<SubscriptionManager<Locals<C, M>>>,
 }
 
 impl<R, C, M> AlbumsService<R, C, M>
 where
-    C: AlbumStore + Clone + 'static,
+    C: AlbumStore + LocalStore + Clone + 'static,
+    M: LocalMediaPort + Clone + 'static,
 {
     pub fn new(cloud: R, catalog: C, local: M, jobs: Jobs) -> Self {
         Self {
             subscriptions: Arc::new(SubscriptionManager::new(Arc::new(Albums::new(
                 catalog.clone(),
+            )))),
+            locals: Arc::new(SubscriptionManager::new(Arc::new(Locals::new(
+                catalog.clone(),
+                local.clone(),
             )))),
             cloud,
             catalog,
@@ -144,14 +154,23 @@ where
         }
     }
 
-    /// The view a page connects to.
+    /// The album grid a page connects to.
     pub fn subscriptions(&self) -> Arc<SubscriptionManager<Albums<C>>> {
         Arc::clone(&self.subscriptions)
     }
 
-    /// Answer one commit for everyone watching the grid.
+    /// The local albums a page connects to.
+    pub fn local_subscriptions(&self) -> Arc<SubscriptionManager<Locals<C, M>>> {
+        Arc::clone(&self.locals)
+    }
+
+    /// Answer one commit for everyone watching the page: the grid and the
+    /// sources it stacks beside it.
     pub async fn apply_changes(&self, changes: &[Change]) {
-        self.subscriptions.apply(changes).await;
+        tokio::join!(
+            self.subscriptions.apply(changes),
+            self.locals.apply(changes)
+        );
     }
 }
 
@@ -159,7 +178,7 @@ impl<R, C, M> AlbumsService<R, C, M>
 where
     R: RemoteStorage + 'static,
     C: AlbumStore + AssetStore + FolderStore + TimelineStore + LocalStore + Clone + 'static,
-    M: LocalMediaPort + 'static,
+    M: LocalMediaPort + Clone + 'static,
 {
     pub async fn list_albums(&self) -> Result<Vec<AlbumMetadata>, AlbumError> {
         self.list_albums_impl().await
@@ -239,10 +258,6 @@ where
     // Local albums
     // ---------------------------------------------------------------------
 
-    pub async fn local_album_list(&self) -> Result<Vec<LocalAlbumMetadata>, AlbumError> {
-        self.local_album_list_impl().await
-    }
-
     /// One step of the device library browser the picker is built on.
     pub async fn browse_local(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AlbumError> {
         self.browse_local_impl(parent).await
@@ -265,10 +280,7 @@ where
     ///
     /// A local album only ever exists to sync somewhere, so the target album is
     /// part of the same write as the registration.
-    pub async fn add_local_album(
-        &self,
-        params: AddLocalAlbumParams,
-    ) -> Result<LocalAlbumMetadata, AlbumError> {
+    pub async fn add_local_album(&self, params: AddLocalAlbumParams) -> Result<(), AlbumError> {
         self.add_local_album_impl(params).await
     }
 
@@ -287,7 +299,7 @@ impl<R, C, M> AlbumsService<R, C, M>
 where
     R: RemoteStorage + 'static,
     C: AlbumStore + AssetStore + FolderStore + TimelineStore + LocalStore + Clone + 'static,
-    M: LocalMediaPort + 'static,
+    M: LocalMediaPort + Clone + 'static,
 {
     async fn list_albums_impl(&self) -> Result<Vec<AlbumMetadata>, AlbumError> {
         self.catalog
@@ -473,19 +485,6 @@ where
         Ok(moved)
     }
 
-    async fn local_album_list_impl(&self) -> Result<Vec<LocalAlbumMetadata>, AlbumError> {
-        let albums = self
-            .catalog
-            .list_local_albums()
-            .await
-            .map_err(AlbumError::catalog)?;
-        let mut metadata = Vec::with_capacity(albums.len());
-        for album in albums {
-            metadata.push(self.local_album_to_metadata(album).await?);
-        }
-        Ok(metadata)
-    }
-
     async fn browse_local_impl(&self, parent: Option<&str>) -> Result<LocalBrowsePage, AlbumError> {
         self.local
             .browse(parent)
@@ -514,10 +513,7 @@ where
             .map_err(|cause| AlbumError::LocalMedia { cause })
     }
 
-    async fn add_local_album_impl(
-        &self,
-        params: AddLocalAlbumParams,
-    ) -> Result<LocalAlbumMetadata, AlbumError> {
+    async fn add_local_album_impl(&self, params: AddLocalAlbumParams) -> Result<(), AlbumError> {
         let album = self
             .catalog
             .get_album(&params.album_id.0)
@@ -529,16 +525,7 @@ where
         self.catalog
             .add_local_album(&params.uri, &params.name, &album.id.0)
             .await
-            .map_err(AlbumError::catalog)?;
-        let record = self
-            .catalog
-            .get_local_album(&params.uri)
-            .await
-            .map_err(AlbumError::catalog)?
-            .ok_or_else(|| AlbumError::LocalAlbumMissing {
-                uri: params.uri.clone(),
-            })?;
-        self.local_album_to_metadata(record).await
+            .map_err(AlbumError::catalog)
     }
 
     async fn remove_local_album_impl(&self, id: &str) -> Result<(), AlbumError> {
@@ -546,31 +533,6 @@ where
             .remove_local_album(id)
             .await
             .map_err(AlbumError::catalog)
-    }
-
-    async fn local_album_to_metadata(
-        &self,
-        album: LocalAlbumRecord,
-    ) -> Result<LocalAlbumMetadata, AlbumError> {
-        let asset_count = self
-            .local
-            .count_assets(&album.uri)
-            .await
-            .map_err(|cause| AlbumError::LocalMedia { cause })?;
-        let covers = self
-            .local
-            .list_assets(&album.uri, None, 4)
-            .await
-            .map_err(|cause| AlbumError::LocalMedia { cause })?;
-        Ok(LocalAlbumMetadata {
-            id: album.id,
-            uri: album.uri,
-            name: album.name,
-            album_id: AlbumId(album.album_id),
-            album_name: album.album_name,
-            asset_count,
-            cover_uris: covers.items.into_iter().map(|asset| asset.uri).collect(),
-        })
     }
 
     async fn album_metadata(&self, album_id: &str) -> Result<AlbumMetadata, AlbumError> {

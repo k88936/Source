@@ -1,7 +1,6 @@
 <script lang="ts">
     import {useNavigation, useRoute} from 'svelte-navigation';
     import {api} from '#lib/api/client';
-    import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
     import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
     import AssetThumb from '#lib/components/assets/AssetThumb/AssetThumb.svelte';
     import ConfirmDialog from '#lib/components/overlay/ConfirmDialog/ConfirmDialog.svelte';
@@ -16,6 +15,7 @@
     import {viewer} from '../../../modals/Viewer/viewer.svelte';
     import type {AlbumsNavParamList} from '../route';
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
+    import {localsView} from '#lib/api/views';
     import {localAlbum as text} from './LocalAlbum.i18n';
 
     const PAGE = 200;
@@ -24,7 +24,12 @@
     // One stack entry is one local album, so the id never changes under this screen.
     const albumId = $derived(useRoute<AlbumsNavParamList>().params?.id ?? '');
 
-    let album = $state<LocalAlbumMetadata | null>(null);
+    /// The registered album, as the view holds it: the name, the count and the
+    /// target come from the device and the catalog, never from this page.
+    const sources = localsView.use();
+    const album = $derived(sources.rows.find((entry) => entry.id === albumId) ?? null);
+    const albumUri = $derived(album?.uri ?? null);
+
     let items = $state<LocalAsset[]>([]);
     let next = $state<string | null>(null);
     let loading = $state(true);
@@ -36,22 +41,26 @@
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
 
+    // The first page waits for the row: until the view says where this album is,
+    // there is no folder to read. A commit that only changes the count leaves
+    // the uri alone, so the grid is not page-flipped under the reader.
     $effect(() => {
-        void load(albumId);
+        if (sources.loading) return;
+        const uri = albumUri;
+        if (!uri) {
+            loading = false;
+            return;
+        }
+        void load(uri);
     });
 
-    async function load(id: string): Promise<boolean> {
+    async function load(uri: string): Promise<boolean> {
+        const id = albumId;
         loading = true;
         next = null;
         try {
-            const albums = await api.localAlbumList();
-            album = albums.find((entry) => entry.id === id) ?? null;
-            if (!album) return false;
-            const result = await api.localAssetPage({
-                albumUri: album.uri,
-                cursor: null,
-                limit: PAGE,
-            });
+            const result = await api.localAssetPage({albumUri: uri, cursor: null, limit: PAGE});
+            if (id !== albumId) return false;
             items = result.items;
             next = result.next;
             return true;
@@ -65,10 +74,10 @@
 
     /// Re-reads the folder from the device: the page never caches a listing.
     async function refresh() {
-        if (refreshing) return;
+        if (refreshing || !albumUri) return;
         refreshing = true;
         try {
-            if (await load(albumId)) app.showToast(t.refreshed, 'success');
+            if (await load(albumUri)) app.showToast(t.refreshed, 'success');
         } finally {
             refreshing = false;
         }

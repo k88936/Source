@@ -55,13 +55,6 @@ pub(crate) async fn set_favorite(
 }
 
 #[tauri::command]
-pub(crate) async fn album_list(
-    state: State<'_, AppState>,
-) -> Result<Vec<AlbumMetadata>, AlbumError> {
-    state.core.albums.list_albums().await
-}
-
-#[tauri::command]
 pub(crate) async fn album_get(
     state: State<'_, AppState>,
     params: AlbumParams,

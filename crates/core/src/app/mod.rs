@@ -21,7 +21,7 @@ pub mod sync;
 pub mod uploads;
 
 pub use account::{AccountService, AccountState, LoginOutcome};
-pub use albums::{Albums, AlbumsService};
+pub use albums::{Albums, AlbumsService, Locals};
 pub use browse::{Assets, BrowseService};
 pub use dto::*;
 pub use folders::FoldersService;

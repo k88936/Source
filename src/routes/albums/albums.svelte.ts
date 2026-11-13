@@ -1,10 +1,10 @@
-import {changes} from '#lib/api/changes';
 import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
 import type {Job} from '#lib/api/bindings/Job';
 import type {JobKind} from '#lib/api/bindings/JobKind';
 import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
 import type {QueuedUpload} from '#lib/api/bindings/QueuedUpload';
 import {api} from '#lib/api/client';
+import {albumsView, localsView} from '#lib/api/views';
 import {app} from '#lib/app/app.svelte';
 
 /// How a mapping reads at a glance. The line is the only place this shows:
@@ -180,51 +180,44 @@ export class SyncBoard {
         };
     });
 
-    async loadAlbums(): Promise<void> {
-        this.albums = await api.albumList();
-    }
-
-    async loadLocals(): Promise<void> {
-        this.locals = await api.localAlbumList();
-    }
-
     async loadTasks(): Promise<void> {
         this.tasks = await api.uploadTasks();
     }
 
-    /// A mapping is a catalog change, so it comes and goes with the catalog.
-    async loadCatalog(): Promise<void> {
-        await Promise.all([this.loadAlbums(), this.loadLocals()]);
-    }
-
-    async reload(): Promise<void> {
-        await Promise.all([this.loadCatalog(), this.loadTasks()]);
-    }
-
-    /// Point a folder at an album. The new row is enough to redraw the graph.
+    /// Point a folder at an album. The row the view sends back is the redraw.
     async attach(uri: string, name: string, albumId: string): Promise<void> {
         await api.addLocalAlbum({uri, name, albumId});
-        await this.loadLocals();
     }
 
     /// Drop one mapping. Uploaded files stay in the album.
     async unbind(id: string): Promise<void> {
         await api.removeLocalAlbum({id});
-        await this.loadLocals();
     }
 }
 
-/// Wire a board to its page: the first read, live catalog changes, and the tick
-/// that keeps the byte counters moving while anything is queued.
+/// Wire a board to its page: the two views it draws from, and the tick that
+/// keeps the byte counters moving while anything is queued.
 ///
 /// The effects live here, not on the class, because a rune only registers work
 /// while a component is being set up, and this function is called exactly then.
 export function startSyncBoard(board: SyncBoard): void {
+    const grid = albumsView.use();
+    const sources = localsView.use();
+
+    // Both lists are subscriptions: they arrive whole once and are patched by
+    // every commit, so an album or a mapping added or removed on another screen
+    // is already in these rows when this page comes back.
     $effect(() => {
-        void board.reload();
+        board.albums = grid.rows;
     });
 
-    $effect(() => changes.subscribe(() => void board.loadCatalog()));
+    $effect(() => {
+        board.locals = sources.rows;
+    });
+
+    $effect(() => {
+        void board.loadTasks();
+    });
 
     $effect(() => {
         if (board.queue.uploading + board.queue.waiting === 0) return;

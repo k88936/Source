@@ -359,18 +359,6 @@ export const localAlbums: LocalAlbumMetadata[] = [
     },
 ];
 
-export function buildLocalAlbum(uri: string, name: string, albumId: string): LocalAlbumMetadata {
-    return {
-        id: `local-album-${localAlbums.length + 1}`,
-        uri,
-        name,
-        albumId,
-        albumName: album(albumId).name,
-        assetCount: 0,
-        coverUris: [],
-    };
-}
-
 export const uploads: UploadTask[] = [
     // Camera, two files moving at a comfortable speed.
     {

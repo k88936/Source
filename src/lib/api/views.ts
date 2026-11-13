@@ -1,6 +1,7 @@
 import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
 import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
 import type {AssetsQuery} from '#lib/api/bindings/AssetsQuery';
+import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
 import type {TimelineCursor} from '#lib/api/bindings/TimelineCursor';
 import type {Listeners, Subscription} from 'subscription-client';
 import {errorText} from '#lib/errors/i18n';
@@ -31,9 +32,10 @@ type Window = {
  * deltas, and a page that stops reading one stream cannot starve the other.
  */
 const albums = new Client<AlbumsQuery, AlbumMetadata>(wireFor('albums'));
+const locals = new Client<AlbumsQuery, LocalAlbumMetadata>(wireFor('locals'));
 const assets = new Client<AssetsQuery, AssetSummary>(wireFor('assets'));
 
-const byName = (a: AlbumMetadata, b: AlbumMetadata) => a.name.localeCompare(b.name);
+const byName = (a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name);
 const newestFirst = (a: AssetSummary, b: AssetSummary) => b.takenAt - a.takenAt || b.id.localeCompare(a.id);
 
 /**
@@ -47,6 +49,19 @@ export const albumsView = {
     /** The grid, live for as long as the calling component is mounted. */
     use() {
         return useQuery(albums, {query: null, compare: byName}, errorText);
+    },
+};
+
+/**
+ * The local albums: the device directories syncing into the grid.
+ *
+ * The count and the mosaic are asked of the device every time a commit names
+ * one of these rows, so the page never counts a folder itself.
+ */
+export const localsView = {
+    /** The sources, live for as long as the calling component is mounted. */
+    use() {
+        return useQuery(locals, {query: null, compare: byName}, errorText);
     },
 };
 

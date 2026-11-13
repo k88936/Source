@@ -7,7 +7,7 @@
 //! half ends, the manager drops every query set it held, and the new page
 //! subscribes from a fresh snapshot.
 //!
-//! Nothing here is view specific beyond the two arms of `ViewName`: the manager,
+//! Nothing here is view specific beyond the arms of `ViewName`: the manager,
 //! the protocol and the channel adapter are the same crate a standalone server
 //! would use.
 
@@ -27,6 +27,7 @@ use crate::prelude::*;
 #[serde(rename_all = "camelCase")]
 pub(crate) enum ViewName {
     Albums,
+    Locals,
     Assets,
 }
 
@@ -52,6 +53,7 @@ pub(crate) struct SubscriptionSendParams {
 #[serde(tag = "view", rename_all = "camelCase")]
 pub(crate) enum Addressed {
     Albums(ClientMessage<()>),
+    Locals(ClientMessage<()>),
     Assets(ClientMessage<AssetsQuery>),
 }
 
@@ -70,6 +72,17 @@ pub(crate) fn subscription_connect(
                 app,
                 event: "subscription://albums",
             })?;
+            tauri::async_runtime::spawn(running);
+        }
+        ViewName::Locals => {
+            let running = state
+                .core
+                .albums
+                .local_subscriptions()
+                .connect(TauriWriter {
+                    app,
+                    event: "subscription://locals",
+                })?;
             tauri::async_runtime::spawn(running);
         }
         ViewName::Assets => {
@@ -92,6 +105,7 @@ pub(crate) fn subscription_send(
 ) -> Result<(), String> {
     match params.message {
         Addressed::Albums(message) => state.core.albums.subscriptions().send(message),
+        Addressed::Locals(message) => state.core.albums.local_subscriptions().send(message),
         Addressed::Assets(message) => state.core.browse.subscriptions().send(message),
     }
 }

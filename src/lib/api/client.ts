@@ -17,7 +17,6 @@ import type {CreateFolderParams} from './bindings/CreateFolderParams';
 import type {FolderRef} from './bindings/FolderRef';
 import type {ListRemoteFoldersParams} from './bindings/ListRemoteFoldersParams';
 import type {LocalAlbumParams} from './bindings/LocalAlbumParams';
-import type {LocalAlbumMetadata} from './bindings/LocalAlbumMetadata';
 import type {LocalAssetPage} from './bindings/LocalAssetPage';
 import type {LocalAssetPageParams} from './bindings/LocalAssetPageParams';
 import type {LocalBrowsePage} from './bindings/LocalBrowsePage';
@@ -69,7 +68,6 @@ export const api = {
 
     assetCount: (params: AssetCountParams) => call<number>('asset_count', params),
     assetEdge: (params: AssetEdgeParams) => call<TimelineCursor | null>('asset_edge', params),
-    albumList: () => call<AlbumMetadata[]>('album_list'),
     albumGet: (params: AlbumParams) => call<AlbumMetadata | null>('album_get', params),
     addAlbum: (params: AddAlbumParams) => call<AlbumMetadata>('album_add', params),
     removeAlbum: (params: AlbumParams) => call<void>('album_remove', params),
@@ -90,8 +88,7 @@ export const api = {
     mediaPermissionState: () => call<MediaPermissionState>('media_permission_state'),
     requestMediaPermission: () => call<MediaPermissionState>('request_media_permission'),
     localBrowse: (params: LocalBrowseParams) => call<LocalBrowsePage>('local_browse', params),
-    localAlbumList: () => call<LocalAlbumMetadata[]>('local_album_list'),
-    addLocalAlbum: (params: AddLocalAlbumParams) => call<LocalAlbumMetadata>('local_album_add', params),
+    addLocalAlbum: (params: AddLocalAlbumParams) => call<void>('local_album_add', params),
     removeLocalAlbum: (params: LocalAlbumParams) => call<void>('local_album_remove', params),
     localAssetPage: (params: LocalAssetPageParams) => call<LocalAssetPage>('local_asset_page', params),
     syncStart: () => call<number>('sync_start'),

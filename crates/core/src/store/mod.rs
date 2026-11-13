@@ -33,6 +33,10 @@ pub(crate) use asset::schema::{
     ASSET_FOLDER_ID, ASSET_ID, ASSET_MEDIA_TYPE, ASSET_TAKEN_AT, ASSETS,
 };
 pub(crate) use folder::schema::{FOLDER_ID, FOLDERS, SYNC_FOLDER_ID, SYNC_STATE};
+pub(crate) use local::schema::{
+    LOCAL_ALBUM_ID, LOCAL_ALBUM_MAPPING, LOCAL_ALBUM_MAPPING_ALBUM, LOCAL_ALBUMS,
+    LOCAL_ASSET_ALBUM, LOCAL_ASSETS,
+};
 pub use observe::observe_commits;
 pub(crate) use observe::{install, resolve};
 
@@ -41,10 +45,13 @@ pub(crate) use observe::{install, resolve};
 /// The observer may only pull what a view reads out of a row, so this is the
 /// union of what the view modules asked for. Widening it is cheap; a table
 /// missing here is a view that never hears about a commit.
-pub(crate) static READ_SET: [source_subscription::Table; 3] = [
+pub(crate) static READ_SET: [source_subscription::Table; 6] = [
     folder::schema::FOLDERS,
     folder::schema::SYNC_STATE,
     asset::schema::ASSETS,
+    local::schema::LOCAL_ALBUMS,
+    local::schema::LOCAL_ALBUM_MAPPING,
+    local::schema::LOCAL_ASSETS,
 ];
 
 /// The address Cloudreve gives the drive root.

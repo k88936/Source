@@ -2,13 +2,13 @@ import type {Transport} from '../lib/api/transport';
 import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
 import type {AlbumParams} from '#lib/api/bindings/AlbumParams';
 import type {AddAlbumParams} from '#lib/api/bindings/AddAlbumParams';
-import type {AddLocalAlbumParams} from '#lib/api/bindings/AddLocalAlbumParams';
 import type {AssetCountParams} from '#lib/api/bindings/AssetCountParams';
 import type {AssetEdgeParams} from '#lib/api/bindings/AssetEdgeParams';
 import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
 import type {AssetsQuery} from '#lib/api/bindings/AssetsQuery';
 import type {CreateFolderParams} from '#lib/api/bindings/CreateFolderParams';
 import type {ExportAssetsParams} from '#lib/api/bindings/ExportAssetsParams';
+import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
 import type {LocalAssetPage} from '#lib/api/bindings/LocalAssetPage';
 import type {LocalAssetPageParams} from '#lib/api/bindings/LocalAssetPageParams';
 import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
@@ -148,9 +148,6 @@ function run(command: string, params: Record<string, unknown>): unknown {
             return edge ? cursorOf(edge) : null;
         }
 
-        case 'album_list':
-            return demo.albums;
-
         case 'album_get': {
             const {albumId} = params as AlbumParams;
             return demo.albums.find((item) => item.id === albumId) ?? null;
@@ -236,13 +233,8 @@ function run(command: string, params: Record<string, unknown>): unknown {
             return page;
         }
 
-        case 'local_album_list':
-            return demo.localAlbums;
-
-        case 'local_album_add': {
-            const {uri, name, albumId} = params as AddLocalAlbumParams;
-            return demo.buildLocalAlbum(uri, name, albumId);
-        }
+        case 'local_album_add':
+            return undefined;
 
         case 'local_album_remove':
             return undefined;
@@ -271,13 +263,17 @@ function run(command: string, params: Record<string, unknown>): unknown {
             // The page addresses a view; the demo answers it from fixtures.
             const addressed = (params as {message: ClientMessage<null | AssetsQuery> & {view: string}}).message;
             if (addressed.type !== 'subscribe') return undefined;
-            const snapshot: ServerMessage<null | AssetsQuery, AlbumMetadata | AssetSummary> = {
+            const snapshot: ServerMessage<null | AssetsQuery, AlbumMetadata | LocalAlbumMetadata | AssetSummary> = {
                 type: 'subscribeApplied',
                 requestId: addressed.requestId,
                 querySetId: addressed.querySetId,
                 queries: addressed.queries.map((query) => ({
                     query,
-                    rows: query === null ? demo.albums : orderedAssets(query),
+                    rows: addressed.view === 'albums'
+                        ? demo.albums
+                        : addressed.view === 'locals'
+                          ? demo.localAlbums
+                          : orderedAssets(query as AssetsQuery),
                 })),
             };
             for (const subscriber of subscribers.get(addressed.view) ?? []) subscriber(snapshot);

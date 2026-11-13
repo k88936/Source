@@ -9,9 +9,8 @@ pub(crate) use source_core::app::account::{
     SessionState, SetServerParams,
 };
 pub(crate) use source_core::app::albums::{
-    AddAlbumParams, AddLocalAlbumParams, AlbumError, AlbumParams, LocalAlbumMetadata,
-    LocalAlbumParams, LocalBrowseParams, MoveAssetsParams, SetAlbumCoverParams,
-    SetAlbumDescriptionParams,
+    AddAlbumParams, AddLocalAlbumParams, AlbumError, AlbumParams, LocalAlbumParams,
+    LocalBrowseParams, MoveAssetsParams, SetAlbumCoverParams, SetAlbumDescriptionParams,
 };
 pub(crate) use source_core::app::browse::{
     AssetCountParams, AssetDetail, AssetDetailParams, AssetEdgeParams, BrowseError,

@@ -1,12 +1,11 @@
 <script lang="ts">
-    import {api} from '#lib/api/client';
     import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import {common} from '#lib/i18n/common.i18n';
-    import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
     import {X} from '@lucide/svelte';
     import MediaImage from '../../assets/MediaImage/MediaImage.svelte';
     import Sheet from '../../overlay/Sheet/Sheet.svelte';
+    import {albumsView} from '#lib/api/views';
     import {picker} from './AlbumPickerSheet.i18n';
 
     let {
@@ -28,12 +27,14 @@
 
     const heading = $derived(title ?? c.moveToAlbum);
 
-    let albums = $state<AlbumMetadata[]>([]);
-    let loading = $state(false);
+    /// The albums are already on the page: the grid's connection holds them and
+    /// keeps them current, so opening the sheet only has to drop the filter.
+    const grid = albumsView.use();
+
     let filter = $state('');
 
     let visible = $derived(
-        albums.filter(
+        grid.rows.filter(
             (album) =>
                 album.id !== excludeId &&
                 (!filter.trim() || album.name.toLowerCase().includes(filter.trim().toLowerCase())),
@@ -41,17 +42,7 @@
     );
 
     $effect(() => {
-        if (!open) return;
-        filter = '';
-        loading = true;
-        api.albumList()
-            .then((list) => {
-                albums = list;
-            })
-            .catch((err) => app.showToast(app.describeError(err), 'error'))
-            .finally(() => {
-                loading = false;
-            });
+        if (open) filter = '';
     });
 </script>
 
@@ -65,7 +56,7 @@
         </div>
         <input bind:value={filter} type="search" placeholder={t.filter} class="field mb-2 h-9" />
         <div class="min-h-0 flex-1 overflow-y-auto">
-            {#if loading}
+            {#if grid.loading}
                 <div class="flex justify-center py-8">
                     <div class="size-5 animate-spin rounded-full border-2 border-line border-t-primary"></div>
                 </div>
