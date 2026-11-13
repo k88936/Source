@@ -83,6 +83,7 @@ CREATE TABLE local_assets (
 CREATE TABLE upload_queue (
   id TEXT PRIMARY KEY,
   local_asset_id TEXT NOT NULL,
+  local_album_id TEXT,
   dest_uri TEXT NOT NULL,
   dest_name TEXT,
   name TEXT NOT NULL DEFAULT '',
