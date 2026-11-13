@@ -21,6 +21,7 @@ mod error;
 mod folder;
 mod id;
 mod local;
+mod observe;
 mod query;
 mod settings;
 mod timeline;
@@ -28,6 +29,23 @@ mod upload_queue;
 mod upload_session;
 
 pub(crate) use super::sqlite::{Conn, MEDIA_TYPES, SqliteCatalog, TxError, db_err};
+pub(crate) use asset::schema::{
+    ASSET_FOLDER_ID, ASSET_ID, ASSET_MEDIA_TYPE, ASSET_TAKEN_AT, ASSETS,
+};
+pub(crate) use folder::schema::{FOLDER_ID, FOLDERS, SYNC_FOLDER_ID, SYNC_STATE};
+pub use observe::observe_commits;
+pub(crate) use observe::{install, resolve};
+
+/// Every table column a view declared, as one read set.
+///
+/// The observer may only pull what a view reads out of a row, so this is the
+/// union of what the view modules asked for. Widening it is cheap; a table
+/// missing here is a view that never hears about a commit.
+pub(crate) static READ_SET: [source_subscription::Table; 3] = [
+    folder::schema::FOLDERS,
+    folder::schema::SYNC_STATE,
+    asset::schema::ASSETS,
+];
 
 /// The address Cloudreve gives the drive root.
 const DRIVE_ROOT_URI: &str = "cloudreve://my";

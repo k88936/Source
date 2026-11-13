@@ -9,6 +9,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 ts-rs = { workspace = true }
 source-jobs = { path = "../jobs" }
+source-subscription = { path = "../subscription" }
 
 # Domain and use cases
 async-trait = "0.1"

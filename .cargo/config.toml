@@ -1,3 +1,7 @@
 [env]
+# Bundled SQLite is compiled with the preupdate hook, which the catalog's view
+# observer needs. Not the `libsqlite3-sys` feature: that one pulls in bindgen and
+# makes libclang a prerequisite for every target, Android included.
+CFLAGS = { value = "-DSQLITE_ENABLE_PREUPDATE_HOOK", force = false }
 TS_RS_EXPORT_DIR = { value = "src/lib/api/bindings", relative = true }
 TS_RS_LARGE_INT = "number"

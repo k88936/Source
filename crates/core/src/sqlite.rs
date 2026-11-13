@@ -41,7 +41,12 @@ pub struct SqliteCatalog {
 
 impl SqliteCatalog {
     /// Open (or create) the catalog at `path`, applying pending migrations.
+    ///
+    /// Every connection this process opens is observed for commits, so a view
+    /// sees the writes of any store function without those functions knowing a
+    /// subscriber exists.
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, CatalogError> {
+        crate::store::install();
         let url = path.as_ref().to_string_lossy().into_owned();
         let migrate_url = url.clone();
         tokio::task::spawn_blocking(move || migrate(&migrate_url))
@@ -94,7 +99,10 @@ fn migrate(url: &str) -> Result<(), CatalogError> {
         .map_err(|e| CatalogError::Unavailable {
             cause: format!("catalog: {e}"),
         })?;
-    Ok(())
+    // The observer reads a row by column index, so the declared columns are
+    // paired with their positions here: the migration connection is the only one
+    // that is already open, and the tables exist by now.
+    crate::store::resolve(&mut conn, &crate::store::READ_SET)
 }
 
 pub(crate) fn db_err(err: diesel::result::Error) -> CatalogError {
