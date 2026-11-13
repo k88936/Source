@@ -8,7 +8,7 @@ use crate::store::id_type;
 
 id_type!(AlbumId);
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AlbumMetadata {
@@ -30,7 +30,7 @@ pub struct AlbumMetadata {
 /// A folder can disappear or be renamed on the server without the album row
 /// going anywhere, so the row keeps its assets and reports the failure instead:
 /// the album stays visible and the user can point it at another folder.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AlbumSync {

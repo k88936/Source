@@ -1,6 +1,7 @@
 //! Browsing the catalog, asset details and the local media library.
 
 mod dto;
+mod view;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -16,6 +17,7 @@ use crate::store::{
 use super::clamp_limit;
 
 pub use dto::*;
+pub use view::{Assets, AssetsQuery};
 
 /// What browsing the catalog can fail with.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

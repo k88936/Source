@@ -23,3 +23,15 @@ pub enum CatalogError {
     /// A model could not be encoded for storage.
     EncodeFailed { cause: String },
 }
+
+impl CatalogError {
+    /// The one line a subscriber is told when a view cannot be answered.
+    pub(crate) fn view_message(&self) -> String {
+        match self {
+            Self::Unavailable { cause } => format!("catalog unavailable: {cause}"),
+            Self::QueryFailed { cause } => format!("catalog query failed: {cause}"),
+            Self::DecodeFailed { cause } => format!("catalog decode failed: {cause}"),
+            Self::EncodeFailed { cause } => format!("catalog encode failed: {cause}"),
+        }
+    }
+}

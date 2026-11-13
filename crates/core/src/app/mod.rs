@@ -21,8 +21,8 @@ pub mod sync;
 pub mod uploads;
 
 pub use account::{AccountService, AccountState, LoginOutcome};
-pub use albums::AlbumsService;
-pub use browse::BrowseService;
+pub use albums::{Albums, AlbumsService};
+pub use browse::{Assets, BrowseService};
 pub use dto::*;
 pub use folders::FoldersService;
 pub use jobs::{Job, JobKind, Jobs};

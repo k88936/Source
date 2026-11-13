@@ -19,8 +19,8 @@ pub mod task;
 pub mod time;
 
 pub use app::{
-    AccountService, AccountState, AlbumsService, BrowseService, FoldersService, LoginOutcome,
-    SyncService, UploadOutcome, UploadsService,
+    AccountService, AccountState, Albums, AlbumsService, Assets, BrowseService, FoldersService,
+    LoginOutcome, SyncService, UploadOutcome, UploadsService,
 };
 pub use credential::CredentialStore;
 pub use media::{FsLocalMedia, LOCAL_THUMB_EDGE, ThumbCache, preview_from_jpeg};

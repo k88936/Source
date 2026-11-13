@@ -6,6 +6,7 @@
 //! sub-folders and no non-media entries.
 
 mod dto;
+mod view;
 
 use std::sync::Arc;
 
@@ -34,6 +35,7 @@ use crate::time::now_ms;
 use super::{clamp_limit, folder_record, folder_ref};
 
 pub use dto::*;
+pub use view::Albums;
 
 /// What an album operation can fail with.
 ///
