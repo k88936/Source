@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light dark" />
+        <link rel="icon" href="/Source/favicon.svg" type="image/svg+xml" />
+        <title>Source</title>
+
+        <script>
+            // Same keys the app uses, so the demo opens already speaking the
+            // visitor's language and in the theme they last chose.
+            try {
+                // Signing out lands on the welcome screen; keep the demo server
+                // there so the way back in needs only an email and a password.
+                if (!localStorage.getItem('source-server')) {
+                    localStorage.setItem('source-server', 'https://demo.local');
+                }
+                const stored = localStorage.getItem('source-locale');
+                const locale =
+                    stored === 'zh' || stored === 'en'
+                        ? stored
+                        : navigator.language.toLowerCase().startsWith('zh')
+                          ? 'zh'
+                          : 'en';
+                if (!stored) localStorage.setItem('source-locale', locale);
+                document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en-US';
+
+                const raw = localStorage.getItem('immich-ui-theme');
+                const theme =
+                    raw === 'dark' || raw === '"dark"'
+                        ? 'dark'
+                        : raw === 'light' || raw === '"light"'
+                          ? 'light'
+                          : matchMedia('(prefers-color-scheme: dark)').matches
+                            ? 'dark'
+                            : 'light';
+                document.documentElement.dataset.theme = theme;
+            } catch {
+                // Private mode: the demo still runs, it just cannot remember us.
+            }
+        </script>
+      <script type="module" crossorigin src="/Source/assets/index-CktMOYjh.js"></script>
+      <link rel="stylesheet" crossorigin href="/Source/assets/index-B4J1LQXL.css">
+    </head>
+
+    <body>
+        <div id="app"></div>
+    </body>
+</html>
