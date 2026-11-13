@@ -4235,6 +4235,7 @@ dependencies = [
  "serde_json",
  "source-core",
  "source-jobs",
+ "source-subscription",
  "tauri",
  "tauri-build",
  "tauri-plugin-keep-alive",
@@ -4273,6 +4274,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "source-jobs",
+ "source-subscription",
  "time",
  "tokio",
  "tokio-util",
@@ -4288,6 +4290,15 @@ dependencies = [
  "serde",
  "tokio",
  "tokio-util",
+ "ts-rs",
+]
+
+[[package]]
+name = "source-subscription"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tokio",
  "ts-rs",
 ]
 
