@@ -3,4 +3,4 @@
 /**
  * Every row one query has, at the moment the subscription was applied.
  */
-export type QueryRows<Q, R> = {query: Q; rows: Array<R>};
+export type QueryRows<Q, R> = { query: Q, rows: Array<R>, };

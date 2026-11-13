@@ -6,9 +6,4 @@
  * This is the one place "not signed in / expired / unreachable / rejected" is
  * written: every adapter function either keeps the variant or renames it.
  */
-export type RemoteError =
-    | {kind: 'notSignedIn'}
-    | {kind: 'sessionExpired'; message: string | null}
-    | {kind: 'unreachable'; cause: string}
-    | {kind: 'rejected'; status: number; message: string}
-    | {kind: 'protocol'; cause: string};
+export type RemoteError = { "kind": "notSignedIn" } | { "kind": "sessionExpired", message: string | null, } | { "kind": "unreachable", cause: string, } | { "kind": "rejected", status: number, message: string, } | { "kind": "protocol", cause: string, };

@@ -3,8 +3,4 @@
 /**
  * What the local media library can fail with.
  */
-export type MediaError =
-    | {kind: 'permissionDenied'}
-    | {kind: 'assetGone'; uri: string}
-    | {kind: 'platform'; cause: string}
-    | {kind: 'decodeFailed'; uri: string};
+export type MediaError = { "kind": "permissionDenied" } | { "kind": "assetGone", uri: string, } | { "kind": "platform", cause: string, } | { "kind": "decodeFailed", uri: string, };

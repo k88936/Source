@@ -6,4 +6,4 @@
  * The queue only compares this tag, which is how it stops a whole kind at
  * once. The frontend picks the words, so this carries no name of its own.
  */
-export type JobKind = 'index' | 'sync' | 'upload';
+export type JobKind = "index" | "sync" | "upload";

@@ -3,7 +3,4 @@
 /**
  * Restoring or dropping a stored session.
  */
-export type SessionError =
-    | {kind: 'unreachable'; cause: string}
-    | {kind: 'rejected'; status: number; message: string}
-    | {kind: 'protocol'; cause: string};
+export type SessionError = { "kind": "unreachable", cause: string, } | { "kind": "rejected", status: number, message: string, } | { "kind": "protocol", cause: string, };

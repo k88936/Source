@@ -3,6 +3,4 @@
 /**
  * What a subscriber sends.
  */
-export type ClientMessage<Q> =
-    | {type: 'subscribe'; requestId: number; querySetId: number; queries: Array<Q>}
-    | {type: 'unsubscribe'; requestId: number; querySetId: number};
+export type ClientMessage<Q> = { "type": "subscribe", requestId: number, querySetId: number, queries: Array<Q>, } | { "type": "unsubscribe", requestId: number, querySetId: number, };

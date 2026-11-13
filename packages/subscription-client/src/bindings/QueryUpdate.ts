@@ -3,4 +3,4 @@
 /**
  * What one commit did to one query: rows to insert or replace, ids to remove.
  */
-export type QueryUpdate<Q, R> = {query: Q; inserts: Array<R>; deletes: Array<string>};
+export type QueryUpdate<Q, R> = { query: Q, inserts: Array<R>, deletes: Array<string>, };

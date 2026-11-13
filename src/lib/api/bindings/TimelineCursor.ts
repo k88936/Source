@@ -6,4 +6,4 @@
  * The pair is the key the two anchors of a window are compared by, newest
  * first; that order is written where keys are compared, not derived here.
  */
-export type TimelineCursor = {takenAt: number; id: string};
+export type TimelineCursor = { takenAt: number, id: string, };

@@ -6,4 +6,4 @@
  * `Albums` is the coarse signal for a listing pass and carries the refreshed
  * rows; `Assets` carries the rows an upload or a favorite wrote.
  */
-export type CatalogChangeKind = 'assets' | 'albums';
+export type CatalogChangeKind = "assets" | "albums";
