@@ -5,7 +5,7 @@
     import {i18n} from '#lib/i18n/i18n.svelte';
 
     import {albums as text} from '../../Albums.i18n';
-    import type {Group, Mapping} from '../../albums.svelte.js';
+    import type {Group} from '../../albums.svelte.js';
     import AddAlbumCard from '../AddAlbumCard/AddAlbumCard.svelte';
     import AddMappingCard from '../AddMappingCard/AddMappingCard.svelte';
     import AlbumNode from '../AlbumNode/AlbumNode.svelte';
@@ -14,14 +14,12 @@
 
     let {
         groups,
-        orphans,
         onAlbum,
         onLocal,
         onAdd,
         onAddAlbum,
     }: {
         groups: Group[];
-        orphans: Mapping[];
         onAlbum: (album: AlbumMetadata) => void;
         onLocal: (local: LocalAlbumMetadata) => void;
         onAdd: (album: AlbumMetadata) => void;
@@ -37,8 +35,7 @@
     /// The rows change when a mapping is added or removed; the measuring only
     /// has to run then, and whenever the browser lays the rows out differently.
     const shape = $derived(
-        groups.map((group) => `${group.album.id}:${group.mappings.map((m) => m.local.id).join(',')}`).join('|') +
-            `|${orphans.length}`,
+        groups.map((group) => `${group.album.id}:${group.mappings.map((m) => m.local.id).join(',')}`).join('|'),
     );
 
     $effect(() => {
@@ -161,15 +158,6 @@
                     <AlbumNode {group} onOpen={() => onAlbum(group.album)} />
                 </div>
             {/each}
-            {#if orphans.length > 0}
-                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-10">
-                    <div class="flex min-w-0 flex-col items-stretch gap-2">
-                        {#each orphans as mapping (mapping.local.id)}
-                            <MappingCard {mapping} onOpen={() => onLocal(mapping.local)} />
-                        {/each}
-                    </div>
-                </div>
-            {/if}
             <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-10">
                 <div></div>
                 <AddAlbumCard onOpen={onAddAlbum} />

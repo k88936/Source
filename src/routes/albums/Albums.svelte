@@ -51,7 +51,7 @@
             const found = group.mappings.find((mapping) => mapping.local.id === localId);
             if (found) return found;
         }
-        return board.orphans.find((mapping) => mapping.local.id === localId) ?? null;
+        return null;
     });
 
     function openAlbum(album: AlbumMetadata) {
@@ -139,7 +139,6 @@
 
     <SyncGraph
         groups={board.groups}
-        orphans={board.orphans}
         onAlbum={openAlbum}
         onLocal={openLocal}
         onAdd={addMapping}

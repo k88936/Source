@@ -85,16 +85,6 @@ function finished(tally: Tally, scanning: boolean): boolean {
     return !scanning && tally.uploading === 0 && tally.waiting === 0 && tally.failed === 0;
 }
 
-const NOTHING: Tally = {
-    uploading: 0,
-    waiting: 0,
-    failed: 0,
-    speed: 0,
-    doneBytes: 0,
-    totalBytes: 0,
-    percent: 0,
-};
-
 /**
  * The graph's data: what is mapped where, what each row is moving, and the
  * actions that change a mapping.
@@ -160,14 +150,6 @@ export class SyncBoard {
                 };
             });
     });
-
-    /// A local row whose album is gone has nothing to point at, so it is drawn
-    /// alone instead of vanishing with the line.
-    orphans: Mapping[] = $derived(
-        this.locals
-            .filter((local) => !this.albums.some((album) => album.id === local.albumId))
-            .map((local) => ({local, tone: 'idle', finished: false, tasks: [], tally: NOTHING})),
-    );
 
     queue: Queue = $derived.by(() => {
         const total = tally(this.tasks);
