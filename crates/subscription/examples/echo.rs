@@ -73,6 +73,12 @@ impl Row for LedgerRow {
     }
 }
 
+/// The rows a page believes one window holds, by row id.
+type RowMap = BTreeMap<String, LedgerRow>;
+
+/// The windows a page believes one query set holds, by window key.
+type WindowMap = BTreeMap<(i64, i64), RowMap>;
+
 /// The window `index` points at.
 fn window(index: u32) -> Window {
     let from = i64::from(index) * 180;
@@ -213,8 +219,8 @@ fn answer(window: Window, changes: &[Change]) -> Delta<LedgerRow> {
         if decided.contains_key(id) {
             continue;
         }
-        let before = change.old("n").and_then(Value::as_i64);
-        let after = change.new("n").and_then(Value::as_i64);
+        let before = change.before("n").and_then(Value::as_i64);
+        let after = change.after("n").and_then(Value::as_i64);
         let ended = match (
             before.filter(|n| window.contains(*n)),
             after.filter(|n| window.contains(*n)),
@@ -249,7 +255,7 @@ struct Page {
     out: mpsc::UnboundedSender<ClientMessage<Window>>,
     messages: mpsc::UnboundedReceiver<ServerMessage<Window, LedgerRow>>,
     /// Set -> window -> rows, exactly what the server has told this page so far.
-    rows: BTreeMap<u32, BTreeMap<(i64, i64), BTreeMap<String, LedgerRow>>>,
+    rows: BTreeMap<u32, WindowMap>,
     next_request: u32,
     next_set: u32,
     applied: u64,
@@ -423,10 +429,8 @@ struct ChanReader<Q> {
 impl<Q: Query> ClientReader<Q> for ChanReader<Q> {
     type Error = Infallible;
 
-    fn recv(
-        &mut self,
-    ) -> impl Future<Output = Result<Option<ClientMessage<Q>>, Infallible>> + Send {
-        async move { Ok(self.incoming.recv().await) }
+    async fn recv(&mut self) -> Result<Option<ClientMessage<Q>>, Infallible> {
+        Ok(self.incoming.recv().await)
     }
 }
 
@@ -438,14 +442,9 @@ struct ChanWriter<Q, R> {
 impl<Q: Query, R: Row> ClientWriter<Q, R> for ChanWriter<Q, R> {
     type Error = Infallible;
 
-    fn send(
-        &mut self,
-        message: ServerMessage<Q, R>,
-    ) -> impl Future<Output = Result<(), Infallible>> + Send {
-        async move {
-            let _ = self.outgoing.send(message);
-            Ok(())
-        }
+    async fn send(&mut self, message: ServerMessage<Q, R>) -> Result<(), Infallible> {
+        let _ = self.outgoing.send(message);
+        Ok(())
     }
 }
 

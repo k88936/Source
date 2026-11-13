@@ -56,7 +56,7 @@ impl<C: AlbumStore> Albums<C> {
             let Some(column) = Self::route(change.table) else {
                 continue;
             };
-            for side in [change.old(column), change.new(column)] {
+            for side in [change.before(column), change.after(column)] {
                 if let Some(Value::Text(id)) = side {
                     touched.insert(id.clone());
                 }
@@ -99,16 +99,11 @@ where
     type Query = ();
     type Row = AlbumMetadata;
 
-    fn snapshot(
-        &self,
-        _query: &Self::Query,
-    ) -> impl Future<Output = Result<Vec<AlbumMetadata>, String>> + Send {
-        async move {
-            self.catalog
-                .list_albums()
-                .await
-                .map_err(|e| e.view_message())
-        }
+    async fn snapshot(&self, _query: &Self::Query) -> Result<Vec<AlbumMetadata>, String> {
+        self.catalog
+            .list_albums()
+            .await
+            .map_err(|e| e.view_message())
     }
 
     /// Everything the tile shows comes from these three tables: folders (name,

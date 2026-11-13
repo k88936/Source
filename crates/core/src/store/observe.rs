@@ -142,12 +142,16 @@ unsafe extern "C" fn preupdate(
     // were read from this table's schema.
     let (old, new) = unsafe {
         (
-            op.has_old()
-                .then(|| read(db, &declared.indexes, true))
-                .unwrap_or_default(),
-            op.has_new()
-                .then(|| read(db, &declared.indexes, false))
-                .unwrap_or_default(),
+            if op.has_old() {
+                read(db, &declared.indexes, true)
+            } else {
+                Vec::new()
+            },
+            if op.has_new() {
+                read(db, &declared.indexes, false)
+            } else {
+                Vec::new()
+            },
         )
     };
     let change = Change::record(declared.name, Arc::clone(&declared.columns), op, old, new);
@@ -189,10 +193,10 @@ unsafe extern "C" fn profile(
         }
         _ => return 0,
     };
-    if !batch.is_empty() {
-        if let Some(sink) = SINK.get() {
-            let _ = sink.send(batch);
-        }
+    if !batch.is_empty()
+        && let Some(sink) = SINK.get()
+    {
+        let _ = sink.send(batch);
     }
     0
 }

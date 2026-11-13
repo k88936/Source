@@ -44,10 +44,8 @@ impl<Q> ChannelReader<Q> {
 impl<Q: Query> ClientReader<Q> for ChannelReader<Q> {
     type Error = Infallible;
 
-    fn recv(
-        &mut self,
-    ) -> impl Future<Output = Result<Option<ClientMessage<Q>>, Infallible>> + Send {
-        async move { Ok(self.messages.recv().await) }
+    async fn recv(&mut self) -> Result<Option<ClientMessage<Q>>, Infallible> {
+        Ok(self.messages.recv().await)
     }
 }
 

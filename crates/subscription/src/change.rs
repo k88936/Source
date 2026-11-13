@@ -100,12 +100,12 @@ impl Change {
     }
 
     /// The value `column` had before the statement, if the change carries one.
-    pub fn old(&self, column: &str) -> Option<&Value> {
+    pub fn before(&self, column: &str) -> Option<&Value> {
         self.side(&self.old, column)
     }
 
     /// The value `column` has after the statement, if the change carries one.
-    pub fn new(&self, column: &str) -> Option<&Value> {
+    pub fn after(&self, column: &str) -> Option<&Value> {
         self.side(&self.new, column)
     }
 
@@ -114,8 +114,8 @@ impl Change {
     /// Routing wants the value that identifies the affected row either way: an
     /// insert only has the new side, a delete only the old one.
     pub fn text(&self, column: &str) -> Option<&str> {
-        self.new(column)
-            .or_else(|| self.old(column))
+        self.after(column)
+            .or_else(|| self.before(column))
             .and_then(Value::as_str)
     }
 

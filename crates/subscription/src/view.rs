@@ -37,12 +37,18 @@ pub struct Delta<R> {
     pub deletes: Vec<String>,
 }
 
-impl<R> Delta<R> {
-    pub fn new() -> Self {
+impl<R> Default for Delta<R> {
+    fn default() -> Self {
         Self {
             inserts: Vec::new(),
             deletes: Vec::new(),
         }
+    }
+}
+
+impl<R> Delta<R> {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Whether the commit left this query's rows as they were.

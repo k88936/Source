@@ -30,7 +30,7 @@ pub struct SubscriptionManager<V: View> {
     /// A snapshot and the registration cannot be split by a commit, so nothing
     /// that arrived between them is lost.
     applying: Mutex<()>,
-    connections: Mutex<HashMap<u32, Connection<V::Query, V::Row>>>,
+    connections: Mutex<Connections<V::Query, V::Row>>,
     next_id: AtomicU32,
     /// Where the page hands its messages in.
     ///
@@ -45,6 +45,9 @@ struct Connection<Q, R> {
     outbound: mpsc::Sender<ServerMessage<Q, R>>,
     query_sets: HashMap<QuerySetId, Vec<Q>>,
 }
+
+/// Every live connection, by the id the page's messages carry.
+type Connections<Q, R> = HashMap<u32, Connection<Q, R>>;
 
 impl<V: View> SubscriptionManager<V> {
     pub fn new(views: Arc<V>) -> Self {

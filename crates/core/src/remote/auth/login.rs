@@ -15,9 +15,10 @@ fn sign_in_error(cause: RemoteError) -> SignInError {
         RemoteError::Unreachable { cause } => SignInError::Unreachable { cause },
         RemoteError::SessionExpired { message } => SignInError::CredentialsRejected { message },
         RemoteError::NotSignedIn => SignInError::CredentialsRejected { message: None },
-        RemoteError::Rejected { status, .. } if matches!(status, 401 | 403 | 40020) => {
-            SignInError::CredentialsRejected { message: None }
-        }
+        RemoteError::Rejected {
+            status: 401 | 403 | 40020,
+            ..
+        } => SignInError::CredentialsRejected { message: None },
         RemoteError::Rejected { status, message } => SignInError::Rejected { status, message },
         RemoteError::Protocol { cause } => SignInError::Protocol { cause },
     }
@@ -29,9 +30,10 @@ fn code_error(cause: RemoteError) -> SignInError {
         RemoteError::Unreachable { cause } => SignInError::Unreachable { cause },
         RemoteError::SessionExpired { message } => SignInError::CodeRejected { message },
         RemoteError::NotSignedIn => SignInError::CodeRejected { message: None },
-        RemoteError::Rejected { status, .. } if matches!(status, 401 | 403 | 40020) => {
-            SignInError::CodeRejected { message: None }
-        }
+        RemoteError::Rejected {
+            status: 401 | 403 | 40020,
+            ..
+        } => SignInError::CodeRejected { message: None },
         RemoteError::Rejected { status, message } => SignInError::Rejected { status, message },
         RemoteError::Protocol { cause } => SignInError::Protocol { cause },
     }

@@ -56,8 +56,8 @@ enum Side {
 impl Side {
     fn value<'a>(self, change: &'a Change, column: &str) -> Option<&'a Value> {
         match self {
-            Self::Before => change.old(column),
-            Self::After => change.new(column),
+            Self::Before => change.before(column),
+            Self::After => change.after(column),
         }
     }
 }

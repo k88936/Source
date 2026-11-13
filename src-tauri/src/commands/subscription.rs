@@ -12,7 +12,6 @@
 //! would use.
 
 use std::convert::Infallible;
-use std::future::Future;
 
 use source_core::app::browse::AssetsQuery;
 use source_subscription::{ClientMessage, ClientWriter, Query, Row, ServerMessage};
@@ -109,13 +108,8 @@ struct TauriWriter {
 impl<Q: Query, R: Row> ClientWriter<Q, R> for TauriWriter {
     type Error = Infallible;
 
-    fn send(
-        &mut self,
-        message: ServerMessage<Q, R>,
-    ) -> impl Future<Output = Result<(), Infallible>> + Send {
-        async move {
-            let _ = self.app.emit(self.event, &message);
-            Ok(())
-        }
+    async fn send(&mut self, message: ServerMessage<Q, R>) -> Result<(), Infallible> {
+        let _ = self.app.emit(self.event, &message);
+        Ok(())
     }
 }

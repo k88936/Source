@@ -15,6 +15,9 @@ use super::*;
 use crate::credential::CredentialStore;
 use crate::remote::{RemoteError, USER_AGENT};
 
+/// What the shell runs when a request proves the stored session is gone.
+type SessionListener = Arc<dyn Fn() + Send + Sync>;
+
 #[derive(Clone)]
 pub struct CloudreveAuth {
     store: Arc<dyn CredentialStore>,
@@ -22,7 +25,7 @@ pub struct CloudreveAuth {
     http: reqwest::Client,
     /// Told once when a request proves the stored session is gone, so the shell
     /// can leave the library. Installed by the composition root.
-    lost: Arc<Mutex<Option<Arc<dyn Fn() + Send + Sync>>>>,
+    lost: Arc<Mutex<Option<SessionListener>>>,
 }
 
 impl CloudreveAuth {
@@ -36,7 +39,7 @@ impl CloudreveAuth {
     }
 
     /// Hand over what should run when the server ends the session.
-    pub fn on_session_lost(&self, listener: Arc<dyn Fn() + Send + Sync>) {
+    pub fn on_session_lost(&self, listener: SessionListener) {
         *self.lost.lock().unwrap() = Some(listener);
     }
 
