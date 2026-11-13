@@ -2,8 +2,11 @@
     import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
     import {app} from '#lib/app/app.svelte';
+    import {i18n} from '#lib/i18n/i18n.svelte';
 
+    import {sync as text} from '../../Sync.i18n';
     import type {Group, Mapping} from '../../sync.svelte';
+    import AddAlbumCard from '../AddAlbumCard/AddAlbumCard.svelte';
     import AddMappingCard from '../AddMappingCard/AddMappingCard.svelte';
     import AlbumNode from '../AlbumNode/AlbumNode.svelte';
     import MappingCard from '../MappingCard/MappingCard.svelte';
@@ -15,13 +18,17 @@
         onAlbum,
         onLocal,
         onAdd,
+        onAddAlbum,
     }: {
         groups: Group[];
         orphans: Mapping[];
         onAlbum: (album: AlbumMetadata) => void;
         onLocal: (local: LocalAlbumMetadata) => void;
         onAdd: (album: AlbumMetadata) => void;
+        onAddAlbum: () => void;
     } = $props();
+
+    const t = $derived(i18n.pick(text));
 
     let surface = $state<HTMLDivElement | null>(null);
     let frame = $state({width: 0, height: 0});
@@ -135,27 +142,39 @@
             {/each}
         </svg>
     {/if}
-    <div class="relative z-10 flex flex-col gap-6">
-        {#each groups as group (group.album.id)}
-            <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-10">
-                <div class="flex min-w-0 flex-col items-stretch gap-2">
-                    {#each group.mappings as mapping (mapping.local.id)}
-                        <MappingCard {mapping} onOpen={() => onLocal(mapping.local)} />
-                    {/each}
-                    <AddMappingCard albumId={group.album.id} onOpen={() => onAdd(group.album)} />
+    <div class="relative z-10">
+        <div
+            class="mb-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-10 px-1 text-xs font-medium text-muted"
+        >
+            <p>{t.localAlbums}</p>
+            <p>{t.cloudAlbums}</p>
+        </div>
+        <div class="flex flex-col gap-6">
+            {#each groups as group (group.album.id)}
+                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-10">
+                    <div class="flex min-w-0 flex-col items-stretch gap-2">
+                        {#each group.mappings as mapping (mapping.local.id)}
+                            <MappingCard {mapping} onOpen={() => onLocal(mapping.local)} />
+                        {/each}
+                        <AddMappingCard albumId={group.album.id} onOpen={() => onAdd(group.album)} />
+                    </div>
+                    <AlbumNode {group} onOpen={() => onAlbum(group.album)} />
                 </div>
-                <AlbumNode {group} onOpen={() => onAlbum(group.album)} />
-            </div>
-        {/each}
-        {#if orphans.length > 0}
+            {/each}
+            {#if orphans.length > 0}
+                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-10">
+                    <div class="flex min-w-0 flex-col items-stretch gap-2">
+                        {#each orphans as mapping (mapping.local.id)}
+                            <MappingCard {mapping} onOpen={() => onLocal(mapping.local)} />
+                        {/each}
+                    </div>
+                </div>
+            {/if}
             <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-10">
-                <div class="flex min-w-0 flex-col items-stretch gap-2">
-                    {#each orphans as mapping (mapping.local.id)}
-                        <MappingCard {mapping} onOpen={() => onLocal(mapping.local)} />
-                    {/each}
-                </div>
+                <div></div>
+                <AddAlbumCard onOpen={onAddAlbum} />
             </div>
-        {/if}
+        </div>
     </div>
 </div>
 

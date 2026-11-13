@@ -6,23 +6,23 @@
     import AssetThumb from '#lib/components/assets/AssetThumb/AssetThumb.svelte';
     import ConfirmDialog from '#lib/components/overlay/ConfirmDialog/ConfirmDialog.svelte';
     import LoadMoreSentinel from '#lib/components/assets/LoadMoreSentinel/LoadMoreSentinel.svelte';
-    import LocalAlbumMenu from '../../components/LocalAlbumMenu/LocalAlbumMenu.svelte';
+    import LocalAlbumMenu from '../components/LocalAlbumMenu/LocalAlbumMenu.svelte';
     import {localItem} from '#lib/components/viewer/viewer-item';
     import {Ellipsis, Folder, RefreshCw} from '@lucide/svelte';
     import {formatBytes} from '#lib/format';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
-    import {viewer} from '../../../../modals/Viewer/viewer.svelte';
-    import type {LibraryNavParamList} from '../../route';
+    import {viewer} from '../../../modals/Viewer/viewer.svelte';
+    import type {SyncNavParamList} from '../route';
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
     import {localAlbum as text} from './LocalAlbum.i18n';
 
     const PAGE = 200;
 
-    const navigation = useNavigation<LibraryNavParamList>();
+    const navigation = useNavigation<SyncNavParamList>();
     // One stack entry is one local album, so the id never changes under this screen.
-    const albumId = $derived(useRoute<LibraryNavParamList>().params?.id ?? '');
+    const albumId = $derived(useRoute<SyncNavParamList>().params?.id ?? '');
 
     let album = $state<LocalAlbumMetadata | null>(null);
     let items = $state<LocalAsset[]>([]);

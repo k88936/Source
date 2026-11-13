@@ -1,6 +1,6 @@
 <script lang="ts">
     import {Icon} from '@immich/ui';
-    import {mdiCloudSyncOutline, mdiImageMultipleOutline, mdiImageOutline, mdiViewGridOutline} from '@mdi/js';
+    import {mdiImageMultipleOutline, mdiImageOutline, mdiViewGridOutline} from '@mdi/js';
     import type {TabBarProps} from 'svelte-navigation';
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
@@ -12,14 +12,12 @@
     const LABELS = $derived<Record<string, string>>({
         Photos: c.photos,
         Albums: c.albums,
-        Sync: c.sync,
         Library: c.library,
     });
 
     const ICONS: Record<string, string> = {
         Photos: mdiImageOutline,
         Albums: mdiImageMultipleOutline,
-        Sync: mdiCloudSyncOutline,
         Library: mdiViewGridOutline,
     };
 </script>

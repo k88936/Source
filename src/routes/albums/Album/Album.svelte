@@ -20,15 +20,15 @@
     import {app} from '#lib/app/app.svelte';
     import {changes} from '#lib/api/changes';
     import {i18n} from '#lib/i18n/i18n.svelte';
-    import type {AlbumsNavParamList} from '../route';
+    import type {SyncNavParamList} from '../../sync/route';
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
     import {album as text} from './Album.i18n';
 
-    const navigation = useNavigation<AlbumsNavParamList>();
+    const navigation = useNavigation<SyncNavParamList>();
     const focused = $derived(useIsFocused());
     const scroll = useScrollContainer();
     const takeBack = useBackHandler();
-    const albumId = $derived(useRoute<AlbumsNavParamList>().params?.id ?? '');
+    const albumId = $derived(useRoute<SyncNavParamList>().params?.id ?? '');
 
     /** Confined to this album, so a result can never come from another one. */
     const browser = new AssetBrowser(
