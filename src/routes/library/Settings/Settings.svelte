@@ -140,9 +140,9 @@
         <div class="flex items-center justify-between gap-3">
             <p class="shrink-0 text-sm font-medium">{t.background}</p>
             <Switch
-                checked={!app.jobsPaused}
+                checked={app.keepAlive}
                 aria-label={t.background}
-                onCheckedChange={(running) => void app.setJobsPaused(!running)}
+                onCheckedChange={(hold) => void app.setKeepAlive(hold)}
             />
         </div>
     </section>

@@ -36,7 +36,7 @@ import type {AccountState} from './bindings/AccountState';
 import type {SetAlbumCoverParams} from './bindings/SetAlbumCoverParams';
 import type {SetAlbumDescriptionParams} from './bindings/SetAlbumDescriptionParams';
 import type {SetFavoriteParams} from './bindings/SetFavoriteParams';
-import type {SetJobsPausedParams} from './bindings/SetJobsPausedParams';
+import type {SetKeepAliveParams} from './bindings/SetKeepAliveParams';
 import type {SetServerParams} from './bindings/SetServerParams';
 import type {SessionState} from './bindings/SessionState';
 import type {SiteInfo} from './bindings/SiteInfo';
@@ -77,8 +77,8 @@ export const api = {
     indexStart: () => call<number>('index_start'),
     indexStop: () => call<void>('index_stop'),
     jobList: () => call<Job<JobKind>[]>('job_list'),
-    jobsPaused: () => call<boolean>('jobs_paused'),
-    setJobsPaused: (params: SetJobsPausedParams) => call<void>('set_jobs_paused', params),
+    keepAlive: () => call<boolean>('keep_alive'),
+    setKeepAlive: (params: SetKeepAliveParams) => call<void>('set_keep_alive', params),
     assetDetail: (params: AssetDetailParams) => call<AssetDetail>('asset_detail', params),
     mediaSource: (params: MediaSourceParams) => call<string>('media_source', params),
     searchAssets: (params: SearchParams) => call<TimelinePage>('search_assets', params),

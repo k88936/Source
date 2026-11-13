@@ -14,6 +14,10 @@ use source_subscription::Change;
 /// Where the settings page keeps whether background work is paused.
 pub(crate) const JOBS_PAUSED_KEY: &str = "jobs.paused";
 
+/// Where the settings page keeps whether the platform should hold the process
+/// in the background. Only Android acts on it.
+pub(crate) const KEEP_ALIVE_KEY: &str = "keep.alive";
+
 /// Where local albums come from on this platform: the filesystem on desktop,
 /// MediaStore on a phone.
 #[cfg(target_os = "android")]

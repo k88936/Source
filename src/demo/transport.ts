@@ -101,7 +101,7 @@ function run(command: string, params: Record<string, unknown>): unknown {
             return demo.cacheStats;
 
         case 'clear_cache':
-        case 'set_jobs_paused':
+        case 'set_keep_alive':
         case 'index_stop':
         case 'sync_stop':
             return undefined;
@@ -110,8 +110,8 @@ function run(command: string, params: Record<string, unknown>): unknown {
         case 'sync_start':
             return 0;
 
-        case 'jobs_paused':
-            return false;
+        case 'keep_alive':
+            return true;
 
         case 'job_list':
             return demo.jobs;

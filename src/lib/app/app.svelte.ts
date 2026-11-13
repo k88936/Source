@@ -21,6 +21,9 @@ export class AppState {
     jobs = $state<Job<JobKind>[]>([]);
     /** Whether background work is paused, persisted by the adapter. */
     jobsPaused = $state(false);
+    /** Whether the platform should hold the process in the background. Only
+     *  Android acts on it, and the settings switch is the only writer. */
+    keepAlive = $state(true);
     columns = $state(3);
     private started = false;
 
@@ -33,7 +36,7 @@ export class AppState {
             if (n >= 2 && n <= 6) this.columns = n;
         }
         try {
-            this.jobsPaused = await api.jobsPaused();
+            this.keepAlive = await api.keepAlive();
         } catch (err) {
             this.showToast(this.describeError(err), 'error');
         }
@@ -72,14 +75,14 @@ export class AppState {
         this.jobs = await api.jobList();
     }
 
-    /** Pause or resume every background job, and remember the choice. */
-    async setJobsPaused(paused: boolean): Promise<void> {
-        const previous = this.jobsPaused;
-        this.jobsPaused = paused;
+    /** Hold the process in the background or not, and remember the choice. */
+    async setKeepAlive(hold: boolean): Promise<void> {
+        const previous = this.keepAlive;
+        this.keepAlive = hold;
         try {
-            await api.setJobsPaused({paused});
+            await api.setKeepAlive({hold});
         } catch (err) {
-            this.jobsPaused = previous;
+            this.keepAlive = previous;
             this.showToast(this.describeError(err), 'error');
         }
     }

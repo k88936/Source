@@ -100,8 +100,8 @@ pub fn run() {
             commands::uploads::cancel_upload,
             commands::uploads::retry_upload,
             commands::job_list,
-            commands::jobs_paused,
-            commands::set_jobs_paused,
+            commands::keep_alive,
+            commands::set_keep_alive,
             commands::export::cache_stats,
             commands::export::clear_cache,
             commands::export::export_assets
