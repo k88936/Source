@@ -9,6 +9,7 @@ pub(crate) mod catalog;
 pub(crate) mod connection;
 pub(crate) mod export;
 pub(crate) mod local;
+pub(crate) mod subscription;
 pub(crate) mod uploads;
 
 /// The board: every job this process ran, newest first.

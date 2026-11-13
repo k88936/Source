@@ -15,6 +15,7 @@ use crate::app::jobs::{Ctx, JobId, JobOutcome, JobPriority, Jobs};
 use tokio_util::sync::CancellationToken;
 
 use serde::{Deserialize, Serialize};
+use source_subscription::{Change, SubscriptionManager};
 use ts_rs::TS;
 
 use crate::mapping::{COVER_KEY, DESCRIPTION_KEY, asset_record, entry_media_type};
@@ -113,21 +114,44 @@ enum Listing {
     Stopped,
 }
 
-pub struct AlbumsService<R, C, M> {
+pub struct AlbumsService<R, C, M>
+where
+    C: AlbumStore + Clone + 'static,
+{
     cloud: R,
     catalog: C,
     local: M,
     jobs: Jobs,
+    /// The grid subscribers watch. The service owns it because the view is a
+    /// derivation of the catalog this service manages, not a separate component
+    /// that has to be wired to it.
+    subscriptions: Arc<SubscriptionManager<Albums<C>>>,
 }
 
-impl<R, C, M> AlbumsService<R, C, M> {
+impl<R, C, M> AlbumsService<R, C, M>
+where
+    C: AlbumStore + Clone + 'static,
+{
     pub fn new(cloud: R, catalog: C, local: M, jobs: Jobs) -> Self {
         Self {
+            subscriptions: Arc::new(SubscriptionManager::new(Arc::new(Albums::new(
+                catalog.clone(),
+            )))),
             cloud,
             catalog,
             local,
             jobs,
         }
+    }
+
+    /// The view a page connects to.
+    pub fn subscriptions(&self) -> Arc<SubscriptionManager<Albums<C>>> {
+        Arc::clone(&self.subscriptions)
+    }
+
+    /// Answer one commit for everyone watching the grid.
+    pub async fn apply_changes(&self, changes: &[Change]) {
+        self.subscriptions.apply(changes).await;
     }
 }
 

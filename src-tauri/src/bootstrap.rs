@@ -8,7 +8,7 @@ use source_core::app::Jobs;
 use source_core::app::account::{RestoreOutcome, SessionSetup, SessionState};
 use source_core::app::uploads::{UploadProgressEvent, UploadSinks, UploadStateEvent};
 use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
-use source_core::store::AssetSummary;
+use source_core::store::{AssetSummary, observe_commits};
 use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, CredentialStore,
     FoldersService, SettingsStore, SqliteCatalog, SyncService, ThumbCache, UploadSessionPort,
@@ -41,70 +41,87 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     std::fs::create_dir_all(&app_data)?;
     let sinks = upload_sinks(app.handle());
 
-    let core: Arc<App> = Arc::new(
-        tauri::async_runtime::block_on(async {
-            let catalog = SqliteCatalog::open(app_data.join("catalog.sqlite3")).await?;
-            let paused = catalog.get_setting(JOBS_PAUSED_KEY).await?.as_deref() == Some("1");
-            let settings: Arc<dyn SettingsStore> = Arc::new(catalog.clone());
-            let sessions: Arc<dyn UploadSessionPort> = Arc::new(catalog.clone());
-            let cred_store: Arc<dyn CredentialStore> = {
-                #[cfg(debug_assertions)]
-                {
-                    crate::dev::credential_store(&app_data)
-                }
-                #[cfg(not(debug_assertions))]
-                {
-                    Arc::new(KeyringCredentialStore::new(app.handle().clone()))
-                }
-            };
-            let auth = CloudreveAuth::new(cred_store);
-            // The adapter is the one place that sees a refused session, so it is
-            // the one place that reports it; the shell only listens.
-            let lost = app.handle().clone();
-            auth.on_session_lost(Arc::new(move || {
-                let _ = lost.emit("session://lost", ());
-            }));
-            let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
-            let local = LocalMedia::new();
-            let jobs = Jobs::new(JOB_CONCURRENCY);
-            if paused {
-                jobs.pause();
+    // Commit batches are observed from a process-wide hook, so the channel is
+    // made before any connection is opened.
+    let (changes, mut observed) = tokio::sync::mpsc::unbounded_channel();
+    let core = tauri::async_runtime::block_on(async {
+        // The observer goes in before the first connection is opened: SQLite
+        // only applies an auto-extension to connections opened after it is
+        // registered.
+        observe_commits(changes);
+        let catalog = SqliteCatalog::open(app_data.join("catalog.sqlite3")).await?;
+        let paused = catalog.get_setting(JOBS_PAUSED_KEY).await?.as_deref() == Some("1");
+        let settings: Arc<dyn SettingsStore> = Arc::new(catalog.clone());
+        let sessions: Arc<dyn UploadSessionPort> = Arc::new(catalog.clone());
+        let cred_store: Arc<dyn CredentialStore> = {
+            #[cfg(debug_assertions)]
+            {
+                crate::dev::credential_store(&app_data)
             }
-            let uploads = UploadsService::new(
+            #[cfg(not(debug_assertions))]
+            {
+                Arc::new(KeyringCredentialStore::new(app.handle().clone()))
+            }
+        };
+        let auth = CloudreveAuth::new(cred_store);
+        // The adapter is the one place that sees a refused session, so it is
+        // the one place that reports it; the shell only listens.
+        let lost = app.handle().clone();
+        auth.on_session_lost(Arc::new(move || {
+            let _ = lost.emit("session://lost", ());
+        }));
+        let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
+        let local = LocalMedia::new();
+        let jobs = Jobs::new(JOB_CONCURRENCY);
+        if paused {
+            jobs.pause();
+        }
+        let uploads = UploadsService::new(
+            cloud.clone(),
+            catalog.clone(),
+            local.clone(),
+            sinks,
+            jobs.clone(),
+        );
+        Ok::<_, source_core::store::CatalogError>(Arc::new(App {
+            account: Arc::new(AccountService::new(auth, cloud.clone(), catalog.clone())),
+            folders: Arc::new(FoldersService::new(cloud.clone(), catalog.clone())),
+            albums: Arc::new(AlbumsService::new(
                 cloud.clone(),
                 catalog.clone(),
                 local.clone(),
-                sinks,
                 jobs.clone(),
-            );
-            Ok::<_, source_core::store::CatalogError>(App {
-                account: Arc::new(AccountService::new(auth, cloud.clone(), catalog.clone())),
-                folders: Arc::new(FoldersService::new(cloud.clone(), catalog.clone())),
-                albums: Arc::new(AlbumsService::new(
-                    cloud.clone(),
-                    catalog.clone(),
-                    local.clone(),
-                    jobs.clone(),
-                )),
-                browse: Arc::new(BrowseService::new(
-                    cloud.clone(),
-                    catalog.clone(),
-                    local.clone(),
-                )),
-                sync: Arc::new(SyncService::new(
-                    catalog,
-                    local,
-                    Arc::clone(&uploads),
-                    jobs.clone(),
-                )),
-                uploads,
-                jobs,
-                settings,
-                restoring: AtomicBool::new(true),
-            })
-        })
-        .map_err(|cause| std::io::Error::other(format!("{cause:?}")))?,
-    );
+            )),
+            browse: Arc::new(BrowseService::new(
+                cloud.clone(),
+                catalog.clone(),
+                local.clone(),
+            )),
+            sync: Arc::new(SyncService::new(
+                catalog,
+                local,
+                Arc::clone(&uploads),
+                jobs.clone(),
+            )),
+            uploads,
+            jobs,
+            settings,
+            restoring: AtomicBool::new(true),
+        }))
+    })
+    .map_err(|cause| std::io::Error::other(format!("{cause:?}")))?;
+    // Commits arrive in the order they were committed, so the loop answers them
+    // in order and the page needs no revision number. It starts after the graph
+    // exists, because answering one means reaching every view through its
+    // service.
+    {
+        let applying = Arc::clone(&core);
+        tauri::async_runtime::spawn(async move {
+            while let Some(batch) = observed.recv().await {
+                applying.apply(&batch).await;
+            }
+        });
+    }
     #[cfg(debug_assertions)]
     crate::dev::autoconnect(&core);
 

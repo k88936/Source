@@ -3,7 +3,10 @@
 mod dto;
 mod view;
 
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
+use source_subscription::{Change, SubscriptionManager};
 use ts_rs::TS;
 
 use crate::mapping::{FAVORITE_KEY, exif_fields};
@@ -58,19 +61,41 @@ pub enum ExportError {
     Asset { cause: BrowseError },
 }
 
-pub struct BrowseService<R, C, M> {
+pub struct BrowseService<R, C, M>
+where
+    C: AssetStore + Clone + 'static,
+{
     cloud: R,
     catalog: C,
     local: M,
+    /// The timeline windows subscribers watch, kept here for the same reason as
+    /// the album grid: it is this service's own view of the catalog.
+    subscriptions: Arc<SubscriptionManager<Assets<C>>>,
 }
 
-impl<R, C, M> BrowseService<R, C, M> {
+impl<R, C, M> BrowseService<R, C, M>
+where
+    C: AssetStore + Clone + 'static,
+{
     pub fn new(cloud: R, catalog: C, local: M) -> Self {
         Self {
+            subscriptions: Arc::new(SubscriptionManager::new(Arc::new(Assets::new(
+                catalog.clone(),
+            )))),
             cloud,
             catalog,
             local,
         }
+    }
+
+    /// The view a page connects to.
+    pub fn subscriptions(&self) -> Arc<SubscriptionManager<Assets<C>>> {
+        Arc::clone(&self.subscriptions)
+    }
+
+    /// Answer one commit for everyone watching a window.
+    pub async fn apply_changes(&self, changes: &[Change]) {
+        self.subscriptions.apply(changes).await;
     }
 }
 

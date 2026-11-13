@@ -9,6 +9,7 @@ use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, FoldersService,
     SettingsStore, SqliteCatalog, SyncService, ThumbCache, UploadsService,
 };
+use source_subscription::Change;
 
 /// Where the settings page keeps whether background work is paused.
 pub(crate) const JOBS_PAUSED_KEY: &str = "jobs.paused";
@@ -49,7 +50,23 @@ pub(crate) struct App {
     pub(crate) restoring: AtomicBool,
 }
 
-/// Everything a command needs: the use cases plus the thumbnail cache.
+impl App {
+    /// One commit, answered by every view a page may be watching.
+    ///
+    /// Each service owns the manager of its own view, so the list of views is
+    /// the list of services and a snapshot in one of them cannot hold up the
+    /// deltas of another. The commit was already observed as committed, so this
+    /// is never called for a rolled-back transaction.
+    pub(crate) async fn apply(&self, changes: &[Change]) {
+        tokio::join!(
+            self.albums.apply_changes(changes),
+            self.browse.apply_changes(changes),
+        );
+    }
+}
+
+/// Everything a command needs: the use cases, the thumbnail cache, and through
+/// the services the subscriptions the page holds.
 pub(crate) struct AppState {
     pub(crate) core: Arc<App>,
     pub(crate) cache: Arc<ThumbCache>,

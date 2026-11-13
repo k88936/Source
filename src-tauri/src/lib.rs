@@ -84,6 +84,8 @@ pub fn run() {
             commands::catalog::set_album_cover,
             commands::catalog::set_album_description,
             commands::catalog::move_assets_to_album,
+            commands::subscription::subscription_connect,
+            commands::subscription::subscription_send,
             commands::local::media_permission_state,
             commands::local::request_media_permission,
             commands::local::local_browse,

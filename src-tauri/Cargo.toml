@@ -23,9 +23,10 @@ async-trait = "0.1"
 clap = { version = "4", features = ["derive"] }
 source-core = { path = "../crates/core" }
 source-jobs = { path = "../crates/jobs" }
+source-subscription = { path = "../crates/subscription" }
 tauri-plugin-keep-alive = { path = "../crates/tauri-plugin-keep-alive" }
 tauri-plugin-mediastore = { path = "../crates/tauri-plugin-mediastore" }
-tokio = { version = "1", features = ["sync", "time", "rt"] }
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
 urlencoding = "2"
 mime_guess = "2"
 tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring", rev = "b0a137bab0c3e592c637c32c328040d86f28256a", version = "0.2.1" }
