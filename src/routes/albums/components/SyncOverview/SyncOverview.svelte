@@ -5,7 +5,7 @@
     import {formatBytes} from '#lib/format';
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
-    import type {Queue} from '../../sync.svelte';
+    import type {Queue} from '../../albums.svelte.js';
     import {overview} from './SyncOverview.i18n';
 
     let {queue}: {queue: Queue} = $props();

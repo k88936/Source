@@ -4,8 +4,8 @@
     import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
 
-    import {sync as text} from '../../Sync.i18n';
-    import type {Group, Mapping} from '../../sync.svelte';
+    import {albums as text} from '../../Albums.i18n';
+    import type {Group, Mapping} from '../../albums.svelte.js';
     import AddAlbumCard from '../AddAlbumCard/AddAlbumCard.svelte';
     import AddMappingCard from '../AddMappingCard/AddMappingCard.svelte';
     import AlbumNode from '../AlbumNode/AlbumNode.svelte';

@@ -1,7 +1,7 @@
 <script lang="ts">
     import ActionSheet from '#lib/components/overlay/ActionSheet/ActionSheet.svelte';
     import {common} from '#lib/i18n/common.i18n';
-    import {i18n} from '#lib/i18n/i18n.svelte';
+    import {i18n} from '#lib/i18n/i18n.svelte.js';
     import {Image, Info, Trash} from '@lucide/svelte';
     import {menu} from './AlbumMenu.i18n';
 

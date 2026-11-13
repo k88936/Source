@@ -6,7 +6,7 @@
     import {albumMosaic} from '#lib/components/assets/MediaMosaic/mosaic';
     import Sheet from '#lib/components/overlay/Sheet/Sheet.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
-    import type {Group} from '../../sync.svelte';
+    import type {Group} from '../../albums.svelte.js';
     import QueueSummary from '../QueueSummary/QueueSummary.svelte';
     import {albumSheet} from './AlbumSheet.i18n';
 

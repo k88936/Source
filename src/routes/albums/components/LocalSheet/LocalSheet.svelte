@@ -7,7 +7,7 @@
     import Sheet from '#lib/components/overlay/Sheet/Sheet.svelte';
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
-    import type {Mapping} from '../../sync.svelte';
+    import type {Mapping} from '../../albums.svelte.js';
     import TaskList from '../TaskList/TaskList.svelte';
     import {localSheet} from './LocalSheet.i18n';
 

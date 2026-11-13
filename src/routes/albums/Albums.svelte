@@ -17,9 +17,9 @@
     import RemoteFolderPicker from './components/RemoteFolderPicker/RemoteFolderPicker.svelte';
     import SyncGraph from './components/SyncGraph/SyncGraph.svelte';
     import SyncOverview from './components/SyncOverview/SyncOverview.svelte';
-    import type {SyncNavParamList} from './route';
-    import {type Mapping, startSyncBoard, SyncBoard} from './sync.svelte';
-    import {sync as text} from './Sync.i18n';
+    import type {AlbumsNavParamList} from './route';
+    import {type Mapping, startSyncBoard, SyncBoard} from './albums.svelte.js';
+    import {albums as text} from './Albums.i18n';
 
     const board = new SyncBoard();
     startSyncBoard(board);
@@ -27,7 +27,7 @@
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
 
-    const navigation = useNavigation<SyncNavParamList>();
+    const navigation = useNavigation<AlbumsNavParamList>();
 
     /// Sheets hold ids, not the rows themselves: the rows are rebuilt on every
     /// tick, and a held object would freeze the modal while uploads move.

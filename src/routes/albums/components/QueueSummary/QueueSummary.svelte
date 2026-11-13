@@ -4,7 +4,7 @@
     import {formatBytes} from '#lib/format';
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
-    import type {Tally} from '../../sync.svelte';
+    import type {Tally} from '../../albums.svelte.js';
 
     /// One album's bytes: the bar, what is left, and what is moving it.
     let {tally, eta, label}: {tally: Tally; eta: number | null; label: string} = $props();

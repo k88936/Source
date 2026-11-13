@@ -3,7 +3,7 @@
     import {albumMosaic} from '#lib/components/assets/MediaMosaic/mosaic';
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
-    import type {Group} from '../../sync.svelte';
+    import type {Group} from '../../albums.svelte.js';
 
     let {group, onOpen}: {group: Group; onOpen: () => void} = $props();
 

@@ -3,10 +3,10 @@
     import {api} from '#lib/api/client';
     import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
-    import AlbumMenu from '../components/AlbumMenu/AlbumMenu.svelte';
+    import AlbumMenu from './components/AlbumMenu/AlbumMenu.svelte';
     import AssetList from '#lib/components/assets/AssetList/AssetList.svelte';
     import ConfirmDialog from '#lib/components/overlay/ConfirmDialog/ConfirmDialog.svelte';
-    import DescriptionDialog from '../components/DescriptionDialog/DescriptionDialog.svelte';
+    import DescriptionDialog from './components/DescriptionDialog/DescriptionDialog.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
     import {Ellipsis, Image, RefreshCw, Search as SearchIcon, WifiOff, X} from '@lucide/svelte';
     import SearchInput from '#lib/components/search/SearchInput/SearchInput.svelte';
@@ -14,21 +14,21 @@
     import SelectAllButton from '#lib/components/selection/SelectAllButton/SelectAllButton.svelte';
     import SelectionOverlay from '#lib/components/selection/SelectionOverlay/SelectionOverlay.svelte';
     import TimelineActions from '#lib/components/viewer/TimelineActions/TimelineActions.svelte';
-    import {AssetBrowser} from '#lib/components/assets/browser.svelte';
+    import {AssetBrowser} from '#lib/components/assets/browser.svelte.js';
     import {assetsView} from '#lib/api/views';
     import {common} from '#lib/i18n/common.i18n';
-    import {app} from '#lib/app/app.svelte';
+    import {app} from '#lib/app/app.svelte.js';
     import {changes} from '#lib/api/changes';
-    import {i18n} from '#lib/i18n/i18n.svelte';
-    import type {SyncNavParamList} from '../../sync/route';
+    import {i18n} from '#lib/i18n/i18n.svelte.js';
+    import type {AlbumsNavParamList} from '../route';
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
     import {album as text} from './Album.i18n';
 
-    const navigation = useNavigation<SyncNavParamList>();
+    const navigation = useNavigation<AlbumsNavParamList>();
     const focused = $derived(useIsFocused());
     const scroll = useScrollContainer();
     const takeBack = useBackHandler();
-    const albumId = $derived(useRoute<SyncNavParamList>().params?.id ?? '');
+    const albumId = $derived(useRoute<AlbumsNavParamList>().params?.id ?? '');
 
     /** Confined to this album, so a result can never come from another one. */
     const browser = new AssetBrowser(

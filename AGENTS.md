@@ -29,7 +29,7 @@ playwright attach --cdp {CDP_PORT}
 ```shell
 pnpm demo:dev
 
-playwright open http://localhost:5174/Source/app/sync
+playwright open http://localhost:5174/Source/app/
 ```
 
 * NEVER use android vm to debug or test unless required.

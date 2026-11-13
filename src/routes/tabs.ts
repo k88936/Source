@@ -1,11 +1,11 @@
 import type {TabScreens} from 'svelte-navigation';
 import type {TabParamList} from './params';
+import AlbumsStack from './albums/Stack.svelte';
+import {albumsScreens} from './albums/route';
 import LibraryStack from './library/Stack.svelte';
 import {libraryScreens} from './library/route';
 import PhotosStack from './photos/Stack.svelte';
 import {photosScreens} from './photos/route';
-import SyncStack from './sync/Stack.svelte';
-import {syncScreens} from './sync/route';
 
 /**
  * The tabs in display order, each with its stack and the screens that stack
@@ -14,6 +14,6 @@ import {syncScreens} from './sync/route';
  */
 export const tabs = {
     Photos: {component: PhotosStack, screens: photosScreens},
-    Albums: {component: SyncStack, screens: syncScreens},
+    Albums: {component: AlbumsStack, screens: albumsScreens},
     Library: {component: LibraryStack, screens: libraryScreens},
 } satisfies TabScreens<TabParamList>;

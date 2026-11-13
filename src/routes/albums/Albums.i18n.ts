@@ -1,6 +1,6 @@
 import {bundle} from '#lib/i18n/bundle';
 
-export const sync = bundle(
+export const albums = bundle(
     {
         localAlbums: 'Local albums',
         cloudAlbums: 'Cloud albums',
