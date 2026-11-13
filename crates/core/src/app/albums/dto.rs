@@ -3,22 +3,13 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::store::{AlbumId, AssetId, TimelineCursor};
+use crate::store::{AlbumId, AssetId};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AddAlbumParams {
     pub uri: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct AlbumPageParams {
-    pub album_id: AlbumId,
-    pub cursor: Option<TimelineCursor>,
-    pub limit: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

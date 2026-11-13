@@ -9,7 +9,8 @@ use crate::mapping::{FAVORITE_KEY, exif_fields};
 use crate::media::{LocalAsset, LocalMediaPort, MediaError, MediaPermissionState};
 use crate::remote::{MediaFetchError, MediaRange, MetadataError, RemoteStorage};
 use crate::store::{
-    AssetStore, AssetSummary, CatalogError, FolderStore, SearchQuery, TimelinePage, TimelineStore,
+    AssetStore, AssetSummary, CatalogError, FolderStore, SearchQuery, TimelineCursor, TimelinePage,
+    TimelineStore,
 };
 
 use super::clamp_limit;
@@ -74,16 +75,9 @@ impl<R, C, M> BrowseService<R, C, M> {
 impl<R, C, M> BrowseService<R, C, M>
 where
     R: RemoteStorage,
-    C: AssetStore + FolderStore + TimelineStore,
+    C: AssetStore + FolderStore + TimelineStore + Clone + 'static,
     M: LocalMediaPort,
 {
-    pub async fn get_timeline_page(
-        &self,
-        params: TimelinePageParams,
-    ) -> Result<TimelinePage, BrowseError> {
-        self.get_timeline_page_impl(params).await
-    }
-
     pub async fn get_asset_detail(&self, asset_id: &str) -> Result<AssetDetail, BrowseError> {
         self.get_asset_detail_impl(asset_id).await
     }
@@ -116,6 +110,22 @@ where
 
     pub async fn search(&self, params: SearchParams) -> Result<TimelinePage, BrowseError> {
         self.search_impl(params).await
+    }
+
+    /// How many assets the scope holds. The list itself is a subscription; this
+    /// is only the length a page prints before it has scrolled to the end.
+    pub async fn asset_count(&self, params: AssetCountParams) -> Result<u32, BrowseError> {
+        self.asset_count_impl(params).await
+    }
+
+    /// Where the next screen of a list ends. The rows in between are what the
+    /// subscription for that interval brings, so a page can cut its next window
+    /// without reading this one.
+    pub async fn asset_edge(
+        &self,
+        params: AssetEdgeParams,
+    ) -> Result<Option<TimelineCursor>, BrowseError> {
+        self.asset_edge_impl(params).await
     }
 
     pub async fn set_favorite(
@@ -162,19 +172,9 @@ where
 impl<R, C, M> BrowseService<R, C, M>
 where
     R: RemoteStorage,
-    C: AssetStore + FolderStore + TimelineStore,
+    C: AssetStore + FolderStore + TimelineStore + Clone + 'static,
     M: LocalMediaPort,
 {
-    async fn get_timeline_page_impl(
-        &self,
-        params: TimelinePageParams,
-    ) -> Result<TimelinePage, BrowseError> {
-        self.catalog
-            .get_timeline_page(params.cursor.as_ref(), clamp_limit(params.limit))
-            .await
-            .map_err(BrowseError::catalog)
-    }
-
     async fn get_asset_detail_impl(&self, asset_id: &str) -> Result<AssetDetail, BrowseError> {
         let record = self
             .catalog
@@ -251,6 +251,27 @@ where
             .get_asset(id)
             .await
             .map_err(|cause| BrowseError::LocalMedia { cause })
+    }
+
+    async fn asset_count_impl(&self, params: AssetCountParams) -> Result<u32, BrowseError> {
+        self.catalog
+            .asset_count(params.album_id.as_ref().map(|id| id.as_str()))
+            .await
+            .map_err(BrowseError::catalog)
+    }
+
+    async fn asset_edge_impl(
+        &self,
+        params: AssetEdgeParams,
+    ) -> Result<Option<TimelineCursor>, BrowseError> {
+        self.catalog
+            .asset_edge(
+                params.album_id.as_ref().map(|id| id.as_str()),
+                params.after,
+                params.depth,
+            )
+            .await
+            .map_err(BrowseError::catalog)
     }
 
     async fn search_impl(&self, params: SearchParams) -> Result<TimelinePage, BrowseError> {

@@ -1,5 +1,5 @@
-//! Read paths over the whole index: the timeline and search. The contract and
-//! the diesel statements behind it.
+//! Search over the whole index. The contract and the diesel statements behind
+//! it.
 
 use async_trait::async_trait;
 
@@ -12,21 +12,7 @@ pub use dto::*;
 
 #[async_trait]
 pub trait TimelineStore: Send + Sync {
-    async fn get_timeline_page(
-        &self,
-        cursor: Option<&TimelineCursor>,
-        limit: u32,
-    ) -> Result<TimelinePage, CatalogError>;
     async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, CatalogError>;
-}
-
-pub(crate) async fn get_timeline_page(
-    cat: &SqliteCatalog,
-    cursor: Option<&TimelineCursor>,
-    limit: u32,
-) -> Result<TimelinePage, CatalogError> {
-    let mut conn = cat.conn().await?;
-    asset_page(&mut conn, &AssetFilter::default(), cursor, limit).await
 }
 
 pub(crate) async fn search(
@@ -48,14 +34,6 @@ pub(crate) async fn search(
 
 #[async_trait]
 impl TimelineStore for SqliteCatalog {
-    async fn get_timeline_page(
-        &self,
-        cursor: Option<&TimelineCursor>,
-        limit: u32,
-    ) -> Result<TimelinePage, CatalogError> {
-        get_timeline_page(self, cursor, limit).await
-    }
-
     async fn search(&self, query: &SearchQuery) -> Result<TimelinePage, CatalogError> {
         search(self, query).await
     }

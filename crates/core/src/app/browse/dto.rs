@@ -6,12 +6,23 @@ use ts_rs::TS;
 use crate::mapping::ExifField;
 use crate::store::{AssetId, AssetSummary, FolderId, MediaType, TimelineCursor};
 
+/// The scope a count runs over; absent means the whole library.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct TimelinePageParams {
-    pub cursor: Option<TimelineCursor>,
-    pub limit: u32,
+pub struct AssetCountParams {
+    pub album_id: Option<FolderId>,
+}
+
+/// Where one screen of a list ends: `depth` rows below `after`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AssetEdgeParams {
+    pub album_id: Option<FolderId>,
+    /// The row to start counting from; absent counts from the newest one.
+    pub after: Option<TimelineCursor>,
+    pub depth: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

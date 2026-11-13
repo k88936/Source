@@ -7,7 +7,11 @@ use ts_rs::TS;
 use super::super::asset::{AssetSummary, MediaType};
 use super::super::folder::FolderId;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+/// Where a page continues, and the one order every list of assets shares.
+///
+/// The pair is the key the two anchors of a window are compared by, newest
+/// first; that order is written where keys are compared, not derived here.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct TimelineCursor {

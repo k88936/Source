@@ -9,7 +9,6 @@ use super::asset::schema::assets;
 use super::folder::rows::FolderRow;
 use super::folder::schema::{folders, sync_state};
 use super::local::schema::{local_album_mapping, local_albums};
-use super::query::*;
 use super::*;
 
 mod dto;
@@ -24,12 +23,6 @@ pub trait AlbumStore: Send + Sync {
     async fn delete_album(&self, id: &str) -> Result<(), CatalogError>;
     async fn list_albums(&self) -> Result<Vec<AlbumMetadata>, CatalogError>;
     async fn get_album(&self, id: &str) -> Result<Option<AlbumMetadata>, CatalogError>;
-    async fn get_album_page(
-        &self,
-        album_id: &str,
-        cursor: Option<&TimelineCursor>,
-        limit: u32,
-    ) -> Result<TimelinePage, CatalogError>;
     async fn set_album_cover(
         &self,
         album_id: &str,
@@ -262,20 +255,6 @@ pub(crate) async fn get_album(
     }))
 }
 
-pub(crate) async fn get_album_page(
-    cat: &SqliteCatalog,
-    album_id: &str,
-    cursor: Option<&TimelineCursor>,
-    limit: u32,
-) -> Result<TimelinePage, CatalogError> {
-    let mut conn = cat.conn().await?;
-    let filter = AssetFilter {
-        folder: Some(album_id),
-        ..AssetFilter::default()
-    };
-    asset_page(&mut conn, &filter, cursor, limit).await
-}
-
 pub(crate) async fn set_album_cover(
     cat: &SqliteCatalog,
     album_id: &str,
@@ -320,15 +299,6 @@ impl AlbumStore for SqliteCatalog {
 
     async fn get_album(&self, id: &str) -> Result<Option<AlbumMetadata>, CatalogError> {
         get_album(self, id).await
-    }
-
-    async fn get_album_page(
-        &self,
-        album_id: &str,
-        cursor: Option<&TimelineCursor>,
-        limit: u32,
-    ) -> Result<TimelinePage, CatalogError> {
-        get_album_page(self, album_id, cursor, limit).await
     }
 
     async fn set_album_cover(

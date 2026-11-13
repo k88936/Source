@@ -4,19 +4,31 @@ use crate::prelude::*;
 use crate::protocols::media_address;
 
 #[tauri::command]
-pub(crate) async fn timeline_page(
-    state: State<'_, AppState>,
-    params: TimelinePageParams,
-) -> Result<TimelinePage, BrowseError> {
-    state.core.browse.get_timeline_page(params).await
-}
-
-#[tauri::command]
 pub(crate) async fn asset_detail(
     state: State<'_, AppState>,
     params: AssetDetailParams,
 ) -> Result<AssetDetail, BrowseError> {
     state.core.browse.get_asset_detail(&params.asset_id.0).await
+}
+
+/// Where one screen of a list ends. The rows in between come from the window
+/// subscription for that interval.
+#[tauri::command]
+pub(crate) async fn asset_edge(
+    state: State<'_, AppState>,
+    params: AssetEdgeParams,
+) -> Result<Option<TimelineCursor>, BrowseError> {
+    state.core.browse.asset_edge(params).await
+}
+
+/// How many assets the scope holds. The rows themselves are a subscription;
+/// this is only the length a viewer prints.
+#[tauri::command]
+pub(crate) async fn asset_count(
+    state: State<'_, AppState>,
+    params: AssetCountParams,
+) -> Result<u32, BrowseError> {
+    state.core.browse.asset_count(params).await
 }
 
 #[tauri::command]
@@ -55,14 +67,6 @@ pub(crate) async fn album_get(
     params: AlbumParams,
 ) -> Result<Option<AlbumMetadata>, AlbumError> {
     state.core.albums.get_album(&params.album_id.0).await
-}
-
-#[tauri::command]
-pub(crate) async fn album_page(
-    state: State<'_, AppState>,
-    params: AlbumPageParams,
-) -> Result<TimelinePage, AlbumError> {
-    state.core.albums.get_album_page(params).await
 }
 
 /// Add a folder as an album. The folder is listed once right away, so a fresh

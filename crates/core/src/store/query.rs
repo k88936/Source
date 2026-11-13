@@ -64,8 +64,10 @@ pub(crate) async fn upsert_asset_row(
     Ok(())
 }
 
-/// How a listing narrows the library. The timeline, one album and a search are
-/// one statement with a different filter, so they share [`asset_page`].
+/// How one search narrows the library.
+///
+/// Search is the one list left on a page query: its conditions are not a view
+/// the catalog declares, so it reads a page at a time instead of subscribing.
 #[derive(Default)]
 pub(crate) struct AssetFilter<'a> {
     /// A single folder, which is what an album is.

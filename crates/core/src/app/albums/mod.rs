@@ -26,7 +26,7 @@ use crate::remote::{
 use crate::store::{
     AlbumId, AlbumMetadata, AlbumStore, AssetRecord, AssetStore, AssetSummary, CatalogError,
     FolderId, FolderRecord, FolderStore, LocalAlbumRecord, LocalStore, MediaType, SYNC_DONE,
-    SYNC_FAILED, TimelinePage, TimelineStore,
+    SYNC_FAILED, TimelineStore,
 };
 use crate::task::{Attempt, Retry, Step, attempt};
 use crate::time::now_ms;
@@ -141,13 +141,6 @@ where
 
     pub async fn get_album(&self, album_id: &str) -> Result<Option<AlbumMetadata>, AlbumError> {
         self.get_album_impl(album_id).await
-    }
-
-    pub async fn get_album_page(
-        &self,
-        params: AlbumPageParams,
-    ) -> Result<TimelinePage, AlbumError> {
-        self.get_album_page_impl(params).await
     }
 
     /// Add a folder as an album and list it once, so it is never shown empty
@@ -280,20 +273,6 @@ where
     async fn get_album_impl(&self, album_id: &str) -> Result<Option<AlbumMetadata>, AlbumError> {
         self.catalog
             .get_album(album_id)
-            .await
-            .map_err(AlbumError::catalog)
-    }
-
-    async fn get_album_page_impl(
-        &self,
-        params: AlbumPageParams,
-    ) -> Result<TimelinePage, AlbumError> {
-        self.catalog
-            .get_album_page(
-                &params.album_id.0,
-                params.cursor.as_ref(),
-                clamp_limit(params.limit),
-            )
             .await
             .map_err(AlbumError::catalog)
     }
