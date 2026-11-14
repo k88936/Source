@@ -98,6 +98,7 @@ where
     /// The album view takes no parameters: an album set is the whole library.
     type Query = ();
     type Row = AlbumMetadata;
+    type Change = Change;
 
     async fn snapshot(&self, _query: &Self::Query) -> Result<Vec<AlbumMetadata>, String> {
         self.catalog

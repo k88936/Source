@@ -5,8 +5,6 @@ use std::future::Future;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::change::Change;
-
 /// What a client names when it subscribes.
 ///
 /// A query is a parameter, not a statement: the views that answer it are fixed
@@ -76,6 +74,12 @@ impl<R> Delta<R> {
 pub trait View: Send + Sync + 'static {
     type Query: Query;
     type Row: Row;
+    /// What one commit looks like to this view.
+    ///
+    /// A row in the database is announced as [`Change`](crate::Change); a set
+    /// that lives in memory has its own idea of what changed, and says so with
+    /// its own type instead of encoding a row into column values.
+    type Change: Send + Sync;
 
     /// Every row the query has now.
     fn snapshot(
@@ -91,6 +95,6 @@ pub trait View: Send + Sync + 'static {
     fn delta(
         &self,
         query: &Self::Query,
-        changes: &[Change],
+        changes: &[Self::Change],
     ) -> impl Future<Output = Result<Delta<Self::Row>, String>> + Send;
 }

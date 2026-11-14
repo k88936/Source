@@ -8,7 +8,6 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use tokio::sync::{Mutex, mpsc};
 
-use crate::change::Change;
 use crate::protocol::{
     ClientMessage, QueryRows, QuerySetId, QuerySetUpdate, QueryUpdate, ServerMessage,
 };
@@ -104,7 +103,7 @@ impl<V: View> SubscriptionManager<V> {
     ///
     /// The changes are already committed: whoever observed them must not call
     /// this for a rolled-back transaction.
-    pub async fn apply(&self, changes: &[Change]) {
+    pub async fn apply(&self, changes: &[V::Change]) {
         if changes.is_empty() {
             return;
         }

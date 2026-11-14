@@ -86,6 +86,42 @@ pub struct Job<K> {
     pub finished_at: Option<i64>,
 }
 
+/// What one update did to one job.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JobChangeOp {
+    Upsert,
+    Remove,
+}
+
+/// One job the queue touched.
+///
+/// The queue says which rows moved, not what they now hold: whoever reads this
+/// is the one with the job list, so a change is an identity and nothing else.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JobChange<K> {
+    pub kind: K,
+    pub id: JobId,
+    pub op: JobChangeOp,
+}
+
+impl<K> JobChange<K> {
+    pub(crate) fn upsert(kind: K, id: &JobId) -> Self {
+        Self {
+            kind,
+            id: id.clone(),
+            op: JobChangeOp::Upsert,
+        }
+    }
+
+    pub(crate) fn remove(kind: K, id: JobId) -> Self {
+        Self {
+            kind,
+            id,
+            op: JobChangeOp::Remove,
+        }
+    }
+}
+
 impl<K> Job<K> {
     pub(crate) fn new(id: JobId, kind: K, state: JobState, submitted_at: i64) -> Self {
         Self {

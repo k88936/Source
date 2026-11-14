@@ -137,6 +137,7 @@ where
     /// library of them.
     type Query = ();
     type Row = LocalAlbumMetadata;
+    type Change = Change;
 
     async fn snapshot(&self, _query: &Self::Query) -> Result<Vec<LocalAlbumMetadata>, String> {
         let albums = self

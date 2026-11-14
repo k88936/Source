@@ -163,6 +163,7 @@ where
 {
     type Query = AssetsQuery;
     type Row = AssetSummary;
+    type Change = Change;
 
     fn snapshot(
         &self,

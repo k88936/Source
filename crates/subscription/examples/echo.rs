@@ -184,6 +184,7 @@ struct Ledger {
 impl View for Ledger {
     type Query = Window;
     type Row = LedgerRow;
+    type Change = Change;
 
     fn snapshot(
         &self,
