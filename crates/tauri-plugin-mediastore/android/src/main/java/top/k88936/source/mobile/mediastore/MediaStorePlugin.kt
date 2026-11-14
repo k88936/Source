@@ -64,6 +64,13 @@ internal class ThumbArgs {
   var edge: Int = 0
 }
 
+@InvokeArg
+internal class RangeArgs {
+  lateinit var uri: String
+  var offset: Long = 0
+  var length: Int = 0
+}
+
 /**
  * The device photo library, reached the only way Android allows: MediaStore
  * rows behind a runtime permission.
@@ -373,6 +380,37 @@ class MediaStorePlugin(private val context: Activity) : Plugin(context) {
         bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
         bitmap.recycle()
         invoke.resolveObject(Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP))
+      } catch (error: Exception) {
+        reject(invoke, error)
+      }
+    }
+  }
+
+  /**
+   * Up to `length` raw bytes of the file behind `uri`, starting at `offset`.
+   * Fewer bytes than asked means the file ends there.
+   */
+  @Command
+  fun readRange(invoke: Invoke) {
+    val args = invoke.parseArgs(RangeArgs::class.java)
+    io.execute {
+      try {
+        val bytes = ByteArray(args.length)
+        var filled = 0
+        resolver.openInputStream(Uri.parse(args.uri))?.use { stream ->
+          var skipped = 0L
+          while (skipped < args.offset) {
+            val step = stream.skip(args.offset - skipped)
+            if (step <= 0) break
+            skipped += step
+          }
+          while (filled < bytes.size) {
+            val read = stream.read(bytes, filled, bytes.size - filled)
+            if (read <= 0) break
+            filled += read
+          }
+        }
+        invoke.resolveObject(Base64.encodeToString(bytes, 0, filled, Base64.NO_WRAP))
       } catch (error: Exception) {
         reject(invoke, error)
       }

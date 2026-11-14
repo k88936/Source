@@ -46,6 +46,11 @@ pub trait RemoteStorage: Send + Sync {
     /// The folder `uri` itself, the drive root included.
     async fn get_folder_info(&self, uri: &str) -> Result<RemoteEntry, ListError>;
 
+    /// One file's entry, read by its own address rather than by listing its
+    /// folder. Used to decide a same-name upload against the copy the server
+    /// already holds.
+    async fn get_file_info(&self, uri: &str) -> Result<RemoteEntry, MediaFetchError>;
+
     /// Thumbnail bytes for `uri`, signed and fetched in one step so the URL
     /// never leaves the adapter.
     async fn get_thumb_bytes(&self, uri: &str) -> Result<Vec<u8>, MediaFetchError>;

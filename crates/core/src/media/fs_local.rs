@@ -163,6 +163,39 @@ impl LocalMediaPort for FsLocalMedia {
         Ok(direct_media(Path::new(album_uri))?.len() as u32)
     }
 
+    async fn read_range(&self, uri: &str, offset: u64, len: u32) -> Result<Vec<u8>, MediaError> {
+        use std::io::{Read, Seek, SeekFrom};
+
+        let path = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
+        let mut file = fs::File::open(path).map_err(|error| match error.kind() {
+            std::io::ErrorKind::NotFound => MediaError::AssetGone {
+                uri: uri.to_string(),
+            },
+            _ => MediaError::Platform {
+                cause: format!("无法打开 {}: {error}", path.display()),
+            },
+        })?;
+        file.seek(SeekFrom::Start(offset))
+            .map_err(|error| MediaError::Platform {
+                cause: format!("无法定位 {}: {error}", path.display()),
+            })?;
+        let mut buffer = vec![0u8; len as usize];
+        let mut filled = 0;
+        while filled < buffer.len() {
+            match file.read(&mut buffer[filled..]) {
+                Ok(0) => break,
+                Ok(read) => filled += read,
+                Err(error) => {
+                    return Err(MediaError::Platform {
+                        cause: format!("无法读取 {}: {error}", path.display()),
+                    });
+                }
+            }
+        }
+        buffer.truncate(filled);
+        Ok(buffer)
+    }
+
     async fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, MediaError> {
         Ok(local_asset_from_path(Path::new(id)))
     }

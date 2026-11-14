@@ -208,8 +208,8 @@ impl CloudreveStorage {
 }
 use cloudreve_sdk_api::api::{ExplorerApi, UserApi};
 use cloudreve_sdk_api::models::explorer::{
-    CreateFileService, FileURLService, ListFileService, MetadataPatch, MoveFileService,
-    PatchMetadataService,
+    CreateFileService, FileURLService, GetFileInfoService, ListFileService, MetadataPatch,
+    MoveFileService, PatchMetadataService,
 };
 
 #[async_trait]
@@ -270,6 +270,20 @@ impl RemoteStorage for CloudreveStorage {
     /// describes the folder that was listed, the drive root included.
     async fn get_folder_info(&self, uri: &str) -> Result<RemoteEntry, ListError> {
         Ok(self.list_entries(uri, None).await?.current)
+    }
+
+    async fn get_file_info(&self, uri: &str) -> Result<RemoteEntry, MediaFetchError> {
+        let client = self.client().map_err(|cause| media_fetch(uri, cause))?;
+        let info = client
+            .get_file_info(&GetFileInfoService {
+                uri: Some(uri.to_string()),
+                id: None,
+                extended: Some(false),
+                folder_summary: Some(false),
+            })
+            .await
+            .map_err(|cause| media_fetch(uri, self.answer(cause)))?;
+        Ok(to_entry(uri, &info))
     }
 
     async fn get_thumb_bytes(&self, uri: &str) -> Result<Vec<u8>, MediaFetchError> {

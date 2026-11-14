@@ -82,6 +82,12 @@ impl LocalMediaPort for AndroidMedia {
         Ok(mediastore::count(album_uri).await.map_err(media_error)?)
     }
 
+    async fn read_range(&self, uri: &str, offset: u64, len: u32) -> Result<Vec<u8>, MediaError> {
+        mediastore::read_range(uri, offset, len)
+            .await
+            .map_err(media_error)
+    }
+
     async fn get_thumb(&self, id: &str, edge: u32) -> Result<Vec<u8>, MediaError> {
         Ok(mediastore::thumb(id, edge).await.map_err(media_error)?)
     }

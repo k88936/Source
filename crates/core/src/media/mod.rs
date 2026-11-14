@@ -73,6 +73,12 @@ pub trait LocalMediaPort: Send + Sync {
     /// How many assets [`Self::list_assets`] would report, without reading them.
     async fn count_assets(&self, album_uri: &str) -> Result<u32, MediaError>;
 
+    /// Up to `len` raw bytes of the asset behind `uri`, starting at `offset`.
+    ///
+    /// A same-name upload compares these bytes with the server copy, so they
+    /// must be the file's own bytes: no decoding, no re-encoding.
+    async fn read_range(&self, uri: &str, offset: u64, len: u32) -> Result<Vec<u8>, MediaError>;
+
     /// Small JPEG preview for a grid tile.
     ///
     /// Each platform picks its cheapest source: MediaStore thumbnails on

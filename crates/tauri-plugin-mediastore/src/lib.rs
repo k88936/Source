@@ -145,6 +145,13 @@ mod android {
         edge: u32,
     }
 
+    #[derive(Serialize)]
+    struct RangeArgs<'a> {
+        uri: &'a str,
+        offset: u64,
+        length: u32,
+    }
+
     #[derive(Deserialize)]
     struct Buckets {
         entries: Vec<Entry>,
@@ -212,6 +219,23 @@ mod android {
         STANDARD
             .decode(encoded)
             .map_err(|error| Error::Platform(format!("无法解码缩略图: {error}")))
+    }
+
+    /// Up to `length` raw bytes of the file behind `uri`, starting at `offset`.
+    /// Fewer bytes than asked means the file ends there.
+    pub async fn read_range(uri: &str, offset: u64, length: u32) -> Result<Vec<u8>, Error> {
+        let encoded: String = call(
+            "readRange",
+            RangeArgs {
+                uri,
+                offset,
+                length,
+            },
+        )
+        .await?;
+        STANDARD
+            .decode(encoded)
+            .map_err(|error| Error::Platform(format!("无法解码文件内容: {error}")))
     }
 
     /// A rejection carries the message the user should see, and a permission
