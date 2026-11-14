@@ -8,6 +8,7 @@ import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
 import type {AssetsQuery} from '#lib/api/bindings/AssetsQuery';
 import type {CreateFolderParams} from '#lib/api/bindings/CreateFolderParams';
 import type {ExportAssetsParams} from '#lib/api/bindings/ExportAssetsParams';
+import type {JobRow} from '#lib/api/bindings/JobRow';
 import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
 import type {LocalAssetPage} from '#lib/api/bindings/LocalAssetPage';
 import type {LocalAssetPageParams} from '#lib/api/bindings/LocalAssetPageParams';
@@ -15,6 +16,7 @@ import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
 import type {LocalBrowsePage} from '#lib/api/bindings/LocalBrowsePage';
 import type {LoginOutcome} from '#lib/api/bindings/LoginOutcome';
 import type {MediaSourceParams} from '#lib/api/bindings/MediaSourceParams';
+import type {QueuedUpload} from '#lib/api/bindings/QueuedUpload';
 import type {RemoteFolderPage} from '#lib/api/bindings/RemoteFolderPage';
 import type {SearchParams} from '#lib/api/bindings/SearchParams';
 import type {SetAlbumCoverParams} from '#lib/api/bindings/SetAlbumCoverParams';
@@ -67,6 +69,31 @@ function isOlder(a: TimelineCursor, b: TimelineCursor): boolean {
 const subscribers = new Map<string, Set<(payload: unknown) => void>>();
 
 /**
+ * The uploads whose bytes are moving, as the running view answers them.
+ *
+ * A row is only interesting while its bytes are moving: a queued row waits its
+ * turn with nothing to show, and a finished one is history.
+ */
+function inFlight(): QueuedUpload[] {
+    return demo.uploads
+        .filter((task) => task.state === 'creatingSession' || task.state === 'uploading' || task.state === 'completing')
+        .map((task) => ({
+            id: task.id,
+            localAssetId: task.localAssetId,
+            localAlbumId: task.localAlbumId,
+            name: task.name,
+            destUri: task.destUri,
+            destName: task.destName,
+            state: task.state,
+            uploaded: task.uploaded,
+            total: task.total,
+            speed: task.speed,
+            etaSeconds: task.etaSeconds,
+            error: null,
+        }));
+}
+
+/**
  * The demo runs the real app against fixtures instead of the Rust side. Writes
  * answer the way the adapter does, but change nothing: the point is to show the
  * screens, not to keep a database. The visitor is always signed in, so the demo
@@ -101,7 +128,10 @@ function run(command: string, params: Record<string, unknown>): unknown {
             return demo.cacheStats;
 
         case 'clear_cache':
-        case 'set_keep_alive':
+        case 'set_settings':
+        case 'job_cancel':
+        case 'index_album':
+        case 'sync_album':
         case 'index_stop':
         case 'sync_stop':
             return undefined;
@@ -110,11 +140,8 @@ function run(command: string, params: Record<string, unknown>): unknown {
         case 'sync_start':
             return 0;
 
-        case 'keep_alive':
-            return true;
-
-        case 'job_list':
-            return demo.jobs;
+        case 'settings':
+            return {keepAlive: true, syncFrequency: 'never', indexFrequency: 'never'};
 
         case 'list_remote_folders': {
             const {uri} = params as {uri: string};
@@ -160,11 +187,6 @@ function run(command: string, params: Record<string, unknown>): unknown {
 
         case 'album_remove':
             return undefined;
-
-        case 'album_refresh': {
-            const {albumId} = params as AlbumParams;
-            return demo.album(albumId);
-        }
 
         case 'set_album_cover': {
             const {albumId, assetId} = params as SetAlbumCoverParams;
@@ -263,17 +285,28 @@ function run(command: string, params: Record<string, unknown>): unknown {
             // The page addresses a view; the demo answers it from fixtures.
             const addressed = (params as {message: ClientMessage<null | AssetsQuery> & {view: string}}).message;
             if (addressed.type !== 'subscribe') return undefined;
-            const snapshot: ServerMessage<null | AssetsQuery, AlbumMetadata | LocalAlbumMetadata | AssetSummary> = {
+            const snapshot: ServerMessage<
+                null | AssetsQuery,
+                AlbumMetadata | LocalAlbumMetadata | AssetSummary | JobRow | QueuedUpload
+            > = {
                 type: 'subscribeApplied',
                 requestId: addressed.requestId,
                 querySetId: addressed.querySetId,
                 queries: addressed.queries.map((query) => ({
                     query,
-                    rows: addressed.view === 'albums'
-                        ? demo.albums
-                        : addressed.view === 'locals'
-                          ? demo.localAlbums
-                          : orderedAssets(query as AssetsQuery),
+                    // The queue views are answered from the same fixtures the
+                    // page draws everything else from, so a card animates in
+                    // the demo exactly as it does against the process.
+                    rows:
+                        addressed.view === 'albums'
+                            ? demo.albums
+                            : addressed.view === 'locals'
+                              ? demo.localAlbums
+                              : addressed.view === 'jobs'
+                                ? demo.jobs
+                                : addressed.view === 'running'
+                                  ? inFlight()
+                                  : orderedAssets(query as AssetsQuery),
                 })),
             };
             for (const subscriber of subscribers.get(addressed.view) ?? []) subscriber(snapshot);

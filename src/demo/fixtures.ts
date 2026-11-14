@@ -6,8 +6,7 @@ import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
 import type {CacheStats} from '#lib/api/bindings/CacheStats';
 import type {Capacity} from '#lib/api/bindings/Capacity';
 import type {FolderRef} from '#lib/api/bindings/FolderRef';
-import type {Job} from '#lib/api/bindings/Job';
-import type {JobKind} from '#lib/api/bindings/JobKind';
+import type {JobRow} from '#lib/api/bindings/JobRow';
 import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
 import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
 import type {LocalEntry} from '#lib/api/bindings/LocalEntry';
@@ -471,19 +470,38 @@ export const uploads: UploadTask[] = [
     },
 ];
 
-export const jobs: Job<JobKind>[] = [
+/**
+ * The queue as the cards read it: a card animates while its own row is queued
+ * or running, so the demo leaves one listing and one scan going, next to a
+ * finished listing and an upload that is already writing bytes.
+ */
+export const jobs: JobRow[] = [
     {
-        id: 'album-1',
+        id: 'index:album-1',
         kind: 'index',
+        jobId: 'album-1',
         state: 'done',
         progress: {done: 24, total: 24},
         submittedAt: newest - 2 * HOUR,
         startedAt: newest - 2 * HOUR,
         finishedAt: newest - 2 * HOUR + 4_000,
     },
+    // 夏日碎片 has no folder feeding it, so its card is the listing at work.
     {
-        id: 'local-album-1',
+        id: 'index:album-4',
+        kind: 'index',
+        jobId: 'album-4',
+        state: 'running',
+        progress: {done: 1, total: null},
+        submittedAt: newest - HOUR,
+        startedAt: newest - HOUR,
+        finishedAt: null,
+    },
+    // Screenshots has nothing on the wire, so its card is the walk at work.
+    {
+        id: 'sync:local-album-2',
         kind: 'sync',
+        jobId: 'local-album-2',
         state: 'running',
         progress: {done: 2, total: null},
         submittedAt: newest - HOUR,
@@ -491,8 +509,9 @@ export const jobs: Job<JobKind>[] = [
         finishedAt: null,
     },
     {
-        id: 'upload-1',
+        id: 'upload:upload-1',
         kind: 'upload',
+        jobId: 'upload-1',
         state: 'running',
         progress: {done: 1_842_000, total: 3_421_884},
         submittedAt: newest - HOUR / 2,
