@@ -16,7 +16,6 @@
     import LocalSheet from './components/LocalSheet/LocalSheet.svelte';
     import RemoteFolderPicker from './components/RemoteFolderPicker/RemoteFolderPicker.svelte';
     import SyncGraph from './components/SyncGraph/SyncGraph.svelte';
-    import SyncOverview from './components/SyncOverview/SyncOverview.svelte';
     import type {AlbumsNavParamList} from './route';
     import {type Mapping, startSyncBoard, SyncBoard} from './albums.svelte.js';
     import {albums as text} from './Albums.i18n';
@@ -109,6 +108,37 @@
         }
     }
 
+    /// One action, reported the same way wherever it comes from.
+    async function run(action: () => Promise<void>): Promise<void> {
+        try {
+            await action();
+        } catch (err) {
+            app.showToast(app.describeError(err), 'error');
+        }
+    }
+
+    /// The sheet acts on the row it is showing, and that row is read again on
+    /// every commit, so each action reads the id at the moment it is pressed.
+    function indexAlbum() {
+        const album = selectedGroup?.album;
+        if (album) void run(() => board.index(album.id));
+    }
+
+    function cancelIndex() {
+        const album = selectedGroup?.album;
+        if (album) void run(() => board.cancel('index', album.id));
+    }
+
+    function scanFolder() {
+        const local = selectedMapping?.local;
+        if (local) void run(() => board.scan(local.id));
+    }
+
+    function cancelScan() {
+        const local = selectedMapping?.local;
+        if (local) void run(() => board.cancel('sync', local.id));
+    }
+
     async function unbind() {
         const local = unbindTarget;
         unbindTarget = null;
@@ -127,32 +157,32 @@
 <ScreenOptions title={c.albums} />
 
 <div class="mx-auto w-full max-w-2xl px-4 pb-4">
-    <!-- The overview is the page's dock: it opens at the top of the content and
-         pins to the top of the viewport once the rows scroll under it, so it
-         never leaves the screen and never eats a row. The top padding lives
-         inside this dock, so the card keeps the same offset whether it is
-         scrolling or pinned - padding on the page itself would be swallowed by
-         the first scrolled pixel. -->
-    <div class="sticky top-0 z-20 pb-3 pt-3">
-        <SyncOverview queue={board.queue} />
+    <div class="pt-3">
+        <SyncGraph
+            groups={board.groups}
+            onAlbum={openAlbum}
+            onLocal={openLocal}
+            onAdd={addMapping}
+            onAddAlbum={() => (albumPickerOpen = true)}
+        />
     </div>
-
-    <SyncGraph
-        groups={board.groups}
-        onAlbum={openAlbum}
-        onLocal={openLocal}
-        onAdd={addMapping}
-        onAddAlbum={() => (albumPickerOpen = true)}
-    />
 </div>
 
-<AlbumSheet bind:open={albumOpen} group={selectedGroup} onOpen={openAlbumPage} />
+<AlbumSheet
+    bind:open={albumOpen}
+    group={selectedGroup}
+    onOpen={openAlbumPage}
+    onStart={indexAlbum}
+    onCancel={cancelIndex}
+/>
 
 <LocalSheet
     bind:open={localOpen}
     mapping={selectedMapping}
     onOpen={openLocalPage}
     onUnbind={() => (unbindTarget = selectedMapping?.local ?? null)}
+    onStart={scanFolder}
+    onCancel={cancelScan}
 />
 
 <ConfirmDialog

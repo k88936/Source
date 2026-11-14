@@ -1,7 +1,6 @@
 <script lang="ts">
     import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
-    import {app} from '#lib/app/app.svelte';
     import {i18n} from '#lib/i18n/i18n.svelte';
 
     import {albums as text} from '../../Albums.i18n';
@@ -78,11 +77,14 @@
     });
 
     /// Only bytes on the wire animate: a folder that is not moving bytes has no
-    /// entry, and its pipe stays a still wire.
+    /// entry, and its pipe stays a still wire. The speed of a folder is the sum
+    /// of the rows that are moving for it.
     const speeds = $derived(
         new Map(
             groups.flatMap((group) =>
-                group.mappings.map((mapping) => [mapping.local.id, mapping.tally.speed] as const),
+                group.mappings.map(
+                    (mapping) => [mapping.local.id, mapping.tasks.reduce((sum, task) => sum + task.speed, 0)] as const,
+                ),
             ),
         ),
     );
@@ -139,9 +141,7 @@
         </svg>
     {/if}
     <div class="relative z-10">
-        <div
-            class="mb-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-10 px-1 text-xs font-medium text-muted"
-        >
+        <div class="mb-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-10 px-1 text-xs font-medium text-muted">
             <p>{t.localAlbums}</p>
             <p>{t.cloudAlbums}</p>
         </div>

@@ -1,111 +1,68 @@
 import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
-import type {Job} from '#lib/api/bindings/Job';
 import type {JobKind} from '#lib/api/bindings/JobKind';
+import type {JobRow} from '#lib/api/bindings/JobRow';
 import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
 import type {QueuedUpload} from '#lib/api/bindings/QueuedUpload';
 import {api} from '#lib/api/client';
-import {albumsView, localsView} from '#lib/api/views';
+import {albumsView, localsView, runningView} from '#lib/api/views';
 import {app} from '#lib/app/app.svelte';
 
-/// How a mapping reads at a glance. The line is the only place this shows:
-/// bytes moving or not. A failure belongs to a file, never to a folder.
-export type Tone = 'idle' | 'upload';
+/// How a card reads at a glance. A listing or a scan has a state of its own,
+/// so a card moves while it works and before a single byte is on the wire.
+export type Tone = 'idle' | 'scan' | 'upload';
 
-/// What one queue or one folder is doing, in the units the cards show.
-export interface Tally {
-    uploading: number;
-    waiting: number;
-    failed: number;
-    speed: number;
-    doneBytes: number;
-    totalBytes: number;
-    percent: number;
-}
-
+/// One device folder stacked beside the album it uploads into.
 export interface Mapping {
     local: LocalAlbumMetadata;
     tone: Tone;
-    /// Nothing left to send, and no scan looking for more.
-    finished: boolean;
+    /// The scan job for this folder, while there is one.
+    job: JobRow | null;
+    /// The files of this folder whose bytes are moving right now.
     tasks: QueuedUpload[];
-    tally: Tally;
 }
 
+/// One album and the folders that sync into it.
 export interface Group {
     album: AlbumMetadata;
+    tone: Tone;
+    /// The listing job for this album, while there is one.
+    job: JobRow | null;
     mappings: Mapping[];
-    tasks: QueuedUpload[];
-    tally: Tally;
-    eta: number | null;
 }
 
-/// The queue of the whole library, which the overview card owns.
-export interface Queue extends Tally {
-    remaining: number;
-    eta: number | null;
-    active: boolean;
-}
-
-function tally(list: QueuedUpload[]): Tally {
-    let uploading = 0;
-    let waiting = 0;
-    let failed = 0;
-    let speed = 0;
-    let doneBytes = 0;
-    let totalBytes = 0;
-    for (const task of list) {
-        if (task.state === 'failed') failed++;
-        else if (task.state === 'queued') waiting++;
-        else if (task.state !== 'done' && task.state !== 'cancelled') uploading++;
-        speed += task.speed;
-        doneBytes += task.uploaded;
-        totalBytes += task.total;
-    }
-    return {
-        uploading,
-        waiting,
-        failed,
-        speed,
-        doneBytes,
-        totalBytes,
-        percent: totalBytes > 0 ? doneBytes / totalBytes : 0,
-    };
-}
-
-/// Only bytes on the wire animate, so movement always means this folder is
-/// transferring. Anything else reads as linked and still, whatever the rows
-/// say: a scan is not a state of its own.
-function toneOf(tally: Tally): Tone {
-    return tally.speed > 0 ? 'upload' : 'idle';
-}
-
-/// A folder is finished when it has nothing left to send and nothing left to
-/// look for. One failed file does not finish a folder.
-function finished(tally: Tally, scanning: boolean): boolean {
-    return !scanning && tally.uploading === 0 && tally.waiting === 0 && tally.failed === 0;
+/// Whether a job is still going to do something for its card.
+function live(job: JobRow | undefined): boolean {
+    return job?.state === 'queued' || job?.state === 'running';
 }
 
 /**
  * The graph's data: what is mapped where, what each row is moving, and the
  * actions that change a mapping.
  *
- * The page and the modal both read one instance, so a folder opened in a modal
+ * The page and the sheet both read one instance, so a folder opened in a sheet
  * is answered by the same rows the card is drawn from.
  */
 export class SyncBoard {
     albums = $state<AlbumMetadata[]>([]);
     locals = $state<LocalAlbumMetadata[]>([]);
+    /// The uploads whose bytes are moving. Only those: a queued upload has
+    /// nothing to show and a finished one is history, so the set is bounded by
+    /// the upload concurrency instead of by the backlog.
     tasks = $state<QueuedUpload[]>([]);
 
     /// One cloud album drives a row: it is the destination, the local folders
     /// are the sources stacked beside it, and an album nobody points at still
     /// gets its row because it is still part of the library.
     ///
-    /// Every queue row carries the folder that asked for the upload, so a
-    /// folder is answered from its own rows and an album from their sum.
+    /// Every moving upload carries the folder that asked for it, so a folder is
+    /// answered from its own rows and an album from their sum.
     groups: Group[] = $derived.by(() => {
-        const scans = new Map<string, Job<JobKind>>();
-        for (const job of app.jobs) if (job.kind === 'sync') scans.set(job.id, job);
+        const scans = new Map<string, JobRow>();
+        const listings = new Map<string, JobRow>();
+        for (const job of app.jobs) {
+            if (job.kind === 'sync') scans.set(job.jobId, job);
+            else if (job.kind === 'index') listings.set(job.jobId, job);
+        }
 
         const byAlbum = new Map<string, LocalAlbumMetadata[]>();
         for (const local of this.locals) {
@@ -125,70 +82,61 @@ export class SyncBoard {
             .sort((left, right) => left.path.localeCompare(right.path))
             .map((album) => {
                 const groupTasks = byTarget.get(album.uri) ?? [];
-                const groupTally = tally(groupTasks);
                 const mappings = (byAlbum.get(album.id) ?? []).map((local): Mapping => {
                     const own = groupTasks.filter((task) => task.localAlbumId === local.id);
-                    const ownTally = tally(own);
-                    const scanning = scans.get(local.id)?.state === 'running';
-                    return {
-                        local,
-                        tone: toneOf(ownTally),
-                        finished: finished(ownTally, scanning),
-                        tasks: own,
-                        tally: ownTally,
-                    };
+                    const scan = scans.get(local.id) ?? null;
+                    const tone: Tone = own.length > 0 ? 'upload' : live(scan ?? undefined) ? 'scan' : 'idle';
+                    return {local, tone, job: scan, tasks: own};
                 });
-                return {
-                    album,
-                    mappings,
-                    tasks: groupTasks,
-                    tally: groupTally,
-                    eta:
-                        groupTally.speed > 0
-                            ? Math.ceil(Math.max(0, groupTally.totalBytes - groupTally.doneBytes) / groupTally.speed)
-                            : null,
-                };
+                const tone: Tone =
+                    groupTasks.length > 0
+                        ? 'upload'
+                        : mappings.some((mapping) => mapping.tone === 'scan') || live(listings.get(album.id))
+                          ? 'scan'
+                          : 'idle';
+                return {album, tone, job: listings.get(album.id) ?? null, mappings};
             });
     });
 
-    queue: Queue = $derived.by(() => {
-        const total = tally(this.tasks);
-        const remaining = Math.max(0, total.totalBytes - total.doneBytes);
-        return {
-            ...total,
-            remaining,
-            eta: total.speed > 0 ? Math.ceil(remaining / total.speed) : null,
-            active: total.uploading + total.waiting + total.failed > 0,
-        };
-    });
-
-    async loadTasks(): Promise<void> {
-        this.tasks = await api.uploadTasks();
+    /// List one album again. Its card shows the pass while it runs.
+    async index(albumId: string): Promise<void> {
+        await api.indexAlbum({albumId});
     }
 
-    /// Point a folder at an album. The row the view sends back is the redraw.
+    /// Scan one device folder again. Its card shows the pass while it runs.
+    async scan(id: string): Promise<void> {
+        await api.syncAlbum({id});
+    }
+
+    /// Stop one job by the key the card holds.
+    async cancel(kind: JobKind, id: string): Promise<void> {
+        await api.jobCancel({kind, id});
+    }
+
+    /// Point a folder at an album. The first scan starts with the mapping.
     async attach(uri: string, name: string, albumId: string): Promise<void> {
         await api.addLocalAlbum({uri, name, albumId});
     }
 
-    /// Drop one mapping. Uploaded files stay in the album.
+    /// Drop one mapping. Uploaded files stay in the album, and its queued rows
+    /// go with the row that named it.
     async unbind(id: string): Promise<void> {
         await api.removeLocalAlbum({id});
     }
 }
 
-/// Wire a board to its page: the two views it draws from, and the tick that
-/// keeps the byte counters moving while anything is queued.
+/// Wire a board to its page: the three views it draws from.
 ///
 /// The effects live here, not on the class, because a rune only registers work
 /// while a component is being set up, and this function is called exactly then.
 export function startSyncBoard(board: SyncBoard): void {
     const grid = albumsView.use();
     const sources = localsView.use();
+    const moving = runningView.use();
 
-    // Both lists are subscriptions: they arrive whole once and are patched by
-    // every commit, so an album or a mapping added or removed on another screen
-    // is already in these rows when this page comes back.
+    // All three are subscriptions: they arrive whole once and are patched by
+    // every commit, so a row added or removed on another screen is already in
+    // these rows when this page comes back.
     $effect(() => {
         board.albums = grid.rows;
     });
@@ -198,12 +146,6 @@ export function startSyncBoard(board: SyncBoard): void {
     });
 
     $effect(() => {
-        void board.loadTasks();
-    });
-
-    $effect(() => {
-        if (board.queue.uploading + board.queue.waiting === 0) return;
-        const timer = setInterval(() => void board.loadTasks(), 1000);
-        return () => clearInterval(timer);
+        board.tasks = moving.rows;
     });
 }
