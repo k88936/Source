@@ -9,4 +9,4 @@ import type { UploadError } from "./UploadError";
  * A scan only reads the device and writes the queue, so its failures are those
  * two: a directory the platform refuses, and a queue write that did not land.
  */
-export type SyncError = { "kind": "catalog", cause: CatalogError, } | { "kind": "directoryUnreadable", uri: string, cause: MediaError, } | { "kind": "queueFailed", cause: UploadError, };
+export type SyncError = { "kind": "catalog", cause: CatalogError, } | { "kind": "directoryUnreadable", uri: string, cause: MediaError, } | { "kind": "queueFailed", cause: UploadError, } | { "kind": "localAlbumMissing", album: string, };

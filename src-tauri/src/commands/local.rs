@@ -36,7 +36,16 @@ pub(crate) async fn local_album_add(
     state: State<'_, AppState>,
     params: AddLocalAlbumParams,
 ) -> Result<(), AlbumError> {
-    state.core.albums.add_local_album(params).await
+    let uri = params.uri.clone();
+    state.core.albums.add_local_album(params).await?;
+    // A directory is bound in order to be walked, so the first pass starts here
+    // instead of waiting for a due date that may never come.
+    state
+        .core
+        .sync
+        .sync_album(&uri)
+        .await
+        .map_err(|cause| AlbumError::Sync { cause })
 }
 
 #[tauri::command]
@@ -60,6 +69,15 @@ pub(crate) async fn local_asset_page(
 #[tauri::command]
 pub(crate) async fn sync_start(state: State<'_, AppState>) -> Result<usize, SyncError> {
     state.core.sync.sync_all().await
+}
+
+/// Scan one local album again as a job, whatever its frequency says.
+#[tauri::command]
+pub(crate) async fn sync_album(
+    state: State<'_, AppState>,
+    params: LocalAlbumParams,
+) -> Result<(), SyncError> {
+    state.core.sync.sync_album(&params.id).await
 }
 
 /// Stop the scan: what is still waiting is dropped, what is walking ends after

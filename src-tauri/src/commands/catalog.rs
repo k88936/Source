@@ -81,12 +81,13 @@ pub(crate) async fn album_remove(
     state.core.albums.remove_album(&params.album_id.0).await
 }
 
+/// List one album again as a job, so its card shows the pass while it runs.
 #[tauri::command]
-pub(crate) async fn album_refresh(
+pub(crate) async fn index_album(
     state: State<'_, AppState>,
     params: AlbumParams,
-) -> Result<AlbumMetadata, AlbumError> {
-    state.core.albums.refresh_album(&params.album_id.0).await
+) -> Result<(), AlbumError> {
+    state.core.albums.index_album(&params.album_id.0).await
 }
 
 /// Queue one listing job per album and return how many. The board reports the

@@ -68,7 +68,6 @@
 
     async function finish(account: AccountState) {
         app.applySession({account, setup: 'live'});
-        await app.afterLogin();
     }
 </script>
 

@@ -5,18 +5,13 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use source_core::app::Jobs;
+use source_core::app::jobs::JobList;
+use source_core::app::uploads::RunningUploads;
 use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, FoldersService,
-    SettingsStore, SqliteCatalog, SyncService, ThumbCache, UploadsService,
+    SettingsService, SqliteCatalog, SyncService, ThumbCache, UploadsService,
 };
-use source_subscription::Change;
-
-/// Where the settings page keeps whether background work is paused.
-pub(crate) const JOBS_PAUSED_KEY: &str = "jobs.paused";
-
-/// Where the settings page keeps whether the platform should hold the process
-/// in the background. Only Android acts on it.
-pub(crate) const KEEP_ALIVE_KEY: &str = "keep.alive";
+use source_subscription::{Change, SubscriptionManager};
 
 /// Where local albums come from on this platform: the filesystem on desktop,
 /// MediaStore on a phone.
@@ -45,9 +40,14 @@ pub(crate) struct App {
     pub(crate) browse: Arc<Browse>,
     pub(crate) uploads: Arc<Uploads>,
     pub(crate) sync: Arc<Sync>,
-    /// The queue every background job goes through, and the board the UI reads.
+    /// The queue every background job goes through.
     pub(crate) jobs: Jobs,
-    pub(crate) settings: Arc<dyn SettingsStore>,
+    /// The queue's own view: the queue reports what it touched, and this asks
+    /// the rows back out of it.
+    pub(crate) job_list: Arc<SubscriptionManager<JobList>>,
+    pub(crate) settings: SettingsService,
+    /// The upload rows whose bytes are moving, for the cards that show them.
+    pub(crate) running: Arc<SubscriptionManager<RunningUploads<SqliteCatalog>>>,
     /// Whether the stored session is still being checked. The restore loop is
     /// the only writer; `session_state` reads it to say what the page is
     /// waiting for.
@@ -65,6 +65,7 @@ impl App {
         tokio::join!(
             self.albums.apply_changes(changes),
             self.browse.apply_changes(changes),
+            self.uploads.apply_changes(changes),
         );
     }
 }

@@ -28,14 +28,14 @@ import type {MediaPermissionState} from './bindings/MediaPermissionState';
 import type {MediaSourceParams} from './bindings/MediaSourceParams';
 import type {MoveAssetsParams} from './bindings/MoveAssetsParams';
 import type {RemoteFolderPage} from './bindings/RemoteFolderPage';
-import type {Job} from './bindings/Job';
 import type {JobKind} from './bindings/JobKind';
 import type {SearchParams} from './bindings/SearchParams';
 import type {AccountState} from './bindings/AccountState';
 import type {SetAlbumCoverParams} from './bindings/SetAlbumCoverParams';
 import type {SetAlbumDescriptionParams} from './bindings/SetAlbumDescriptionParams';
 import type {SetFavoriteParams} from './bindings/SetFavoriteParams';
-import type {SetKeepAliveParams} from './bindings/SetKeepAliveParams';
+import type {Settings} from './bindings/Settings';
+import type {SettingsDelta} from './bindings/SettingsDelta';
 import type {SetServerParams} from './bindings/SetServerParams';
 import type {SessionState} from './bindings/SessionState';
 import type {SiteInfo} from './bindings/SiteInfo';
@@ -71,12 +71,9 @@ export const api = {
     albumGet: (params: AlbumParams) => call<AlbumMetadata | null>('album_get', params),
     addAlbum: (params: AddAlbumParams) => call<AlbumMetadata>('album_add', params),
     removeAlbum: (params: AlbumParams) => call<void>('album_remove', params),
-    refreshAlbum: (params: AlbumParams) => call<AlbumMetadata>('album_refresh', params),
+    indexAlbum: (params: AlbumParams) => call<void>('index_album', params),
     indexStart: () => call<number>('index_start'),
     indexStop: () => call<void>('index_stop'),
-    jobList: () => call<Job<JobKind>[]>('job_list'),
-    keepAlive: () => call<boolean>('keep_alive'),
-    setKeepAlive: (params: SetKeepAliveParams) => call<void>('set_keep_alive', params),
     assetDetail: (params: AssetDetailParams) => call<AssetDetail>('asset_detail', params),
     mediaSource: (params: MediaSourceParams) => call<string>('media_source', params),
     searchAssets: (params: SearchParams) => call<TimelinePage>('search_assets', params),
@@ -92,6 +89,7 @@ export const api = {
     removeLocalAlbum: (params: LocalAlbumParams) => call<void>('local_album_remove', params),
     localAssetPage: (params: LocalAssetPageParams) => call<LocalAssetPage>('local_asset_page', params),
     syncStart: () => call<number>('sync_start'),
+    syncAlbum: (params: LocalAlbumParams) => call<void>('sync_album', params),
     syncStop: () => call<void>('sync_stop'),
 
     enqueueUploads: (params: EnqueueUploadsParams) => call<QueuedUpload[]>('enqueue_uploads', params),
@@ -99,6 +97,9 @@ export const api = {
     cancelUpload: (params: UploadTaskParams) => call<void>('cancel_upload', params),
     retryUpload: (params: UploadTaskParams) => call<QueuedUpload>('retry_upload', params),
 
+    settings: () => call<Settings>('settings'),
+    setSettings: (params: SettingsDelta) => call<void>('set_settings', params),
+    jobCancel: (params: {kind: JobKind; id: string}) => call<void>('job_cancel', params),
     cacheStats: () => call<CacheStats>('cache_stats'),
     clearCache: () => call<void>('clear_cache'),
     exportAssets: (params: ExportAssetsParams) => call<ExportResult>('export_assets', params),

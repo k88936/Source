@@ -7,7 +7,7 @@ import {transport} from '#lib/api/transport';
  * The same word Rust names the manager with. One connection serves one view, so
  * a page has to say which one it is opening and which one a message belongs to.
  */
-export type ViewName = 'albums' | 'locals' | 'assets';
+export type ViewName = 'albums' | 'locals' | 'assets' | 'jobs' | 'running';
 
 /**
  * One view's connection to the catalog, over the Tauri command and event pair.

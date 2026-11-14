@@ -8,6 +8,7 @@
 //! session resume. A scan only decides what to queue.
 
 use std::collections::HashSet;
+use std::future::Future;
 use std::sync::Arc;
 
 use crate::app::JobKind;
@@ -20,6 +21,7 @@ use crate::store::{
     UploadQueueStore,
 };
 
+use super::settings::{SCHEDULE_TICK, Schedule};
 use super::uploads::{UploadError, UploadsService};
 
 /// How many files one page of a device directory lists.
@@ -39,6 +41,8 @@ pub enum SyncError {
     DirectoryUnreadable { uri: String, cause: MediaError },
     /// The file could not be written into the upload queue.
     QueueFailed { cause: UploadError },
+    /// The local album row the caller points at is gone.
+    LocalAlbumMissing { album: String },
 }
 
 pub struct SyncService<R, C, M>
@@ -49,18 +53,27 @@ where
     local: M,
     uploads: Arc<UploadsService<R, C, M>>,
     jobs: Jobs,
+    /// When the next automatic walk is due.
+    schedule: Schedule,
 }
 
 impl<R, C, M> SyncService<R, C, M>
 where
     C: UploadQueueStore + 'static,
 {
-    pub fn new(catalog: C, local: M, uploads: Arc<UploadsService<R, C, M>>, jobs: Jobs) -> Self {
+    pub fn new(
+        catalog: C,
+        local: M,
+        uploads: Arc<UploadsService<R, C, M>>,
+        jobs: Jobs,
+        schedule: Schedule,
+    ) -> Self {
         Self {
             catalog,
             local,
             uploads,
             jobs,
+            schedule,
         }
     }
 }
@@ -86,6 +99,41 @@ where
     pub fn stop(&self) {
         self.stop_impl()
     }
+
+    /// Queue one local album again, whatever its frequency says.
+    pub async fn sync_album(self: &Arc<Self>, local_album_id: &str) -> Result<(), SyncError> {
+        let album = self
+            .catalog
+            .get_local_album(local_album_id)
+            .await
+            .map_err(|cause| SyncError::Catalog { cause })?
+            .ok_or_else(|| SyncError::LocalAlbumMissing {
+                album: local_album_id.to_string(),
+            })?;
+        self.submit_scan(album);
+        Ok(())
+    }
+
+    /// Watch the frequency, and walk everything once it is due.
+    ///
+    /// The first check happens as soon as this starts, so a process opened long
+    /// after the last run catches up instead of waiting a whole tick.
+    pub fn start_schedule(self: &Arc<Self>) -> impl Future<Output = ()> + Send + 'static {
+        let service = Arc::clone(self);
+        async move {
+            let mut tick = tokio::time::interval(SCHEDULE_TICK);
+            loop {
+                tick.tick().await;
+                if !matches!(service.schedule.sync_due().await, Ok(true)) {
+                    continue;
+                }
+                if let Ok(count) = service.sync_all().await {
+                    let _ = service.schedule.mark_sync_ran().await;
+                    eprintln!("sync: {count} local albums queued by schedule");
+                }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -105,20 +153,25 @@ where
             .await
             .map_err(|cause| SyncError::Catalog { cause })?;
         for album in &albums {
-            let sync = Arc::clone(self);
-            let album = album.clone();
-            self.jobs.submit(
-                JobKind::Sync,
-                JobId::from(album.id.clone()),
-                JobPriority::RealTime,
-                move |ctx| {
-                    let sync = Arc::clone(&sync);
-                    let album = album.clone();
-                    async move { sync.scan_album(&album, &ctx).await }
-                },
-            );
+            self.submit_scan(album.clone());
         }
         Ok(albums.len())
+    }
+
+    /// One directory as one job, keyed by its row so a second press while it
+    /// walks is the same job and not a second walk.
+    fn submit_scan(self: &Arc<Self>, album: LocalAlbumRecord) {
+        let sync = Arc::clone(self);
+        self.jobs.submit(
+            JobKind::Sync,
+            JobId::from(album.id.clone()),
+            JobPriority::RealTime,
+            move |ctx| {
+                let sync = Arc::clone(&sync);
+                let album = album.clone();
+                async move { sync.scan_album(&album, &ctx).await }
+            },
+        );
     }
 
     fn stop_impl(&self) {

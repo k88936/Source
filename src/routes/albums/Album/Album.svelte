@@ -51,7 +51,17 @@
     let descriptionOpen = $state(false);
     let descriptionDraft = $state('');
     let saving = $state(false);
-    let refreshing = $state(false);
+
+    /// Whether this album's listing is going, so its button can show that it is
+    /// the queue that is working and not the page.
+    const refreshing = $derived(
+        app.jobs.some(
+            (job) =>
+                job.kind === 'index' &&
+                job.jobId === albumId &&
+                (job.state === 'queued' || job.state === 'running'),
+        ),
+    );
 
     const title = $derived.by(() => {
         if (coverMode) return t.coverSelect;
@@ -110,23 +120,16 @@
         }
     }
 
-    /// List this folder once. A failure means the folder is gone or renamed on
-    /// the server: the album stays, its assets stay, and `sync.failed` shows the
-    /// banner offering a retry.
+    /// Ask for one more listing.
+    ///
+    /// The list is a job now, so this only names the album: the queue reports
+    /// the pass, the asset rows arrive through the subscription, and a folder
+    /// that is gone lands on the album's own `sync.failed`.
     async function refresh() {
-        if (refreshing) return;
-        refreshing = true;
         try {
-            album = await api.refreshAlbum({albumId});
-            // The rows arrive through the subscription; only the length a viewer
-            // prints comes from the listing itself.
-            browser.timeline.total = album.assetCount;
-            app.showToast(t.refreshed, 'success');
+            await api.indexAlbum({albumId});
         } catch (err) {
-            await load(albumId);
             app.showToast(app.describeError(err), 'error');
-        } finally {
-            refreshing = false;
         }
     }
 

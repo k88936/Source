@@ -2,13 +2,14 @@ import {toastManager} from '@immich/ui';
 import {api, listen} from '#lib/api/client';
 import type {CatalogChangedEvent} from '#lib/api/bindings/CatalogChangedEvent';
 import type {AccountState} from '#lib/api/bindings/AccountState';
-import type {Job} from '#lib/api/bindings/Job';
-import type {JobKind} from '#lib/api/bindings/JobKind';
+import type {JobRow} from '#lib/api/bindings/JobRow';
 import type {SessionState} from '#lib/api/bindings/SessionState';
+import type {Subscription} from 'subscription-client';
 import {errorText} from '#lib/errors/i18n';
 import {appMessages} from './app.i18n';
 import {i18n} from '#lib/i18n/i18n.svelte';
 import {changes} from '#lib/api/changes';
+import {jobsView} from '#lib/api/views';
 
 export type ToastKind = 'success' | 'error' | 'info';
 
@@ -17,15 +18,11 @@ export class AppState {
     /** What the client behind the account can do right now. */
     setup = $state<SessionState['setup']>('restoring');
     ready = $state(false);
-    /** The queue's board: every job this process ran, newest first. */
-    jobs = $state<Job<JobKind>[]>([]);
-    /** Whether background work is paused, persisted by the adapter. */
-    jobsPaused = $state(false);
-    /** Whether the platform should hold the process in the background. Only
-     *  Android acts on it, and the settings switch is the only writer. */
-    keepAlive = $state(true);
+    /** The queue: every job this process ran, newest first. */
+    jobs = $state<JobRow[]>([]);
     columns = $state(3);
     private started = false;
+    private queue: Subscription<JobRow> | null = null;
 
     async init(): Promise<void> {
         if (this.started) return;
@@ -35,24 +32,25 @@ export class AppState {
             const n = Number(stored);
             if (n >= 2 && n <= 6) this.columns = n;
         }
-        try {
-            this.keepAlive = await api.keepAlive();
-        } catch (err) {
-            this.showToast(this.describeError(err), 'error');
-        }
-        // The listeners come before the first poll: the stored session is
+        // The listeners come before the first read: the stored session is
         // checked in the background and its verdict arrives as an event, which
-        // a poll taken before subscribing would miss.
+        // a read taken before subscribing would miss.
         await listen<SessionState>('session://setup', (payload) => {
             this.applySession(payload);
-            if (payload.setup === 'live') void this.afterLogin();
         });
         await listen<CatalogChangedEvent>('catalog://changed', (payload) => {
             changes.emit(payload);
         });
-        await listen<Job<JobKind>[]>('job://changed', (payload) => {
-            this.jobs = payload;
+        // The queue is a subscription like any other view, held for the life of
+        // the window: a card reads a job's state from these rows instead of
+        // asking again, and the queue only sends what changed.
+        this.queue = await jobsView.watch({
+            changed: () => {
+                this.jobs = this.queue?.rows() ?? [];
+            },
+            failed: (error) => this.showToast(error, 'error'),
         });
+        this.jobs = this.queue.rows();
         try {
             await this.syncSession();
         } catch (err) {
@@ -66,32 +64,10 @@ export class AppState {
         }
     }
 
-    async afterLogin(): Promise<void> {
-        await this.refreshJobs();
-    }
-
-    /** Pick up jobs that were already queued when the window loaded. */
-    async refreshJobs(): Promise<void> {
-        this.jobs = await api.jobList();
-    }
-
-    /** Hold the process in the background or not, and remember the choice. */
-    async setKeepAlive(hold: boolean): Promise<void> {
-        const previous = this.keepAlive;
-        this.keepAlive = hold;
-        try {
-            await api.setKeepAlive({hold});
-        } catch (err) {
-            this.keepAlive = previous;
-            this.showToast(this.describeError(err), 'error');
-        }
-    }
-
     /** Read the row on disk and what the client behind it can do. */
     async syncSession(): Promise<void> {
         const state = await api.sessionState();
         this.applySession(state);
-        if (state.account) await this.afterLogin();
     }
 
     applySession(state: SessionState): void {
@@ -130,7 +106,6 @@ export class AppState {
             await api.logout();
         } finally {
             this.account = null;
-            this.jobs = [];
         }
     }
 }

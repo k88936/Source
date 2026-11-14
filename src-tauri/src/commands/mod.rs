@@ -1,9 +1,6 @@
 //! Tauri commands, grouped by the part of the app they serve.
 
-use source_core::app::SetKeepAliveParams;
-
 use crate::prelude::*;
-use crate::state::KEEP_ALIVE_KEY;
 
 pub(crate) mod catalog;
 pub(crate) mod connection;
@@ -12,40 +9,49 @@ pub(crate) mod local;
 pub(crate) mod subscription;
 pub(crate) mod uploads;
 
-/// The board: every job this process ran, newest first.
-///
-/// One list for every kind of work, so a page picks the rows it cares about by
-/// key instead of subscribing to an event per kind.
+/// Everything the settings page shows.
 #[tauri::command]
-pub(crate) async fn job_list(state: State<'_, AppState>) -> Result<Vec<Job>, CatalogError> {
-    Ok(state.core.jobs.list())
+pub(crate) async fn settings(state: State<'_, AppState>) -> Result<Settings, CatalogError> {
+    state.core.settings.get().await
 }
 
-/// Whether the settings page asks the platform to hold the process, for it to
-/// restore.
-#[tauri::command]
-pub(crate) async fn keep_alive(state: State<'_, AppState>) -> Result<bool, CatalogError> {
-    let stored = state.core.settings.get_setting(KEEP_ALIVE_KEY).await?;
-    Ok(stored.as_deref() != Some("0"))
-}
-
-/// Hold the process in the background or let the platform kill it, and remember
-/// the choice for the next launch.
+/// What the page changed, and nothing else.
 ///
-/// Only Android acts on it; the job queue is not involved.
+/// A delta is what makes one screen able to change one setting: a field it does
+/// not send is a setting it does not own. It answers nothing, so the page reads
+/// [`settings`] again instead of being told what its own write means.
 #[tauri::command]
-pub(crate) async fn set_keep_alive(
+pub(crate) async fn set_settings(
     state: State<'_, AppState>,
-    params: SetKeepAliveParams,
+    params: SettingsDelta,
 ) -> Result<(), CatalogError> {
+    state.core.settings.set(&params).await?;
+    // Holding the process in the background is a platform service on Android
+    // and nothing on desktop, so the switch reaches it here rather than in core.
+    #[cfg(target_os = "android")]
+    if let Some(hold) = params.keep_alive {
+        tauri_plugin_keep_alive::sync(hold).await;
+    }
+    Ok(())
+}
+
+/// Which job a card's button is about.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct JobCancelParams {
+    pub(crate) kind: JobKind,
+    pub(crate) id: String,
+}
+
+/// Stop one job by the key its row carries.
+///
+/// What is still waiting is dropped, what is running ends after the item it is
+/// on, and the row stays in the list as the state it reached - the page sees
+/// the same row stop rather than vanish.
+#[tauri::command]
+pub(crate) fn job_cancel(state: State<'_, AppState>, params: JobCancelParams) {
     state
         .core
-        .settings
-        .set_setting(KEEP_ALIVE_KEY, if params.hold { "1" } else { "0" })
-        .await?;
-    // The service starts before any work shows up, and stops before the
-    // platform notices the process has nothing to do.
-    #[cfg(target_os = "android")]
-    tauri_plugin_keep_alive::sync(params.hold).await;
-    Ok(())
+        .jobs
+        .cancel_item(params.kind, &JobId::from(params.id));
 }

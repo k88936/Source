@@ -6,19 +6,21 @@ use std::time::Duration;
 
 use source_core::app::Jobs;
 use source_core::app::account::{RestoreOutcome, SessionSetup, SessionState};
+use source_core::app::jobs::JobList;
 use source_core::app::uploads::{UploadSinks, UploadStateEvent};
-use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
+use source_core::app::{CatalogChangeKind, CatalogChangedEvent, Schedule, SettingsService};
 use source_core::store::{AssetSummary, observe_commits};
 use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, CredentialStore,
     FoldersService, SettingsStore, SqliteCatalog, SyncService, ThumbCache, UploadSessionPort,
     UploadsService,
 };
+use source_subscription::SubscriptionManager;
 use tauri::{Emitter, Manager};
 
 #[cfg(not(debug_assertions))]
 use crate::credentials::KeyringCredentialStore;
-use crate::state::{App, AppState, JOBS_PAUSED_KEY, LocalMedia};
+use crate::state::{App, AppState, LocalMedia};
 
 /// How many jobs run at once, over every kind of work.
 ///
@@ -50,7 +52,6 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         // registered.
         observe_commits(changes);
         let catalog = SqliteCatalog::open(app_data.join("catalog.sqlite3")).await?;
-        let paused = catalog.get_setting(JOBS_PAUSED_KEY).await?.as_deref() == Some("1");
         let settings: Arc<dyn SettingsStore> = Arc::new(catalog.clone());
         let sessions: Arc<dyn UploadSessionPort> = Arc::new(catalog.clone());
         let cred_store: Arc<dyn CredentialStore> = {
@@ -73,9 +74,6 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         let cloud = CloudreveStorage::new(Arc::new(auth.clone()), sessions);
         let local = LocalMedia::new();
         let jobs = Jobs::new(JOB_CONCURRENCY);
-        if paused {
-            jobs.pause();
-        }
         let uploads = UploadsService::new(
             cloud.clone(),
             catalog.clone(),
@@ -83,6 +81,10 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             sinks,
             jobs.clone(),
         );
+        let job_list = Arc::new(SubscriptionManager::new(Arc::new(JobList::new(
+            jobs.clone(),
+        ))));
+        let running = uploads.running();
         Ok::<_, source_core::store::CatalogError>(Arc::new(App {
             account: Arc::new(AccountService::new(auth, cloud.clone(), catalog.clone())),
             folders: Arc::new(FoldersService::new(cloud.clone(), catalog.clone())),
@@ -91,6 +93,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
                 catalog.clone(),
                 local.clone(),
                 jobs.clone(),
+                Schedule::new(Arc::clone(&settings)),
             )),
             browse: Arc::new(BrowseService::new(
                 cloud.clone(),
@@ -102,10 +105,13 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
                 local,
                 Arc::clone(&uploads),
                 jobs.clone(),
+                Schedule::new(Arc::clone(&settings)),
             )),
             uploads,
             jobs,
-            settings,
+            job_list,
+            settings: SettingsService::new(settings),
+            running,
             restoring: AtomicBool::new(true),
         }))
     })
@@ -122,6 +128,18 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
             }
         });
     }
+    // The queue's own view is fed by the queue: every update names the rows it
+    // touched, and the view asks them back. There is no snapshot to emit here,
+    // because a page that connects gets one from the manager.
+    {
+        let mut changes = core.jobs.observe();
+        let jobs = Arc::clone(&core.job_list);
+        tauri::async_runtime::spawn(async move {
+            while let Some(batch) = changes.recv().await {
+                jobs.apply(batch.as_ref()).await;
+            }
+        });
+    }
     #[cfg(debug_assertions)]
     crate::dev::autoconnect(&core);
 
@@ -135,30 +153,21 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     // service is already ticking and starts them on its own budget.
     let _ = tauri::async_runtime::block_on(core.uploads.recover());
 
-    // One bridge for the whole board: the page picks its rows by key instead of
-    // listening to an event per kind of work. The first pass fires at once, so a
-    // window that loads while jobs are queued is not left with an empty board.
-    {
-        let mut board = core.jobs.watch();
-        let handle = app.handle().clone();
-        tauri::async_runtime::spawn(async move {
-            loop {
-                let current = board.borrow_and_update().clone();
-                let _ = handle.emit("job://changed", current.as_ref());
-                if board.changed().await.is_err() {
-                    break;
-                }
-            }
-        });
-    }
+    // The two periodic passes each watch their own frequency. They read the
+    // same setting and record their own clock, so turning one on does not make
+    // the other run. They are spawned here because they need this process's
+    // executor, which core does not own.
+    tauri::async_runtime::spawn(core.sync.start_schedule());
+    tauri::async_runtime::spawn(core.albums.start_schedule());
 
     // Android freezes, then kills, a background process. The settings switch is
     // the one thing that decides whether the process is held: it is the user's
-    // choice for background work, restored here before the window loads, and
-    // jobs coming and going must not flick it on and off.
+    // choice for background work, restored here before the window loads.
     #[cfg(target_os = "android")]
     {
-        let hold = !core.jobs.is_paused();
+        let hold = tauri::async_runtime::block_on(core.settings.get())
+            .map_err(|cause| std::io::Error::other(format!("{cause:?}")))?
+            .keep_alive;
         tauri::async_runtime::spawn(async move {
             tauri_plugin_keep_alive::sync(hold).await;
         });

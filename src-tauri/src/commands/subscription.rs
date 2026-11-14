@@ -12,6 +12,7 @@
 //! would use.
 
 use std::convert::Infallible;
+use std::sync::Arc;
 
 use source_core::app::browse::AssetsQuery;
 use source_subscription::{ClientMessage, ClientWriter, Query, Row, ServerMessage};
@@ -29,6 +30,8 @@ pub(crate) enum ViewName {
     Albums,
     Locals,
     Assets,
+    Jobs,
+    Running,
 }
 
 /// The argument of `subscription_connect`: the view whose connection is opening.
@@ -55,6 +58,8 @@ pub(crate) enum Addressed {
     Albums(ClientMessage<()>),
     Locals(ClientMessage<()>),
     Assets(ClientMessage<AssetsQuery>),
+    Jobs(ClientMessage<()>),
+    Running(ClientMessage<()>),
 }
 
 /// Start the connection this page talks through for one view, replacing the one
@@ -92,6 +97,20 @@ pub(crate) fn subscription_connect(
             })?;
             tauri::async_runtime::spawn(running);
         }
+        ViewName::Jobs => {
+            let running = Arc::clone(&state.core.job_list).connect(TauriWriter {
+                app,
+                event: "subscription://jobs",
+            })?;
+            tauri::async_runtime::spawn(running);
+        }
+        ViewName::Running => {
+            let running = Arc::clone(&state.core.running).connect(TauriWriter {
+                app,
+                event: "subscription://running",
+            })?;
+            tauri::async_runtime::spawn(running);
+        }
     }
     Ok(())
 }
@@ -107,6 +126,8 @@ pub(crate) fn subscription_send(
         Addressed::Albums(message) => state.core.albums.subscriptions().send(message),
         Addressed::Locals(message) => state.core.albums.local_subscriptions().send(message),
         Addressed::Assets(message) => state.core.browse.subscriptions().send(message),
+        Addressed::Jobs(message) => state.core.job_list.send(message),
+        Addressed::Running(message) => state.core.running.send(message),
     }
 }
 

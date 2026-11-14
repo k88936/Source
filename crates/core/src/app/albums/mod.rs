@@ -9,6 +9,7 @@ mod dto;
 mod locals;
 mod view;
 
+use std::future::Future;
 use std::sync::Arc;
 
 use crate::app::JobKind;
@@ -33,6 +34,8 @@ use crate::store::{
 use crate::task::{Attempt, Retry, Step, attempt};
 use crate::time::now_ms;
 
+use super::settings::{SCHEDULE_TICK, Schedule};
+use super::sync::SyncError;
 use super::{clamp_limit, folder_record, folder_ref};
 
 pub use dto::*;
@@ -73,6 +76,8 @@ pub enum AlbumError {
         asset: String,
         cause: MediaFetchError,
     },
+    /// Queueing the first scan of a directory that was just bound failed.
+    Sync { cause: SyncError },
 }
 
 impl AlbumError {
@@ -131,6 +136,8 @@ where
     /// The other side of the same page: the device directories syncing into
     /// those albums. They answer from the same catalog, so they live here too.
     locals: Arc<SubscriptionManager<Locals<C, M>>>,
+    /// When the next automatic listing pass is due.
+    schedule: Schedule,
 }
 
 impl<R, C, M> AlbumsService<R, C, M>
@@ -138,7 +145,7 @@ where
     C: AlbumStore + LocalStore + Clone + 'static,
     M: LocalMediaPort + Clone + 'static,
 {
-    pub fn new(cloud: R, catalog: C, local: M, jobs: Jobs) -> Self {
+    pub fn new(cloud: R, catalog: C, local: M, jobs: Jobs, schedule: Schedule) -> Self {
         Self {
             subscriptions: Arc::new(SubscriptionManager::new(Arc::new(Albums::new(
                 catalog.clone(),
@@ -151,6 +158,7 @@ where
             catalog,
             local,
             jobs,
+            schedule,
         }
     }
 
@@ -190,7 +198,10 @@ where
 
     /// Add a folder as an album and list it once, so it is never shown empty
     /// while the server has media in it.
-    pub async fn add_album(&self, params: AddAlbumParams) -> Result<AlbumMetadata, AlbumError> {
+    pub async fn add_album(
+        self: &Arc<Self>,
+        params: AddAlbumParams,
+    ) -> Result<AlbumMetadata, AlbumError> {
         self.add_album_impl(params).await
     }
 
@@ -200,13 +211,14 @@ where
         self.remove_album_impl(album_id).await
     }
 
-    /// List one album's direct media and make the catalog match.
+    /// List one album again, as a job.
     ///
-    /// A folder that was deleted or renamed on the server keeps its row and its
-    /// assets: the failure is recorded on the album so the UI can offer to point
-    /// it somewhere else, instead of the album silently disappearing.
-    pub async fn refresh_album(&self, album_id: &str) -> Result<AlbumMetadata, AlbumError> {
-        self.refresh_album_impl(album_id).await
+    /// The list is one level deep, so the pass is a single album's turn rather
+    /// than the whole library's: pressing start on one card queues that card.
+    pub async fn index_album(self: &Arc<Self>, album_id: &str) -> Result<(), AlbumError> {
+        self.album_metadata(album_id).await?;
+        self.submit_index(album_id);
+        Ok(())
     }
 
     /// Queue one listing job per album, and return how many were queued.
@@ -223,6 +235,27 @@ where
     /// after the page it is on.
     pub fn stop_refresh(&self) {
         self.stop_refresh_impl()
+    }
+
+    /// Watch the frequency, and list everything once it is due.
+    ///
+    /// The first check happens as soon as this starts, so a process opened long
+    /// after the last run catches up instead of waiting a whole tick.
+    pub fn start_schedule(self: &Arc<Self>) -> impl Future<Output = ()> + Send + 'static {
+        let service = Arc::clone(self);
+        async move {
+            let mut tick = tokio::time::interval(SCHEDULE_TICK);
+            loop {
+                tick.tick().await;
+                if !matches!(service.schedule.index_due().await, Ok(true)) {
+                    continue;
+                }
+                if let Ok(count) = service.refresh_all().await {
+                    let _ = service.schedule.mark_index_ran().await;
+                    eprintln!("index: {count} albums queued by schedule");
+                }
+            }
+        }
     }
 
     pub async fn set_album_cover(
@@ -315,7 +348,10 @@ where
             .map_err(AlbumError::catalog)
     }
 
-    async fn add_album_impl(&self, params: AddAlbumParams) -> Result<AlbumMetadata, AlbumError> {
+    async fn add_album_impl(
+        self: &Arc<Self>,
+        params: AddAlbumParams,
+    ) -> Result<AlbumMetadata, AlbumError> {
         let info = self
             .cloud
             .get_folder_info(&params.uri)
@@ -332,7 +368,10 @@ where
             .save_album(&folder_record(&folder, &info))
             .await
             .map_err(AlbumError::catalog)?;
-        self.refresh_once(&folder.id.0).await
+        // A newly added album is listed right away: it is empty for a reason
+        // the user did not choose, and the card shows the pass while it runs.
+        self.submit_index(&folder.id.0);
+        self.album_metadata(&folder.id.0).await
     }
 
     async fn remove_album_impl(&self, album_id: &str) -> Result<(), AlbumError> {
@@ -342,10 +381,6 @@ where
             .map_err(AlbumError::catalog)
     }
 
-    async fn refresh_album_impl(&self, album_id: &str) -> Result<AlbumMetadata, AlbumError> {
-        self.refresh_once(album_id).await
-    }
-
     async fn refresh_all_impl(self: &Arc<Self>) -> Result<usize, AlbumError> {
         let albums = self
             .catalog
@@ -353,20 +388,26 @@ where
             .await
             .map_err(AlbumError::catalog)?;
         for album in &albums {
-            let service = Arc::clone(self);
-            let album_id = album.id.0.clone();
-            self.jobs.submit(
-                JobKind::Index,
-                JobId::from(album_id.clone()),
-                JobPriority::RealTime,
-                move |ctx| {
-                    let albums = Arc::clone(&service);
-                    let album_id = album_id.clone();
-                    async move { albums.refresh_listing(&album_id, &ctx).await }
-                },
-            );
+            self.submit_index(&album.id.0);
         }
         Ok(albums.len())
+    }
+
+    /// One album as one job, keyed by its row so a second press while it lists
+    /// is the same job and not a second pass.
+    fn submit_index(self: &Arc<Self>, album_id: &str) {
+        let service = Arc::clone(self);
+        let album_id = album_id.to_string();
+        self.jobs.submit(
+            JobKind::Index,
+            JobId::from(album_id.clone()),
+            JobPriority::RealTime,
+            move |ctx| {
+                let albums = Arc::clone(&service);
+                let album_id = album_id.clone();
+                async move { albums.refresh_listing(&album_id, &ctx).await }
+            },
+        );
     }
 
     fn stop_refresh_impl(&self) {
@@ -545,13 +586,6 @@ where
             })
     }
 
-    /// One interactive listing: no job, so it reports no progress and stops
-    /// only when the caller drops the future.
-    async fn refresh_once(&self, album_id: &str) -> Result<AlbumMetadata, AlbumError> {
-        let cancel = CancellationToken::new();
-        self.refresh(album_id, &cancel, None).await
-    }
-
     /// One album as a job: list it page by page, one step per page.
     async fn refresh_listing(
         &self,
@@ -561,7 +595,7 @@ where
         let ran = ctx
             .run_paused(|| {
                 attempt(Retry::default(), ctx.cancel(), |_| async {
-                    match self.refresh(album_id, ctx.cancel(), Some(ctx)).await {
+                    match self.refresh(album_id, ctx.cancel(), ctx).await {
                         Ok(_) => Step::Done(()),
                         Err(error) if error.is_transient() => Step::Retry(error),
                         Err(error) => Step::Failed(error),
@@ -579,13 +613,12 @@ where
 
     /// List one album, stopping between listing pages when `cancel` fires.
     ///
-    /// `ctx` is the job listing this album, when there is one: it is where the
-    /// page count goes. The interactive refresh has no job and reports nowhere.
+    /// `ctx` is the job listing this album: it is where the page count goes.
     async fn refresh(
         &self,
         album_id: &str,
         cancel: &CancellationToken,
-        ctx: Option<&Ctx<JobKind>>,
+        ctx: &Ctx<JobKind>,
     ) -> Result<AlbumMetadata, AlbumError> {
         let album = self
             .catalog
@@ -618,7 +651,7 @@ where
         &self,
         album: &FolderRecord,
         cancel: &CancellationToken,
-        ctx: Option<&Ctx<JobKind>>,
+        ctx: &Ctx<JobKind>,
     ) -> Result<Listing, AlbumError> {
         let folder_id = FolderId::new(album.id.clone());
         // Every id the listing returned, for the prune below. The rows
@@ -656,9 +689,7 @@ where
                 .map_err(AlbumError::catalog)?;
             // One page is one step, so a big album moves while it is listed
             // instead of jumping from nothing to done.
-            if let Some(ctx) = ctx {
-                ctx.advance(1);
-            }
+            ctx.advance(1);
             token = page.next;
             if token.is_none() {
                 break;

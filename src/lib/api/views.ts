@@ -1,7 +1,9 @@
 import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
 import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
 import type {AssetsQuery} from '#lib/api/bindings/AssetsQuery';
+import type {JobRow} from '#lib/api/bindings/JobRow';
 import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
+import type {QueuedUpload} from '#lib/api/bindings/QueuedUpload';
 import type {TimelineCursor} from '#lib/api/bindings/TimelineCursor';
 import type {Listeners, Subscription} from 'subscription-client';
 import {errorText} from '#lib/errors/i18n';
@@ -34,9 +36,12 @@ type Window = {
 const albums = new Client<AlbumsQuery, AlbumMetadata>(wireFor('albums'));
 const locals = new Client<AlbumsQuery, LocalAlbumMetadata>(wireFor('locals'));
 const assets = new Client<AssetsQuery, AssetSummary>(wireFor('assets'));
+const jobs = new Client<AlbumsQuery, JobRow>(wireFor('jobs'));
+const running = new Client<AlbumsQuery, QueuedUpload>(wireFor('running'));
 
 const byName = (a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name);
 const newestFirst = (a: AssetSummary, b: AssetSummary) => b.takenAt - a.takenAt || b.id.localeCompare(a.id);
+const newestJobFirst = (a: JobRow, b: JobRow) => b.submittedAt - a.submittedAt || a.id.localeCompare(b.id);
 
 /**
  * The album grid: every album the user added, with its tile.
@@ -82,5 +87,32 @@ export const assetsView = {
             },
             listeners,
         );
+    },
+};
+
+/**
+ * The job queue: one row per job this process ran, newest first.
+ *
+ * A row is the queue's own state, so "this album is being listed" is a row here
+ * and not a guess made from byte counters. The shell holds it for the lifetime
+ * of the window, because cards across the app read it.
+ */
+export const jobsView = {
+    /** The queue, live until the caller stops it. */
+    watch(listeners: Listeners): Promise<Subscription<JobRow>> {
+        return jobs.subscribe({query: null, compare: newestJobFirst}, listeners);
+    },
+};
+
+/**
+ * The uploads in flight: only the rows whose bytes are moving.
+ *
+ * A queued upload waits its turn with nothing to show and a finished one is
+ * history, so the set is bounded by the concurrency instead of by the backlog.
+ */
+export const runningView = {
+    /** The moving rows, live for as long as the calling component is mounted. */
+    use() {
+        return useQuery(running, {query: null, compare: byName}, errorText);
     },
 };

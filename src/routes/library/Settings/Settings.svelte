@@ -1,10 +1,13 @@
 <script lang="ts">
-    import {Avatar, Button, FormatBytes, Meter, Select, Switch, ThemePreference, themeManager} from '@immich/ui';
-    import {mdiLogout, mdiRefresh} from '@mdi/js';
+    import {Avatar, Button, FormatBytes, IconButton, Meter, Select, Switch, ThemePreference, themeManager} from '@immich/ui';
+    import {mdiLogout, mdiRefresh, mdiSync} from '@mdi/js';
     import {onMount} from 'svelte';
     import {api} from '#lib/api/client';
     import type {AppInfo} from '#lib/api/bindings/AppInfo';
     import type {CacheStats} from '#lib/api/bindings/CacheStats';
+    import type {Frequency} from '#lib/api/bindings/Frequency';
+    import type {Settings} from '#lib/api/bindings/Settings';
+    import type {SettingsDelta} from '#lib/api/bindings/SettingsDelta';
     import ConfirmDialog from '#lib/components/overlay/ConfirmDialog/ConfirmDialog.svelte';
     import type {Locale} from '#lib/i18n/bundle';
     import {app} from '#lib/app/app.svelte';
@@ -17,7 +20,11 @@
 
     let cache = $state<CacheStats | null>(null);
     let info = $state<AppInfo | null>(null);
+    /// What Rust owns: the background switch and the two frequencies. It is the
+    /// authority, so every change is written and then read back.
+    let prefs = $state<Settings | null>(null);
     let clearing = $state(false);
+    let running = $state<'local' | 'cloud' | null>(null);
     let confirmAction = $state<ConfirmAction | null>(null);
 
     const t = $derived(i18n.pick(settings));
@@ -34,6 +41,15 @@
         {value: ThemePreference.Dark, label: t.dark},
     ]);
 
+    /// Never is the default: a schedule is the user saying the app may work on
+    /// its own, and that is not a decision to make for them.
+    const FREQUENCIES = $derived<{value: Frequency; label: string}[]>([
+        {value: 'never', label: t.never},
+        {value: 'daily', label: t.daily},
+        {value: 'weekly', label: t.weekly},
+        {value: 'monthly', label: t.monthly},
+    ]);
+
     const confirmCopy = $derived(confirmAction === null ? null : t.confirm[confirmAction]);
 
     onMount(() => {
@@ -42,9 +58,34 @@
 
     async function load() {
         try {
-            [cache, info] = await Promise.all([api.cacheStats(), api.appInfo()]);
-        } catch {
-            // cache stats are optional
+            [cache, info, prefs] = await Promise.all([api.cacheStats(), api.appInfo(), api.settings()]);
+        } catch (err) {
+            app.showToast(app.describeError(err), 'error');
+        }
+    }
+
+    /// Write a delta, then read the settings back: the answer is the row Rust
+    /// holds, not a guess about what the write meant.
+    async function update(delta: SettingsDelta) {
+        try {
+            await api.setSettings(delta);
+            prefs = await api.settings();
+        } catch (err) {
+            app.showToast(app.describeError(err), 'error');
+        }
+    }
+
+    /// Run one pass now. It does not move the due date: only the schedule does,
+    /// so a manual run never delays the next automatic one.
+    async function runNow(which: 'local' | 'cloud') {
+        running = which;
+        try {
+            const count = which === 'local' ? await api.syncStart() : await api.indexStart();
+            app.showToast(t.queued(count), 'success');
+        } catch (err) {
+            app.showToast(app.describeError(err), 'error');
+        } finally {
+            running = null;
         }
     }
 
@@ -140,10 +181,54 @@
         <div class="flex items-center justify-between gap-3">
             <p class="shrink-0 text-sm font-medium">{t.background}</p>
             <Switch
-                checked={app.keepAlive}
+                checked={prefs?.keepAlive ?? true}
                 aria-label={t.background}
-                onCheckedChange={(hold) => void app.setKeepAlive(hold)}
+                onCheckedChange={(hold) => void update({keepAlive: hold})}
             />
+        </div>
+    </section>
+
+    <section class="mt-3 rounded-2xl bg-gray px-4 py-3">
+        <p class="text-sm font-medium">{t.schedule}</p>
+        <div class="mt-2 flex items-center justify-between gap-3">
+            <p class="shrink-0 text-[13px] text-muted">{t.localScan}</p>
+            <div class="flex items-center gap-1">
+                <IconButton
+                    icon={mdiSync}
+                    aria-label={t.runNow}
+                    size="small"
+                    variant="ghost"
+                    loading={running === 'local'}
+                    onclick={() => void runNow('local')}
+                />
+                <Select
+                    class="w-24"
+                    size="small"
+                    options={FREQUENCIES}
+                    value={prefs?.syncFrequency ?? 'never'}
+                    onChange={(frequency) => void update({syncFrequency: frequency})}
+                />
+            </div>
+        </div>
+        <div class="mt-2 flex items-center justify-between gap-3">
+            <p class="shrink-0 text-[13px] text-muted">{t.cloudIndex}</p>
+            <div class="flex items-center gap-1">
+                <IconButton
+                    icon={mdiSync}
+                    aria-label={t.runNow}
+                    size="small"
+                    variant="ghost"
+                    loading={running === 'cloud'}
+                    onclick={() => void runNow('cloud')}
+                />
+                <Select
+                    class="w-24"
+                    size="small"
+                    options={FREQUENCIES}
+                    value={prefs?.indexFrequency ?? 'never'}
+                    onChange={(frequency) => void update({indexFrequency: frequency})}
+                />
+            </div>
         </div>
     </section>
 

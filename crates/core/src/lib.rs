@@ -20,7 +20,8 @@ pub mod time;
 
 pub use app::{
     AccountService, AccountState, Albums, AlbumsService, Assets, BrowseService, FoldersService,
-    LoginOutcome, SyncService, UploadOutcome, UploadsService,
+    Frequency, LoginOutcome, Schedule, Settings, SettingsDelta, SettingsService, SyncService,
+    UploadOutcome, UploadsService,
 };
 pub use credential::CredentialStore;
 pub use media::{FsLocalMedia, LOCAL_THUMB_EDGE, ThumbCache, preview_from_jpeg};

@@ -17,6 +17,7 @@ pub mod browse;
 mod dto;
 pub mod folders;
 pub mod jobs;
+pub mod settings;
 pub mod sync;
 pub mod uploads;
 
@@ -26,6 +27,7 @@ pub use browse::{Assets, BrowseService};
 pub use dto::*;
 pub use folders::FoldersService;
 pub use jobs::{Job, JobKind, Jobs};
+pub use settings::{Frequency, Schedule, Settings, SettingsDelta, SettingsService};
 pub use sync::SyncService;
 pub use uploads::{UploadOutcome, UploadsService};
 

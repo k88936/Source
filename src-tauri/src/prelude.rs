@@ -20,11 +20,14 @@ pub(crate) use source_core::app::browse::{
 pub(crate) use source_core::app::folders::{
     CreateFolderParams, FolderError, ListRemoteFoldersParams, RemoteFolderPage,
 };
+pub(crate) use source_core::app::jobs::{JobId, JobKind};
 pub(crate) use source_core::app::sync::SyncError;
 pub(crate) use source_core::app::uploads::{
     EnqueueUploadsParams, QueuedUpload, UploadError, UploadTaskParams,
 };
-pub(crate) use source_core::app::{AppInfo, CatalogChangeKind, CatalogChangedEvent};
+pub(crate) use source_core::app::{
+    AppInfo, CatalogChangeKind, CatalogChangedEvent, Settings, SettingsDelta,
+};
 pub(crate) use source_core::media::{
     CacheStats, LocalAssetPage, LocalAssetPageParams, LocalBrowsePage, MediaError,
     MediaPermissionState,
@@ -33,7 +36,5 @@ pub(crate) use source_core::remote::{Capacity, SiteInfo};
 pub(crate) use source_core::store::{
     AlbumMetadata, AssetSummary, CatalogError, FolderRef, TimelineCursor, TimelinePage,
 };
-
-pub(crate) use source_core::app::Job;
 
 pub(crate) use crate::state::AppState;

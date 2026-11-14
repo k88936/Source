@@ -97,7 +97,6 @@
             width={frame.width}
             height={frame.height}
             viewBox={`0 0 ${frame.width} ${frame.height}`}
-            class:is-paused={app.jobsPaused}
             aria-hidden="true"
         >
             <defs>
@@ -196,10 +195,6 @@
 
     .glint {
         animation: sync-glint var(--glint-time, 2s) linear infinite;
-    }
-
-    .is-paused .glint {
-        animation-play-state: paused;
     }
 
     @keyframes sync-glint {

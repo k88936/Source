@@ -186,12 +186,7 @@ const words = bundle(
 
 /** The sentence a user sees for any error a command sent back. */
 export function errorText(raw: unknown): string {
-    if (
-        !raw ||
-        typeof raw !== 'object' ||
-        !('kind' in raw) ||
-        typeof (raw as {kind: unknown}).kind !== 'string'
-    ) {
+    if (!raw || typeof raw !== 'object' || !('kind' in raw) || typeof (raw as {kind: unknown}).kind !== 'string') {
         return String(raw);
     }
     return describe(raw as AppError);
@@ -247,9 +242,7 @@ function describe(error: AppError): string {
         case 'destinationGone':
             return `${t.destinationGone}: ${error.uri}`;
         case 'conflict':
-            return 'path' in error
-                ? `${t.conflict}: ${error.path}`
-                : `${t.conflict}: ${error.uri}`;
+            return 'path' in error ? `${t.conflict}: ${error.path}` : `${t.conflict}: ${error.uri}`;
         case 'sourceUnreadable':
             return `${t.sourceUnreadable}: ${error.cause}`;
         case 'chunkFailed':
@@ -323,7 +316,10 @@ function describe(error: AppError): string {
         case 'assetMissing':
             return `${t.assetMissing}: ${error.asset}`;
         case 'localAlbumMissing':
-            return `${t.localAlbumMissing}: ${error.uri}`;
+            return `${t.localAlbumMissing}: ${'album' in error ? error.album : error.uri}`;
+        case 'sync':
+            // A wrapped cause already reads as its own sentence.
+            return describe(error.cause);
         case 'notAFolder':
             return t.notAFolder;
         case 'store':

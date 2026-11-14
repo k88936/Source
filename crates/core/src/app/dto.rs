@@ -16,14 +16,6 @@ pub struct AppInfo {
     pub platform: String,
 }
 
-/// Whether the settings page wants the platform to hold the process up.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct SetKeepAliveParams {
-    pub hold: bool,
-}
-
 /// What a `catalog://changed` event invalidates.
 ///
 /// `Albums` is the coarse signal for a listing pass and carries the refreshed
