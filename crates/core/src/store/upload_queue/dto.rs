@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::store::{LocalAssetId, id_type};
+use crate::store::{FolderId, LocalAssetId, id_type};
 
 id_type!(UploadTaskId);
 
@@ -32,6 +32,8 @@ pub struct UploadTask {
     /// A file the user picked by hand has no mapping, so it only counts toward
     /// the album queue.
     pub local_album_id: Option<String>,
+    /// The folder row the bytes land in. Deleting the folder drops the row.
+    pub dest_folder_id: FolderId,
     pub name: String,
     pub dest_uri: String,
     pub dest_name: Option<String>,
@@ -40,7 +42,6 @@ pub struct UploadTask {
     pub total: i64,
     pub speed: i64,
     pub eta_seconds: Option<u32>,
-    pub attempts: u32,
     /// The failure that ended the last attempt, as the caller wrote it.
     ///
     /// The store only carries the bytes: it is the upload service that knows

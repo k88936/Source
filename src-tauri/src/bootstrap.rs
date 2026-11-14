@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use source_core::app::Jobs;
 use source_core::app::account::{RestoreOutcome, SessionSetup, SessionState};
-use source_core::app::uploads::{UploadProgressEvent, UploadSinks, UploadStateEvent};
+use source_core::app::uploads::{UploadSinks, UploadStateEvent};
 use source_core::app::{CatalogChangeKind, CatalogChangedEvent};
 use source_core::store::{AssetSummary, observe_commits};
 use source_core::{
@@ -235,12 +235,6 @@ fn restore_session(handle: tauri::AppHandle, core: Arc<App>) {
 /// Where the upload queue reports: the webview's events.
 fn upload_sinks(handle: &tauri::AppHandle) -> UploadSinks {
     UploadSinks {
-        progress: {
-            let handle = handle.clone();
-            Arc::new(move |event: UploadProgressEvent| {
-                let _ = handle.emit("upload://progress", &event);
-            })
-        },
         state: {
             let handle = handle.clone();
             Arc::new(move |event: &UploadStateEvent| {

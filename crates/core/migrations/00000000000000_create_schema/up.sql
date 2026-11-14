@@ -83,7 +83,8 @@ CREATE TABLE local_assets (
 CREATE TABLE upload_queue (
   id TEXT PRIMARY KEY,
   local_asset_id TEXT NOT NULL,
-  local_album_id TEXT,
+  local_album_id TEXT REFERENCES local_albums(id) ON DELETE CASCADE,
+  dest_folder_id TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
   dest_uri TEXT NOT NULL,
   dest_name TEXT,
   name TEXT NOT NULL DEFAULT '',
@@ -92,15 +93,15 @@ CREATE TABLE upload_queue (
   total INTEGER NOT NULL DEFAULT 0,
   speed INTEGER NOT NULL DEFAULT 0,
   eta_seconds INTEGER,
-  attempts INTEGER NOT NULL DEFAULT 0,
   error TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX upload_queue_state ON upload_queue(state, created_at);
+CREATE UNIQUE INDEX upload_queue_dedup ON upload_queue(dest_folder_id, local_asset_id);
 
 CREATE TABLE upload_sessions (
-  key TEXT PRIMARY KEY,
+  key TEXT PRIMARY KEY REFERENCES upload_queue(id) ON DELETE CASCADE,
   file_size INTEGER NOT NULL,
   chunk_size INTEGER NOT NULL,
   session_id TEXT NOT NULL,

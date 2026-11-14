@@ -56,7 +56,7 @@
                 />
                 {#if task.state === 'failed' && task.error}
                     <p class="mt-2 text-[10px] leading-snug text-danger-800 dark:text-danger-300">
-                        {t.lastError}: {errorText(task.error)} · {t.attempt(task.attempts)}
+                        {t.lastError}: {errorText(task.error)}
                     </p>
                 {/if}
             </div>

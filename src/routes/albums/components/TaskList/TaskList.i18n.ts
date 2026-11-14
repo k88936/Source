@@ -3,7 +3,6 @@ import {bundle} from '#lib/i18n/bundle';
 export const taskList = bundle(
     {
         noTasks: 'Nothing queued',
-        attempt: (count: number) => `attempt ${count}`,
         lastError: 'Last error',
         states: {
             queued: 'waiting',
@@ -17,7 +16,6 @@ export const taskList = bundle(
     },
     {
         noTasks: '没有排队的文件',
-        attempt: (count: number) => `第 ${count} 次`,
         lastError: '最近错误',
         states: {
             queued: '等待',

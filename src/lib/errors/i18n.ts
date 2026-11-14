@@ -106,6 +106,7 @@ const words = bundle(
         taskNotFailed: 'This upload task is not in a failed state',
         localFileMissing: 'The local file is gone',
         upload: 'The upload failed',
+        remote: 'The file on the server could not be read',
         directoryUnwritable: 'The export folder could not be created',
         writeFailed: 'The file could not be written',
         asset: 'The asset could not be read',
@@ -170,6 +171,7 @@ const words = bundle(
         taskNotFailed: '这个上传任务不处于失败状态',
         localFileMissing: '本机文件已不存在',
         upload: '上传失败',
+        remote: '无法读取服务器上的文件',
         directoryUnwritable: '无法创建导出目录',
         writeFailed: '无法写入文件',
         asset: '无法读取这个资产',
@@ -296,6 +298,8 @@ function describe(error: AppError): string {
             return `${t.localFileMissing}: ${error.asset}`;
         case 'upload':
             return `${t.upload}: ${describe(error.cause)}`;
+        case 'remote':
+            return `${t.remote}: ${describe(error.cause)}`;
         case 'directoryUnwritable':
             return `${t.directoryUnwritable}: ${error.cause}`;
         case 'writeFailed':

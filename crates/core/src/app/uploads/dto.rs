@@ -45,7 +45,6 @@ pub struct QueuedUpload {
     pub total: i64,
     pub speed: i64,
     pub eta_seconds: Option<u32>,
-    pub attempts: u32,
     pub error: Option<UploadError>,
 }
 
@@ -63,7 +62,6 @@ impl From<UploadTask> for QueuedUpload {
             total: row.total,
             speed: row.speed,
             eta_seconds: row.eta_seconds,
-            attempts: row.attempts,
             // A row written by an older build, or one whose failure no longer
             // deserializes, reads as "no failure": the state still says Failed,
             // which is what the card renders from.
@@ -72,17 +70,6 @@ impl From<UploadTask> for QueuedUpload {
                 .and_then(|raw| serde_json::from_str::<UploadError>(&raw).ok()),
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct UploadProgressEvent {
-    pub task_id: UploadTaskId,
-    pub uploaded: i64,
-    pub total: i64,
-    pub speed: i64,
-    pub eta_seconds: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

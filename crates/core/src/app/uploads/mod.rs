@@ -1,6 +1,7 @@
 //! Upload queue: enqueue, run, cancel, retry and progress persistence.
 
 mod dto;
+mod view;
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use std::time::Duration;
 
 use crate::app::JobKind;
 use crate::app::jobs::{Ctx, JobId, JobOutcome, JobPriority, Jobs};
+use source_subscription::{Change, SubscriptionManager};
 use tokio::sync::mpsc;
 
 use serde::{Deserialize, Serialize};
@@ -17,10 +19,14 @@ use ts_rs::TS;
 use crate::exif::ExifData;
 use crate::mapping::asset_record;
 use crate::media::{LocalAsset, LocalMediaPort, MediaError};
-use crate::remote::{RemoteStorage, UploadProgress, UploadRequest, UploadUriError};
+use crate::remote::storage::join_uri;
+use crate::remote::{
+    MediaFetchError, RemoteEntry, RemoteError, RemoteStorage, UploadProgress, UploadRequest,
+    UploadUriError,
+};
 use crate::store::{
-    AlbumId, AssetStore, AssetSummary, CatalogError, FolderId, FolderStore, LocalAssetId,
-    LocalStore, UploadQueueStore, UploadState, UploadTask, UploadTaskId,
+    AlbumId, AssetStore, AssetSummary, CatalogError, FolderId, FolderStore, LocalStore,
+    UploadQueueStore, UploadState, UploadTask, UploadTaskId,
 };
 use crate::task::{Attempt, Retry, Step, Try, attempt};
 use crate::time::now_ms;
@@ -28,6 +34,7 @@ use crate::time::now_ms;
 use super::PROGRESS_WRITE_INTERVAL;
 
 pub use dto::*;
+pub use view::*;
 
 /// What the upload queue can fail with.
 ///
@@ -52,6 +59,8 @@ pub enum UploadError {
     LocalMedia { cause: MediaError },
     /// The upload attempt itself failed.
     Upload { task: String, cause: UploadUriError },
+    /// Reading the server copy that a taken name points at failed.
+    Remote { cause: MediaFetchError },
 }
 
 impl UploadError {
@@ -128,6 +137,25 @@ const MAX_UPLOAD_IN_FLIGHT: usize = 128;
 /// comes, so a tick never runs dry while there is work.
 const UPLOAD_TICK: Duration = Duration::from_millis(250);
 
+/// How many bytes of each window are compared when a name is already taken.
+const CONFLICT_SAMPLE: i64 = 64 * 1024;
+
+/// The windows compared when the server already holds the name: head, middle
+/// and tail. A file no larger than one window is compared whole.
+fn sample_windows(size: i64) -> Vec<(i64, u32)> {
+    if size <= 0 {
+        return Vec::new();
+    }
+    if size <= CONFLICT_SAMPLE {
+        return vec![(0, size as u32)];
+    }
+    vec![
+        (0, CONFLICT_SAMPLE as u32),
+        ((size - CONFLICT_SAMPLE) / 2, CONFLICT_SAMPLE as u32),
+        (size - CONFLICT_SAMPLE, CONFLICT_SAMPLE as u32),
+    ]
+}
+
 /// Keeps two tasks enqueued in the same millisecond apart, across every batch.
 static TASK_SEQ: AtomicU64 = AtomicU64::new(0);
 
@@ -136,17 +164,21 @@ static TASK_SEQ: AtomicU64 = AtomicU64::new(0);
 /// on a window.
 #[derive(Clone)]
 pub struct UploadSinks {
-    pub progress: Arc<dyn Fn(UploadProgressEvent) + Send + Sync>,
     pub state: Arc<dyn Fn(&UploadStateEvent) + Send + Sync>,
     pub uploaded: Arc<dyn Fn(&AssetSummary) + Send + Sync>,
 }
 
-pub struct UploadsService<R, C, M> {
+pub struct UploadsService<R, C, M>
+where
+    C: UploadQueueStore + 'static,
+{
     cloud: R,
     catalog: C,
     local: M,
     sinks: UploadSinks,
     jobs: Jobs,
+    /// Every page's subscription to the rows whose bytes are moving.
+    running: Arc<SubscriptionManager<RunningUploads<C>>>,
     /// How many uploads the board may hold, before this tick moves it.
     target: AtomicUsize,
 }
@@ -158,12 +190,16 @@ where
     M: LocalMediaPort + 'static,
 {
     pub fn new(cloud: R, catalog: C, local: M, sinks: UploadSinks, jobs: Jobs) -> Arc<Self> {
+        let running = Arc::new(SubscriptionManager::new(Arc::new(RunningUploads::new(
+            catalog.clone(),
+        ))));
         let uploads = Arc::new(Self {
             cloud,
             catalog,
             local,
             sinks,
             jobs,
+            running,
             target: AtomicUsize::new(MIN_UPLOAD_IN_FLIGHT),
         });
         // The queue keeps itself fed from birth, so recovering rows is all a
@@ -191,6 +227,16 @@ where
     /// What the queue is doing now, for the card that shows it.
     pub async fn list_tasks(&self) -> Result<Vec<QueuedUpload>, UploadError> {
         self.list_tasks_impl().await
+    }
+
+    /// The page's view of the rows whose bytes are moving.
+    pub fn running(&self) -> Arc<SubscriptionManager<RunningUploads<C>>> {
+        Arc::clone(&self.running)
+    }
+
+    /// One commit, answered for every page subscribed to the moving rows.
+    pub async fn apply_changes(&self, changes: &[Change]) {
+        self.running.apply(changes).await;
     }
 
     pub async fn get_task(&self, id: &UploadTaskId) -> Result<Option<QueuedUpload>, UploadError> {
@@ -256,11 +302,11 @@ where
         Ok(tasks.into_iter().map(QueuedUpload::from).collect())
     }
 
-    /// Queue files the caller already holds, skipping the ones waiting already.
+    /// Queue files the caller already holds.
     ///
-    /// A file already in the queue is not queued twice: sync hands over every
-    /// file it finds, pass after pass, and a second row would mean a second
-    /// upload of the same bytes.
+    /// One file has one row per destination folder: a file already waiting or
+    /// in flight is not queued twice, and a row that ended is reused instead of
+    /// copied, so a scan pass after pass never grows the queue.
     ///
     /// `source` is the local album row that asked for the batch, so the queue
     /// can be read back per mapping; a batch the user hand-picked has none.
@@ -281,18 +327,8 @@ where
             .ok_or_else(|| UploadError::AlbumMissing {
                 album: album_id.0.clone(),
             })?;
-        let mut queued: HashSet<LocalAssetId> = self
-            .catalog
-            .list_queued_local_ids(&dest.uri)
-            .await
-            .map_err(UploadError::catalog)?
-            .into_iter()
-            .collect();
         let mut tasks = Vec::new();
         for asset in assets {
-            if !queued.insert(asset.id.clone()) {
-                continue;
-            }
             self.catalog
                 .save_local_asset(asset)
                 .await
@@ -305,6 +341,7 @@ where
                 )),
                 local_asset_id: asset.id.clone(),
                 local_album_id: source.map(str::to_owned),
+                dest_folder_id: FolderId(dest.id.clone()),
                 name: asset.name.clone(),
                 dest_uri: dest.uri.clone(),
                 dest_name: Some(dest.name.clone()),
@@ -313,14 +350,16 @@ where
                 total: asset.size.max(0),
                 speed: 0,
                 eta_seconds: None,
-                attempts: 0,
                 error: None,
             };
-            self.catalog
+            if let Some(task) = self
+                .catalog
                 .enqueue_upload(&task)
                 .await
-                .map_err(UploadError::catalog)?;
-            tasks.push(task);
+                .map_err(UploadError::catalog)?
+            {
+                tasks.push(task);
+            }
         }
         Ok(tasks)
     }
@@ -331,11 +370,11 @@ where
     /// Submitting the same row twice is harmless, since one id is one job, so a
     /// tick racing another never runs a row twice.
     ///
-    /// The room moves like a vector's capacity: it doubles while the backlog
-    /// spills over it, and halves while the backlog cannot fill a quarter of it.
-    /// A first sync of thousands of files therefore reserves more than the small
-    /// steady state, and the board comes back down once the import is done
-    /// instead of staying large for the rest of the process.
+    /// The room moves like a vector's capacity: it doubles while work really
+    /// waits outside the board, and halves while what is left cannot fill a
+    /// quarter of it. A first sync of thousands of files therefore reserves more
+    /// than the small steady state, and the board comes back down once the
+    /// import is done instead of staying large for the rest of the process.
     async fn spawn_pending(self: &Arc<Self>) -> Result<(), UploadError> {
         // The queue ticks from the first moment of the process, often before the
         // stored session has been checked. Starting a row then fails it as an
@@ -344,33 +383,42 @@ where
         if !self.cloud.is_live() {
             return Ok(());
         }
-        let live = self
-            .jobs
-            .list()
+        let board = self.jobs.list();
+        let live = board
             .iter()
             .filter(|job| job.kind == JobKind::Upload && job.state.is_live())
             .count();
+        // Naming the uploads already on the board is what separates "work is
+        // left on the table" from "the board is merely full": a submitted row
+        // stays queued in the table until its attempt writes CreatingSession.
+        let on_board: HashSet<&str> = board
+            .iter()
+            .filter(|job| job.kind == JobKind::Upload)
+            .map(|job| job.id.0.as_str())
+            .collect();
         let target = self.target.load(Ordering::Relaxed);
         let free = target.saturating_sub(live);
-        // One row past the free room tells "the backlog spills over" from "the
-        // backlog is done": without it a full board and an empty queue look
-        // the same.
-        let queued = self
+        // One row past the whole room: the board holds at most `target`
+        // uploads, so a row beyond that page is a row nobody has picked up.
+        let queued: Vec<UploadTask> = self
             .catalog
-            .next_queued((free + 1) as i64)
+            .next_queued((target + 1) as i64)
             .await
-            .map_err(UploadError::catalog)?;
-        if queued.len() > free {
-            // The table still holds rows this room cannot take: grow.
+            .map_err(UploadError::catalog)?
+            .into_iter()
+            .filter(|task| !on_board.contains(task.id.0.as_str()))
+            .collect();
+        if !queued.is_empty() {
+            // Rows nobody has picked up are still waiting: grow.
             if target < MAX_UPLOAD_IN_FLIGHT {
                 self.target
                     .store((target * 2).min(MAX_UPLOAD_IN_FLIGHT), Ordering::Relaxed);
             }
-        } else if (live + queued.len()) * 4 < target && target > MIN_UPLOAD_IN_FLIGHT {
-            // Everything still to do would not fill a quarter of the room: the
-            // import is over, so shrink. A quarter, not a half, leaves a dead
-            // band between the two thresholds, so one more file cannot grow it
-            // straight back.
+        } else if live * 4 < target && target > MIN_UPLOAD_IN_FLIGHT {
+            // Every waiting row is already on the board, and the board is not
+            // even a quarter full: the import is over, so shrink. A quarter, not
+            // a half, leaves a dead band between the two thresholds, so one more
+            // file cannot grow it straight back.
             self.target
                 .store((target / 2).max(MIN_UPLOAD_IN_FLIGHT), Ordering::Relaxed);
         }
@@ -490,7 +538,6 @@ where
         task.uploaded = 0;
         task.speed = 0;
         task.eta_seconds = None;
-        task.attempts += 1;
         self.catalog
             .update_upload(&task)
             .await
@@ -530,7 +577,6 @@ where
         task.error = None;
         task.speed = 0;
         task.eta_seconds = None;
-        task.attempts += 1;
         self.catalog
             .update_upload(&task)
             .await
@@ -721,13 +767,6 @@ where
 
         self.set_state(&mut task, UploadState::CreatingSession)
             .await?;
-        let folder_id = self
-            .catalog
-            .get_folder_by_uri(&task.dest_uri)
-            .await
-            .map_err(UploadError::catalog)?
-            .map(|f| f.id)
-            .unwrap_or_else(|| task.dest_uri.clone());
         self.set_state(&mut task, UploadState::Uploading).await?;
 
         // Single writer: the progress callback only hands the newest sample to a
@@ -758,9 +797,7 @@ where
                 }
             }
         });
-        let sink = Arc::clone(&self.sinks.progress);
         let progress = Arc::new({
-            let task_id = task.id.clone();
             let ctx = ctx.clone();
             let reported = AtomicU64::new(task.uploaded.max(0) as u64);
             move |p: UploadProgress| {
@@ -773,13 +810,6 @@ where
                 if sent > previous {
                     ctx.advance(sent - previous);
                 }
-                sink(UploadProgressEvent {
-                    task_id: task_id.clone(),
-                    uploaded: p.uploaded,
-                    total: if p.total > 0 { p.total } else { max_total },
-                    speed: p.speed,
-                    eta_seconds: p.eta_seconds,
-                });
             }
         });
 
@@ -820,47 +850,102 @@ where
             });
         }
 
-        match result {
-            Ok(entry) => {
-                self.set_state(&mut task, UploadState::Completing).await?;
-                let fid = FolderId::new(folder_id);
-                let client_exif = (local.date_taken > 0).then_some(ExifData {
-                    taken_at: Some(local.date_taken),
-                    width: local.width,
-                    height: local.height,
-                });
-                let record = asset_record(&entry, &fid, client_exif.as_ref());
-                let summary = record.summary.clone();
-                self.catalog
-                    .upsert_asset(&record)
-                    .await
-                    .map_err(UploadError::catalog)?;
-                task.state = UploadState::Done;
-                task.uploaded = task.total;
-                task.speed = 0;
-                task.eta_seconds = None;
-                task.error = None;
-                self.catalog
-                    .update_upload(&task)
-                    .await
-                    .map_err(UploadError::catalog)?;
-                Ok(UploadOutcome {
-                    task,
-                    asset: Some(summary),
-                })
+        let entry = match result {
+            Ok(entry) => entry,
+            // A taken name is the server saying the folder already has a file
+            // called this. It is only a failure when the bytes differ: the same
+            // size and the same sampled windows mean the server already holds
+            // this file, so the row finishes without uploading anything.
+            Err(
+                err @ UploadError::Upload {
+                    cause: UploadUriError::Conflict { .. },
+                    ..
+                },
+            ) => {
+                let remote_uri = join_uri(&task.dest_uri, &local.name);
+                match self.same_remote_file(&local, &remote_uri).await? {
+                    Some(entry) => entry,
+                    None => return Err(err),
+                }
             }
-            Err(err) => {
-                task.state = UploadState::Failed;
-                task.error = Some(err.stored()?);
-                task.speed = 0;
-                task.eta_seconds = None;
-                self.catalog
-                    .update_upload(&task)
-                    .await
-                    .map_err(UploadError::catalog)?;
-                Err(err)
+            Err(err) => return Err(err),
+        };
+        self.set_state(&mut task, UploadState::Completing).await?;
+        let client_exif = (local.date_taken > 0).then_some(ExifData {
+            taken_at: Some(local.date_taken),
+            width: local.width,
+            height: local.height,
+        });
+        let record = asset_record(&entry, &task.dest_folder_id, client_exif.as_ref());
+        let summary = record.summary.clone();
+        self.catalog
+            .upsert_asset(&record)
+            .await
+            .map_err(UploadError::catalog)?;
+        task.state = UploadState::Done;
+        task.uploaded = task.total;
+        task.speed = 0;
+        task.eta_seconds = None;
+        task.error = None;
+        self.catalog
+            .update_upload(&task)
+            .await
+            .map_err(UploadError::catalog)?;
+        Ok(UploadOutcome {
+            task,
+            asset: Some(summary),
+        })
+    }
+
+    /// Decide an upload the server refused because its name is taken.
+    ///
+    /// The row is a duplicate only when the server already holds this exact
+    /// file: the size settles most cases for free, then three 64 KB windows of
+    /// the remote copy are compared with the same offsets on the device. The
+    /// remote entry comes back so the success path can index it as if this
+    /// attempt had uploaded it.
+    async fn same_remote_file(
+        &self,
+        local: &LocalAsset,
+        remote_uri: &str,
+    ) -> Result<Option<RemoteEntry>, UploadError> {
+        let remote = self
+            .cloud
+            .get_file_info(remote_uri)
+            .await
+            .map_err(|cause| UploadError::Remote { cause })?;
+        if remote.size != local.size {
+            return Ok(None);
+        }
+        for (offset, len) in sample_windows(local.size) {
+            let range = format!("bytes={offset}-{}", offset + i64::from(len) - 1);
+            let answer = self
+                .cloud
+                .get_media_range(remote_uri, Some(&range))
+                .await
+                .map_err(|cause| UploadError::Remote { cause })?;
+            // A range request answers with a status, so a refused read looks
+            // like a body of bytes. It is not an answer about the content.
+            if !answer.is_success() {
+                return Err(UploadError::Remote {
+                    cause: MediaFetchError::Transport {
+                        cause: RemoteError::Rejected {
+                            status: i32::from(answer.status),
+                            message: "范围读取失败".to_string(),
+                        },
+                    },
+                });
+            }
+            let mine = self
+                .local
+                .read_range(&local.uri, offset as u64, len)
+                .await
+                .map_err(|cause| UploadError::LocalMedia { cause })?;
+            if answer.body != mine {
+                return Ok(None);
             }
         }
+        Ok(Some(remote))
     }
 
     async fn set_state(

@@ -39,19 +39,21 @@ pub(crate) use local::schema::{
 };
 pub use observe::observe_commits;
 pub(crate) use observe::{install, resolve};
+pub(crate) use upload_queue::schema::{UPLOAD_QUEUE, UPLOAD_TASK_ID};
 
 /// Every table column a view declared, as one read set.
 ///
 /// The observer may only pull what a view reads out of a row, so this is the
 /// union of what the view modules asked for. Widening it is cheap; a table
 /// missing here is a view that never hears about a commit.
-pub(crate) static READ_SET: [source_subscription::Table; 6] = [
+pub(crate) static READ_SET: [source_subscription::Table; 7] = [
     folder::schema::FOLDERS,
     folder::schema::SYNC_STATE,
     asset::schema::ASSETS,
     local::schema::LOCAL_ALBUMS,
     local::schema::LOCAL_ALBUM_MAPPING,
     local::schema::LOCAL_ASSETS,
+    upload_queue::schema::UPLOAD_QUEUE,
 ];
 
 /// The address Cloudreve gives the drive root.

@@ -23,18 +23,20 @@ const QUEUE_PAGE: i64 = 200;
 
 #[async_trait]
 pub trait UploadQueueStore: Send + Sync {
-    async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), CatalogError>;
+    /// Queue one file, or revive the row that file already has.
+    ///
+    /// One file has one row per destination folder. A row still queued or in
+    /// flight already covers the bytes, so it is left alone; a row that ended -
+    /// done, failed or cancelled - is overwritten in place and handed back, and
+    /// it keeps its id because the id is the upload session key. `None` means
+    /// the file is already covered by a row.
+    async fn enqueue_upload(&self, task: &UploadTask) -> Result<Option<UploadTask>, CatalogError>;
     async fn update_upload(&self, task: &UploadTask) -> Result<(), CatalogError>;
     async fn get_upload_task(&self, id: &str) -> Result<Option<UploadTask>, CatalogError>;
     /// The unfinished part of the queue, newest first.
     async fn list_upload_tasks(&self) -> Result<Vec<UploadTask>, CatalogError>;
     /// Put in-flight rows back in the queue and report what is waiting.
     async fn recover_uploads(&self) -> Result<Vec<UploadTask>, CatalogError>;
-    /// The local files already waiting for a slot in one destination folder.
-    async fn list_queued_local_ids(
-        &self,
-        dest_uri: &str,
-    ) -> Result<Vec<LocalAssetId>, CatalogError>;
     /// The oldest rows still waiting for a slot, oldest first.
     async fn next_queued(&self, limit: i64) -> Result<Vec<UploadTask>, CatalogError>;
 }
@@ -42,32 +44,85 @@ pub trait UploadQueueStore: Send + Sync {
 pub(crate) async fn enqueue_upload(
     cat: &SqliteCatalog,
     task: &UploadTask,
-) -> Result<(), CatalogError> {
+) -> Result<Option<UploadTask>, CatalogError> {
     let mut conn = cat.conn().await?;
-    let error = serialize_error(task.error.as_ref())?;
     let now = now_ms();
-    diesel::insert_into(queue::table)
-        .values((
-            queue::id.eq(task.id.0.clone()),
-            queue::local_asset_id.eq(task.local_asset_id.0.clone()),
-            queue::local_album_id.eq(task.local_album_id.clone()),
-            queue::dest_uri.eq(task.dest_uri.clone()),
-            queue::dest_name.eq(task.dest_name.clone()),
-            queue::name.eq(task.name.clone()),
-            queue::state.eq(upload_state_to_str(task.state)),
-            queue::uploaded.eq(task.uploaded),
-            queue::total.eq(task.total),
-            queue::speed.eq(task.speed),
-            queue::eta_seconds.eq(task.eta_seconds.map(i64::from)),
-            queue::attempts.eq(i64::from(task.attempts)),
-            queue::error.eq(error),
-            queue::created_at.eq(now),
-            queue::updated_at.eq(now),
-        ))
-        .execute(&mut conn)
-        .await
-        .map_err(db_err)?;
-    Ok(())
+    conn.transaction::<Option<UploadTask>, TxError, _>(async |conn| {
+        let error = serialize_error(task.error.as_ref())?;
+        let existing = queue::table
+            .filter(queue::dest_folder_id.eq(task.dest_folder_id.0.clone()))
+            .filter(queue::local_asset_id.eq(task.local_asset_id.0.clone()))
+            .select(UploadRow::as_select())
+            .first::<UploadRow>(conn)
+            .await
+            .optional()
+            .map_err(db_err)?;
+        let Some(existing) = existing else {
+            let inserted = diesel::insert_into(queue::table)
+                .values((
+                    queue::id.eq(task.id.0.clone()),
+                    queue::local_asset_id.eq(task.local_asset_id.0.clone()),
+                    queue::local_album_id.eq(task.local_album_id.clone()),
+                    queue::dest_folder_id.eq(task.dest_folder_id.0.clone()),
+                    queue::dest_uri.eq(task.dest_uri.clone()),
+                    queue::dest_name.eq(task.dest_name.clone()),
+                    queue::name.eq(task.name.clone()),
+                    queue::state.eq(upload_state_to_str(task.state)),
+                    queue::uploaded.eq(task.uploaded),
+                    queue::total.eq(task.total),
+                    queue::speed.eq(task.speed),
+                    queue::eta_seconds.eq(task.eta_seconds.map(i64::from)),
+                    queue::error.eq(error),
+                    queue::created_at.eq(now),
+                    queue::updated_at.eq(now),
+                ))
+                .on_conflict((queue::dest_folder_id, queue::local_asset_id))
+                .do_nothing()
+                .execute(&mut *conn)
+                .await
+                .map_err(db_err)?;
+            // Another writer queued this same file between our look and our
+            // write: its row covers the bytes exactly as ours would have.
+            return Ok((inserted > 0).then(|| task.clone()));
+        };
+        // A row that has not ended yet is this same file in this same folder:
+        // queueing it again would be a second upload of the same bytes.
+        if !matches!(
+            upload_state_from_str(&existing.state),
+            UploadState::Done | UploadState::Failed | UploadState::Cancelled
+        ) {
+            return Ok(None);
+        }
+        // The id stays: it is the upload session key, so a revived row still
+        // resumes the chunks the server already holds.
+        let revived = UploadTask {
+            id: UploadTaskId(existing.id),
+            ..task.clone()
+        };
+        diesel::update(queue::table.filter(queue::id.eq(revived.id.0.clone())))
+            .set((
+                queue::local_album_id.eq(revived.local_album_id.clone()),
+                queue::dest_uri.eq(revived.dest_uri.clone()),
+                queue::dest_name.eq(revived.dest_name.clone()),
+                queue::name.eq(revived.name.clone()),
+                queue::state.eq(upload_state_to_str(revived.state)),
+                queue::uploaded.eq(revived.uploaded),
+                queue::total.eq(revived.total),
+                queue::speed.eq(revived.speed),
+                queue::eta_seconds.eq(revived.eta_seconds.map(i64::from)),
+                queue::error.eq(error),
+                // Queued again now, so the row takes its place at the back of
+                // the FIFO instead of jumping the files that never failed.
+                queue::created_at.eq(now),
+                queue::updated_at.eq(now),
+            ))
+            .execute(&mut *conn)
+            .await
+            .map_err(db_err)?;
+        Ok(Some(revived))
+    })
+    .await
+    .map_err(|error| error.0)
 }
 
 pub(crate) async fn update_upload(
@@ -83,7 +138,6 @@ pub(crate) async fn update_upload(
             queue::total.eq(task.total),
             queue::speed.eq(task.speed),
             queue::eta_seconds.eq(task.eta_seconds.map(i64::from)),
-            queue::attempts.eq(i64::from(task.attempts)),
             queue::error.eq(error),
             queue::updated_at.eq(now_ms()),
         ))
@@ -158,22 +212,6 @@ pub(crate) async fn recover_uploads(cat: &SqliteCatalog) -> Result<Vec<UploadTas
     Ok(rows.into_iter().map(UploadTask::from).collect())
 }
 
-/// The local files already waiting for a slot in one destination folder.
-pub(crate) async fn list_queued_local_ids(
-    cat: &SqliteCatalog,
-    dest_uri: &str,
-) -> Result<Vec<LocalAssetId>, CatalogError> {
-    let mut conn = cat.conn().await?;
-    queue::table
-        .filter(queue::dest_uri.eq(dest_uri))
-        .filter(queue::state.eq_any(["queued", "creatingSession", "uploading", "completing"]))
-        .select(queue::local_asset_id)
-        .load::<String>(&mut conn)
-        .await
-        .map(|ids| ids.into_iter().map(LocalAssetId).collect())
-        .map_err(db_err)
-}
-
 /// The oldest rows still waiting for a slot, oldest first.
 ///
 /// The table is the backlog: this is how the upload service learns what to
@@ -200,7 +238,7 @@ fn serialize_error(error: Option<&String>) -> Result<Option<String>, CatalogErro
 
 #[async_trait]
 impl UploadQueueStore for SqliteCatalog {
-    async fn enqueue_upload(&self, task: &UploadTask) -> Result<(), CatalogError> {
+    async fn enqueue_upload(&self, task: &UploadTask) -> Result<Option<UploadTask>, CatalogError> {
         enqueue_upload(self, task).await
     }
 
@@ -218,13 +256,6 @@ impl UploadQueueStore for SqliteCatalog {
 
     async fn recover_uploads(&self) -> Result<Vec<UploadTask>, CatalogError> {
         recover_uploads(self).await
-    }
-
-    async fn list_queued_local_ids(
-        &self,
-        dest_uri: &str,
-    ) -> Result<Vec<LocalAssetId>, CatalogError> {
-        list_queued_local_ids(self, dest_uri).await
     }
 
     async fn next_queued(&self, limit: i64) -> Result<Vec<UploadTask>, CatalogError> {

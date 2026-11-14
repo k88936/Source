@@ -6,7 +6,7 @@ use diesel::sqlite::Sqlite;
 use super::dto::{UploadTask, UploadTaskId};
 use super::schema;
 use super::values::upload_state_from_str;
-use crate::store::LocalAssetId;
+use crate::store::{FolderId, LocalAssetId};
 
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = schema::upload_queue)]
@@ -15,6 +15,7 @@ pub(crate) struct UploadRow {
     pub(crate) id: String,
     pub(crate) local_asset_id: String,
     pub(crate) local_album_id: Option<String>,
+    pub(crate) dest_folder_id: String,
     pub(crate) dest_uri: String,
     pub(crate) dest_name: Option<String>,
     pub(crate) name: String,
@@ -23,7 +24,6 @@ pub(crate) struct UploadRow {
     pub(crate) total: i64,
     pub(crate) speed: i64,
     pub(crate) eta_seconds: Option<i64>,
-    pub(crate) attempts: i64,
     pub(crate) error: Option<String>,
 }
 
@@ -33,6 +33,7 @@ impl From<UploadRow> for UploadTask {
             id: UploadTaskId(row.id),
             local_asset_id: LocalAssetId(row.local_asset_id),
             local_album_id: row.local_album_id,
+            dest_folder_id: FolderId(row.dest_folder_id),
             dest_uri: row.dest_uri,
             dest_name: row.dest_name,
             name: row.name,
@@ -41,7 +42,6 @@ impl From<UploadRow> for UploadTask {
             total: row.total,
             speed: row.speed,
             eta_seconds: row.eta_seconds.map(|value| value.max(0) as u32),
-            attempts: row.attempts.max(0) as u32,
             error: row.error,
         }
     }

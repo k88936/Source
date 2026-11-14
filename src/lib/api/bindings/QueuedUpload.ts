@@ -15,4 +15,4 @@ export type QueuedUpload = { id: UploadTaskId, localAssetId: LocalAssetId,
 /**
  * The local album row that queued this file, when a mapping did.
  */
-localAlbumId: string | null, name: string, destUri: string, destName: string | null, state: UploadState, uploaded: number, total: number, speed: number, etaSeconds: number | null, attempts: number, error: UploadError | null, };
+localAlbumId: string | null, name: string, destUri: string, destName: string | null, state: UploadState, uploaded: number, total: number, speed: number, etaSeconds: number | null, error: UploadError | null, };

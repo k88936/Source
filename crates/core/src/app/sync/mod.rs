@@ -41,14 +41,20 @@ pub enum SyncError {
     QueueFailed { cause: UploadError },
 }
 
-pub struct SyncService<R, C, M> {
+pub struct SyncService<R, C, M>
+where
+    C: UploadQueueStore + 'static,
+{
     catalog: C,
     local: M,
     uploads: Arc<UploadsService<R, C, M>>,
     jobs: Jobs,
 }
 
-impl<R, C, M> SyncService<R, C, M> {
+impl<R, C, M> SyncService<R, C, M>
+where
+    C: UploadQueueStore + 'static,
+{
     pub fn new(catalog: C, local: M, uploads: Arc<UploadsService<R, C, M>>, jobs: Jobs) -> Self {
         Self {
             catalog,
@@ -142,6 +148,10 @@ where
             .list_album_asset_names(&folder.id)
             .await
             .map_err(|cause| SyncError::Catalog { cause })?;
+        // TODO: "already uploaded" is decided by file name alone, and the
+        // folder is not refreshed before the walk, so a local rename uploads
+        // again while another client's same-name file is skipped. Dedupe on
+        // (name, size, mtime) or a content hash, and refresh the folder first.
         // Matched by name, so a directory of tens of thousands of files does
         // not turn every page into a scan of everything the album holds.
         let held: HashSet<&str> = names.iter().map(String::as_str).collect();
