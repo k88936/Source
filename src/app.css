@@ -105,3 +105,11 @@
         @apply bg-primary/25;
     }
 }
+
+/* `@immich/ui`'s modal portals to `<body>` and pins itself to the viewport, so the
+   shell's inset padding never reaches it: its header would sit under the status bar
+   and its footer under the navigation bar. Pad the dialog surface itself. */
+[data-dialog-content] {
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+}
