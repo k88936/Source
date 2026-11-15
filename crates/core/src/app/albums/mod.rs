@@ -135,7 +135,7 @@ where
     subscriptions: Arc<SubscriptionManager<Albums<C>>>,
     /// The other side of the same page: the device directories syncing into
     /// those albums. They answer from the same catalog, so they live here too.
-    locals: Arc<SubscriptionManager<Locals<C, M>>>,
+    locals: Arc<SubscriptionManager<Locals<C>>>,
     /// When the next automatic listing pass is due.
     schedule: Schedule,
 }
@@ -152,7 +152,6 @@ where
             )))),
             locals: Arc::new(SubscriptionManager::new(Arc::new(Locals::new(
                 catalog.clone(),
-                local.clone(),
             )))),
             cloud,
             catalog,
@@ -168,7 +167,7 @@ where
     }
 
     /// The local albums a page connects to.
-    pub fn local_subscriptions(&self) -> Arc<SubscriptionManager<Locals<C, M>>> {
+    pub fn local_subscriptions(&self) -> Arc<SubscriptionManager<Locals<C>>> {
         Arc::clone(&self.locals)
     }
 

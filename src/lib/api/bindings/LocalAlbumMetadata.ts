@@ -6,10 +6,10 @@ import type { AlbumId } from "./AlbumId";
  */
 export type LocalAlbumMetadata = { id: string, uri: string, name: string, albumId: AlbumId, albumName: string, 
 /**
- * Direct media files, counted on the device every time it is asked.
+ * Direct media files of the directory, as the catalog staged them.
  */
 assetCount: number, 
 /**
- * Up to four newest local files, for the mosaic tile.
+ * The tile's images: up to four newest staged files.
  */
 coverUris: Array<string>, };

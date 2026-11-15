@@ -7,6 +7,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
@@ -19,13 +20,93 @@ use super::{
     MediaPermissionState, PermissionGrant, jpeg_thumb_from_path, video_thumb_from_path,
 };
 
+/// The directory last read, kept so paging through it walks the filesystem once.
+struct Listing {
+    dir: PathBuf,
+    /// Newest first, ties broken by name: a page resumes at the key of the file
+    /// it stopped at, so the order has to be total and not just the mtime.
+    assets: Vec<LocalAsset>,
+}
+
 #[derive(Clone, Default)]
-pub struct FsLocalMedia;
+pub struct FsLocalMedia {
+    listing: Arc<Mutex<Option<Listing>>>,
+}
 
 impl FsLocalMedia {
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
+
+    /// One page of the directory, reading it only when the listing on hand is
+    /// not the one this key came from.
+    ///
+    /// A page is asked for by the key the previous one ended on, so the list a
+    /// page is sliced from has to be the list that key came from; a key with no
+    /// listing behind it, and a first page, both start the walk over.
+    fn page(
+        &self,
+        album_uri: &str,
+        cursor: Option<&str>,
+        limit: u32,
+    ) -> Result<LocalAssetPage, MediaError> {
+        let dir = PathBuf::from(album_uri);
+        let limit = limit.clamp(1, 200) as usize;
+        let mut slot = self.listing.lock().unwrap();
+        if let Some(held) = slot.as_ref()
+            && cursor.is_some()
+            && held.dir == dir
+        {
+            return Ok(slice(held, cursor, limit));
+        }
+        let assets = direct_media(&dir)?;
+        let held = Listing { dir, assets };
+        let page = slice(&held, cursor, limit);
+        *slot = Some(held);
+        Ok(page)
+    }
+}
+
+/// The key a page resumes at: the file it stopped on, as mtime and name.
+fn page_key(asset: &LocalAsset) -> String {
+    format!("{}:{}", asset.date_taken, asset.name)
+}
+
+fn parse_key(key: &str) -> Option<(i64, &str)> {
+    let (date, name) = key.split_once(':')?;
+    Some((date.parse().ok()?, name))
+}
+
+/// Where the list resumes: the first file that sorts after the key.
+///
+/// The list is newest first and names ascending inside one mtime, so "after"
+/// is a smaller mtime, or the same one with a name further down.
+fn past(asset: &LocalAsset, date: i64, name: &str) -> bool {
+    asset.date_taken < date || (asset.date_taken == date && asset.name.as_str() > name)
+}
+
+fn slice(listing: &Listing, cursor: Option<&str>, limit: usize) -> LocalAssetPage {
+    let start = match cursor.and_then(parse_key) {
+        None => 0,
+        Some((date, name)) => listing
+            .assets
+            .iter()
+            .position(|asset| past(asset, date, name))
+            .unwrap_or(listing.assets.len()),
+    };
+    let items: Vec<LocalAsset> = listing
+        .assets
+        .iter()
+        .skip(start)
+        .take(limit)
+        .cloned()
+        .collect();
+    let next = if start + items.len() < listing.assets.len() {
+        items.last().map(page_key)
+    } else {
+        None
+    };
+    LocalAssetPage { items, next }
 }
 
 /// The directory browsing starts at.
@@ -59,25 +140,24 @@ fn is_media_path(path: &Path) -> bool {
     matches!(media_type(None, name), MediaType::Image | MediaType::Video)
 }
 
-/// The direct media files of `dir`, newest first.
-fn direct_media(dir: &Path) -> Result<Vec<PathBuf>, MediaError> {
+/// The direct media files of `dir`, newest first, ties broken by name.
+fn direct_media(dir: &Path) -> Result<Vec<LocalAsset>, MediaError> {
     let entries = fs::read_dir(dir).map_err(|error| MediaError::Platform {
         cause: format!("无法读取目录 {}: {error}", dir.display()),
     })?;
-    let mut files: Vec<PathBuf> = entries
+    let mut assets: Vec<LocalAsset> = entries
         .flatten()
         .map(|entry| entry.path())
         .filter(|path| path.is_file() && is_media_path(path))
+        .filter_map(|path| local_asset_from_path(&path))
         .collect();
-    files.sort_by_key(|path| {
-        std::cmp::Reverse(
-            fs::metadata(path)
-                .and_then(|meta| meta.modified())
-                .map(system_millis)
-                .unwrap_or(0),
-        )
+    assets.sort_by(|left, right| {
+        right
+            .date_taken
+            .cmp(&left.date_taken)
+            .then_with(|| left.name.cmp(&right.name))
     });
-    Ok(files)
+    Ok(assets)
 }
 
 fn local_asset_from_path(path: &Path) -> Option<LocalAsset> {
@@ -142,25 +222,7 @@ impl LocalMediaPort for FsLocalMedia {
         cursor: Option<&str>,
         limit: u32,
     ) -> Result<LocalAssetPage, MediaError> {
-        let files = direct_media(Path::new(album_uri))?;
-        let offset = cursor.and_then(|c| c.parse::<usize>().ok()).unwrap_or(0);
-        let limit = limit.clamp(1, 200) as usize;
-        let items: Vec<LocalAsset> = files
-            .iter()
-            .skip(offset)
-            .take(limit)
-            .filter_map(|path| local_asset_from_path(path))
-            .collect();
-        let next = if offset + limit < files.len() {
-            Some((offset + limit).to_string())
-        } else {
-            None
-        };
-        Ok(LocalAssetPage { items, next })
-    }
-
-    async fn count_assets(&self, album_uri: &str) -> Result<u32, MediaError> {
-        Ok(direct_media(Path::new(album_uri))?.len() as u32)
+        self.page(album_uri, cursor, limit)
     }
 
     async fn read_range(&self, uri: &str, offset: u64, len: u32) -> Result<Vec<u8>, MediaError> {

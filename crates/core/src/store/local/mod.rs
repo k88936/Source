@@ -35,12 +35,14 @@ pub trait LocalStore: Send + Sync {
     ) -> Result<(), CatalogError>;
     /// Forget a local album and its staging rows; the remote album stays.
     async fn remove_local_album(&self, id: &str) -> Result<(), CatalogError>;
+    /// What this local album's tile shows: how many files it staged, and the
+    /// newest four of them.
+    async fn local_album_tile(&self, id: &str) -> Result<LocalAlbumTile, CatalogError>;
     /// Record that this directory was walked just now.
     ///
-    /// A walk is where the device is read, so it is also where the tile showing
-    /// what the directory holds can move: a directory whose files were deleted
-    /// outside the app queues nothing, and without a row written here its count
-    /// would keep the number from the day it still had them.
+    /// A walk stages one row per file it found, and the tile is those rows, so
+    /// the number moves while it runs. The row written here is the pass saying
+    /// it is over: every file of the directory has been looked at.
     async fn mark_local_album_scanned(&self, id: &str) -> Result<(), CatalogError>;
 }
 
@@ -197,6 +199,29 @@ pub(crate) async fn remove_local_album(cat: &SqliteCatalog, id: &str) -> Result<
     .map_err(|error| error.0)
 }
 
+pub(crate) async fn local_album_tile(
+    cat: &SqliteCatalog,
+    id: &str,
+) -> Result<LocalAlbumTile, CatalogError> {
+    let mut conn = cat.conn().await?;
+    let count = local_assets::table
+        .filter(local_assets::album_id.eq(id))
+        .count()
+        .get_result::<i64>(&mut conn)
+        .await
+        .map_err(db_err)?
+        .max(0) as u32;
+    let cover_uris = local_assets::table
+        .filter(local_assets::album_id.eq(id))
+        .order((local_assets::date_taken.desc(), local_assets::id.desc()))
+        .select(local_assets::uri)
+        .limit(super::album::MOSAIC_COVERS)
+        .load::<String>(&mut conn)
+        .await
+        .map_err(db_err)?;
+    Ok(LocalAlbumTile { count, cover_uris })
+}
+
 pub(crate) async fn mark_local_album_scanned(
     cat: &SqliteCatalog,
     id: &str,
@@ -239,6 +264,10 @@ impl LocalStore for SqliteCatalog {
 
     async fn remove_local_album(&self, id: &str) -> Result<(), CatalogError> {
         remove_local_album(self, id).await
+    }
+
+    async fn local_album_tile(&self, id: &str) -> Result<LocalAlbumTile, CatalogError> {
+        local_album_tile(self, id).await
     }
 
     async fn mark_local_album_scanned(&self, id: &str) -> Result<(), CatalogError> {

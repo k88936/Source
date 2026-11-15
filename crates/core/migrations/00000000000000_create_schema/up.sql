@@ -80,6 +80,7 @@ CREATE TABLE local_assets (
   checksum TEXT,
   uploaded_asset_id TEXT
 );
+CREATE INDEX local_assets_album ON local_assets(album_id, date_taken DESC, id DESC);
 
 CREATE TABLE upload_queue (
   id TEXT PRIMARY KEY,

@@ -70,8 +70,6 @@ pub trait LocalMediaPort: Send + Sync {
         limit: u32,
     ) -> Result<LocalAssetPage, MediaError>;
     async fn get_asset(&self, id: &str) -> Result<Option<LocalAsset>, MediaError>;
-    /// How many assets [`Self::list_assets`] would report, without reading them.
-    async fn count_assets(&self, album_uri: &str) -> Result<u32, MediaError>;
 
     /// Up to `len` raw bytes of the asset behind `uri`, starting at `offset`.
     ///

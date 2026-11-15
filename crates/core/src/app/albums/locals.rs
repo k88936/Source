@@ -1,10 +1,10 @@
 //! The local album view: the sources the sync page stacks beside an album.
 //!
 //! A local album is a registered directory plus the album it syncs into, and
-//! nothing else about it is stored: its count and mosaic are the device's, asked
-//! again every time because the catalog only knows which files were staged. So a
-//! commit names the albums it touched, each of those is asked again, and one
-//! that is gone is a delete.
+//! nothing else about it is stored. Its tile is the catalog's: a walk stages one
+//! row per file it finds, so what the directory holds is already in the index
+//! and a card is painted without reading the device. A commit names the albums
+//! it touched, each of those is asked again, and one that is gone is a delete.
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -12,7 +12,6 @@ use std::future::Future;
 use source_subscription::{Change, Delta, Row, Value, View};
 
 use super::LocalAlbumMetadata;
-use crate::media::LocalMediaPort;
 use crate::store::{
     AlbumId, LOCAL_ALBUM_ID, LOCAL_ALBUM_MAPPING, LOCAL_ALBUM_MAPPING_ALBUM, LOCAL_ALBUMS,
     LOCAL_ASSET_ALBUM, LOCAL_ASSETS, LocalAlbumRecord, LocalStore,
@@ -26,43 +25,38 @@ impl Row for LocalAlbumMetadata {
 
 /// One registered local album, with the tile the graph shows for it.
 ///
-/// The count and the mosaic are asked of the device, not of the catalog, so a
-/// failure here is the one thing a subscriber can be told about a tile it will
-/// never see.
-async fn local_album_metadata<M>(
+/// The count and the mosaic are the staging rows of the directory, so this is
+/// two indexed statements and not a walk: a directory of ten thousand files
+/// answers as fast as an empty one, and it is the same number the scan writes.
+async fn local_album_metadata<C>(
+    catalog: &C,
     album: LocalAlbumRecord,
-    device: &M,
 ) -> Result<LocalAlbumMetadata, String>
 where
-    M: LocalMediaPort,
+    C: LocalStore,
 {
-    let asset_count = device
-        .count_assets(&album.uri)
+    let tile = catalog
+        .local_album_tile(&album.id)
         .await
-        .map_err(|cause| format!("local media: {cause:?}"))?;
-    let covers = device
-        .list_assets(&album.uri, None, 4)
-        .await
-        .map_err(|cause| format!("local media: {cause:?}"))?;
+        .map_err(|cause| cause.view_message())?;
     Ok(LocalAlbumMetadata {
         id: album.id,
         uri: album.uri,
         name: album.name,
         album_id: AlbumId(album.album_id),
         album_name: album.album_name,
-        asset_count,
-        cover_uris: covers.items.into_iter().map(|asset| asset.uri).collect(),
+        asset_count: tile.count,
+        cover_uris: tile.cover_uris,
     })
 }
 
-pub struct Locals<C, M> {
+pub struct Locals<C> {
     catalog: C,
-    device: M,
 }
 
-impl<C, M> Locals<C, M> {
-    pub fn new(catalog: C, device: M) -> Self {
-        Self { catalog, device }
+impl<C> Locals<C> {
+    pub fn new(catalog: C) -> Self {
+        Self { catalog }
     }
 
     /// The column a change of `table` names its local album by, if the tile is
@@ -107,7 +101,6 @@ impl<C, M> Locals<C, M> {
     async fn changed(&self, changes: &[Change]) -> Result<Delta<LocalAlbumMetadata>, String>
     where
         C: LocalStore,
-        M: LocalMediaPort,
     {
         let touched = Self::touched(changes);
         let mut delta = Delta::new();
@@ -120,7 +113,7 @@ impl<C, M> Locals<C, M> {
             {
                 Some(album) => delta
                     .inserts
-                    .push(local_album_metadata(album, &self.device).await?),
+                    .push(local_album_metadata(&self.catalog, album).await?),
                 None => delta.deletes.push(id),
             }
         }
@@ -128,10 +121,9 @@ impl<C, M> Locals<C, M> {
     }
 }
 
-impl<C, M> View for Locals<C, M>
+impl<C> View for Locals<C>
 where
     C: LocalStore + 'static,
-    M: LocalMediaPort + 'static,
 {
     /// The local albums take no parameters: a set of sources is the whole
     /// library of them.
@@ -147,16 +139,15 @@ where
             .map_err(|e| e.view_message())?;
         let mut rows = Vec::with_capacity(albums.len());
         for album in albums {
-            rows.push(local_album_metadata(album, &self.device).await?);
+            rows.push(local_album_metadata(&self.catalog, album).await?);
         }
         Ok(rows)
     }
 
     /// One of three tables means this tile moved: `local_albums` (name, uri),
-    /// `local_album_mapping` (the target), and `local_assets`. The last one does
-    /// not feed the tile - the count and mosaic are the device's - but a scan
-    /// that stages a file is the only signal that the directory gained one the
-    /// snapshot predates, so it is the moment to ask again.
+    /// `local_album_mapping` (the target), and `local_assets`, because the tile
+    /// is the staged rows - a scan writes one per file it finds, which is the
+    /// number the card counts.
     fn delta(
         &self,
         _query: &Self::Query,
