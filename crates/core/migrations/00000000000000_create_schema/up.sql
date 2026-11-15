@@ -55,7 +55,8 @@ CREATE TABLE sync_state (
 CREATE TABLE local_albums (
   id TEXT PRIMARY KEY,
   uri TEXT NOT NULL,
-  name TEXT NOT NULL
+  name TEXT NOT NULL,
+  scanned_at INTEGER
 );
 CREATE UNIQUE INDEX local_albums_uri ON local_albums(uri);
 

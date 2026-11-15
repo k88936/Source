@@ -37,6 +37,7 @@ diesel::table! {
         id -> Text,
         uri -> Text,
         name -> Text,
+        scanned_at -> Nullable<BigInt>,
     }
 }
 

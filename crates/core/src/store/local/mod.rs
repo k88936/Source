@@ -6,6 +6,8 @@
 
 use async_trait::async_trait;
 
+use crate::time::now_ms;
+
 use self::rows::*;
 use self::schema::{local_album_mapping, local_albums, local_assets};
 use super::folder::schema::folders;
@@ -33,6 +35,13 @@ pub trait LocalStore: Send + Sync {
     ) -> Result<(), CatalogError>;
     /// Forget a local album and its staging rows; the remote album stays.
     async fn remove_local_album(&self, id: &str) -> Result<(), CatalogError>;
+    /// Record that this directory was walked just now.
+    ///
+    /// A walk is where the device is read, so it is also where the tile showing
+    /// what the directory holds can move: a directory whose files were deleted
+    /// outside the app queues nothing, and without a row written here its count
+    /// would keep the number from the day it still had them.
+    async fn mark_local_album_scanned(&self, id: &str) -> Result<(), CatalogError>;
 }
 
 pub(crate) async fn save_local_asset(
@@ -188,6 +197,19 @@ pub(crate) async fn remove_local_album(cat: &SqliteCatalog, id: &str) -> Result<
     .map_err(|error| error.0)
 }
 
+pub(crate) async fn mark_local_album_scanned(
+    cat: &SqliteCatalog,
+    id: &str,
+) -> Result<(), CatalogError> {
+    let mut conn = cat.conn().await?;
+    diesel::update(local_albums::table.filter(local_albums::id.eq(id)))
+        .set(local_albums::scanned_at.eq(now_ms()))
+        .execute(&mut conn)
+        .await
+        .map_err(db_err)?;
+    Ok(())
+}
+
 #[async_trait]
 impl LocalStore for SqliteCatalog {
     async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), CatalogError> {
@@ -217,5 +239,9 @@ impl LocalStore for SqliteCatalog {
 
     async fn remove_local_album(&self, id: &str) -> Result<(), CatalogError> {
         remove_local_album(self, id).await
+    }
+
+    async fn mark_local_album_scanned(&self, id: &str) -> Result<(), CatalogError> {
+        mark_local_album_scanned(self, id).await
     }
 }

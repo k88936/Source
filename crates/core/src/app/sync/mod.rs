@@ -245,6 +245,14 @@ where
                 break;
             }
         }
+        // The tile's count and mosaic are read from the device, so this walk is
+        // the only moment they can be asked again: a directory that lost its
+        // files queues nothing, and the row written here is what makes the view
+        // recompute the tile instead of leaving the old number on screen.
+        self.catalog
+            .mark_local_album_scanned(&album.id)
+            .await
+            .map_err(|cause| SyncError::Catalog { cause })?;
         Ok(JobOutcome::Done)
     }
 }
