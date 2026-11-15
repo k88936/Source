@@ -8,7 +8,7 @@ import {defineConfig} from 'vite';
  * fixture transport in `src/demo`. It never touches the Tauri build, which keeps
  * `vite.config.ts` and an empty base of its own.
  */
-const base = '/Source/app';
+const base = '/Source/app/';
 
 export default defineConfig({
     base,
