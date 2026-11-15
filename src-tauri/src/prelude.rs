@@ -24,9 +24,7 @@ pub(crate) use source_core::app::sync::SyncError;
 pub(crate) use source_core::app::uploads::{
     EnqueueUploadsParams, QueuedUpload, UploadError, UploadTaskParams,
 };
-pub(crate) use source_core::app::{
-    AppInfo, CatalogChangeKind, CatalogChangedEvent, Settings, SettingsDelta,
-};
+pub(crate) use source_core::app::{AppInfo, Settings, SettingsDelta};
 pub(crate) use source_core::media::{
     CacheStats, LocalAssetPage, LocalAssetPageParams, LocalBrowsePage, MediaError,
     MediaPermissionState,

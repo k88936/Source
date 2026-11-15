@@ -1,6 +1,5 @@
 import {toastManager} from '@immich/ui';
 import {api, listen} from '#lib/api/client';
-import type {CatalogChangedEvent} from '#lib/api/bindings/CatalogChangedEvent';
 import type {AccountState} from '#lib/api/bindings/AccountState';
 import type {JobRow} from '#lib/api/bindings/JobRow';
 import type {SessionState} from '#lib/api/bindings/SessionState';
@@ -8,7 +7,6 @@ import type {Subscription} from 'subscription-client';
 import {errorText} from '#lib/errors/i18n';
 import {appMessages} from './app.i18n';
 import {i18n} from '#lib/i18n/i18n.svelte';
-import {changes} from '#lib/api/changes';
 import {jobsView} from '#lib/api/views';
 
 export type ToastKind = 'success' | 'error' | 'info';
@@ -37,9 +35,6 @@ export class AppState {
         // a read taken before subscribing would miss.
         await listen<SessionState>('session://setup', (payload) => {
             this.applySession(payload);
-        });
-        await listen<CatalogChangedEvent>('catalog://changed', (payload) => {
-            changes.emit(payload);
         });
         // The queue is a subscription like any other view, held for the life of
         // the window: a card reads a job's state from these rows instead of

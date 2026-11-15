@@ -31,17 +31,14 @@ pub(crate) async fn search_assets(
 
 #[tauri::command]
 pub(crate) async fn set_favorite(
-    app: AppHandle,
     state: State<'_, AppState>,
     params: SetFavoriteParams,
 ) -> Result<AssetSummary, BrowseError> {
-    let asset = state
+    state
         .core
         .browse
         .set_favorite(&params.asset_id.0, params.value)
-        .await?;
-    emit_assets(&app, vec![asset.clone()]);
-    Ok(asset)
+        .await
 }
 
 #[tauri::command]
@@ -97,39 +94,32 @@ pub(crate) async fn index_stop(state: State<'_, AppState>) -> Result<(), AlbumEr
 
 #[tauri::command]
 pub(crate) async fn set_album_cover(
-    app: AppHandle,
     state: State<'_, AppState>,
     params: SetAlbumCoverParams,
 ) -> Result<AlbumMetadata, AlbumError> {
-    let album = state
+    state
         .core
         .albums
         .set_album_cover(&params.album_id.0, &params.asset_id.0)
-        .await?;
-    emit_albums(&app, vec![album.clone()]);
-    Ok(album)
+        .await
 }
 
 #[tauri::command]
 pub(crate) async fn set_album_description(
-    app: AppHandle,
     state: State<'_, AppState>,
     params: SetAlbumDescriptionParams,
 ) -> Result<AlbumMetadata, AlbumError> {
-    let album = state
+    state
         .core
         .albums
         .set_album_description(&params.album_id.0, &params.description)
-        .await?;
-    emit_albums(&app, vec![album.clone()]);
-    Ok(album)
+        .await
 }
 
 /// Move the selection into an album. This is destructive: Cloudreve albums are
 /// folders, so the files leave their current folder.
 #[tauri::command]
 pub(crate) async fn move_assets_to_album(
-    app: AppHandle,
     state: State<'_, AppState>,
     params: MoveAssetsParams,
 ) -> Result<Vec<AssetSummary>, AlbumError> {
@@ -138,45 +128,11 @@ pub(crate) async fn move_assets_to_album(
         .into_iter()
         .map(|asset| asset.0)
         .collect::<Vec<_>>();
-    let moved = state
+    state
         .core
         .albums
         .move_assets_to_album(&ids, &params.album_id.0)
-        .await?;
-    // Counts and mosaics of both the source and the target album changed.
-    if let Ok(albums) = state.core.albums.list_albums().await {
-        let _ = app.emit(
-            "catalog://changed",
-            CatalogChangedEvent {
-                kind: CatalogChangeKind::Albums,
-                assets: Vec::new(),
-                albums,
-            },
-        );
-    }
-    Ok(moved)
-}
-
-fn emit_assets(app: &AppHandle, assets: Vec<AssetSummary>) {
-    let _ = app.emit(
-        "catalog://changed",
-        CatalogChangedEvent {
-            kind: CatalogChangeKind::Assets,
-            assets,
-            albums: Vec::new(),
-        },
-    );
-}
-
-fn emit_albums(app: &AppHandle, albums: Vec<AlbumMetadata>) {
-    let _ = app.emit(
-        "catalog://changed",
-        CatalogChangedEvent {
-            kind: CatalogChangeKind::Albums,
-            assets: Vec::new(),
-            albums,
-        },
-    );
+        .await
 }
 
 /// Every address a media element loads: thumbnails, full-size stills, video and

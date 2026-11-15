@@ -8,8 +8,8 @@ use source_core::app::Jobs;
 use source_core::app::account::{RestoreOutcome, SessionSetup, SessionState};
 use source_core::app::jobs::JobList;
 use source_core::app::uploads::{UploadSinks, UploadStateEvent};
-use source_core::app::{CatalogChangeKind, CatalogChangedEvent, Schedule, SettingsService};
-use source_core::store::{AssetSummary, observe_commits};
+use source_core::app::{Schedule, SettingsService};
+use source_core::store::observe_commits;
 use source_core::{
     AccountService, AlbumsService, BrowseService, CloudreveAuth, CloudreveStorage, CredentialStore,
     FoldersService, SettingsStore, SqliteCatalog, SyncService, ThumbCache, UploadSessionPort,
@@ -243,27 +243,10 @@ fn restore_session(handle: tauri::AppHandle, core: Arc<App>) {
 
 /// Where the upload queue reports: the webview's events.
 fn upload_sinks(handle: &tauri::AppHandle) -> UploadSinks {
+    let handle = handle.clone();
     UploadSinks {
-        state: {
-            let handle = handle.clone();
-            Arc::new(move |event: &UploadStateEvent| {
-                let _ = handle.emit("upload://state", event);
-            })
-        },
-        uploaded: {
-            let handle = handle.clone();
-            Arc::new(move |asset: &AssetSummary| {
-                // One tile, one album count bump - the UI patches instead of
-                // reloading the timeline.
-                let _ = handle.emit(
-                    "catalog://changed",
-                    CatalogChangedEvent {
-                        kind: CatalogChangeKind::Assets,
-                        assets: vec![asset.clone()],
-                        albums: Vec::new(),
-                    },
-                );
-            })
-        },
+        state: Arc::new(move |event: &UploadStateEvent| {
+            let _ = handle.emit("upload://state", event);
+        }),
     }
 }

@@ -25,7 +25,7 @@ use crate::remote::{
     UploadUriError,
 };
 use crate::store::{
-    AlbumId, AssetStore, AssetSummary, CatalogError, FolderId, FolderStore, LocalStore,
+    AlbumId, AssetStore, CatalogError, FolderId, FolderStore, LocalStore,
     UploadQueueStore, UploadState, UploadTask, UploadTaskId,
 };
 use crate::task::{Attempt, Retry, Step, Try, attempt};
@@ -105,13 +105,9 @@ impl UploadError {
 }
 
 /// Result of one upload attempt.
-///
-/// `asset` carries the catalog row written on success, so the UI can insert the
-/// new tile straight from the completion event instead of reloading a page.
 #[derive(Debug, Clone)]
 pub struct UploadOutcome {
     pub task: UploadTask,
-    pub asset: Option<AssetSummary>,
 }
 
 /// Automatic retries after the first failure; the first wait is 3s, then it
@@ -159,13 +155,11 @@ fn sample_windows(size: i64) -> Vec<(i64, u32)> {
 /// Keeps two tasks enqueued in the same millisecond apart, across every batch.
 static TASK_SEQ: AtomicU64 = AtomicU64::new(0);
 
-/// Where an upload attempt reports to: progress, state changes, and the catalog
-/// row it produced. Built by the composition root, so the queue never depends
-/// on a window.
+/// Where an upload attempt reports to: progress and state changes. Built by the
+/// composition root, so the queue never depends on a window.
 #[derive(Clone)]
 pub struct UploadSinks {
     pub state: Arc<dyn Fn(&UploadStateEvent) + Send + Sync>,
-    pub uploaded: Arc<dyn Fn(&AssetSummary) + Send + Sync>,
 }
 
 pub struct UploadsService<R, C, M>
@@ -627,9 +621,6 @@ where
                     state: outcome.task.state,
                     error: None,
                 });
-                if let Some(asset) = outcome.asset {
-                    (self.sinks.uploaded)(&asset);
-                }
                 Ok(())
             }
             Err(error) => {
@@ -734,7 +725,7 @@ where
                 task: task_id.0.clone(),
             })?;
         if task.state != UploadState::Queued {
-            return Ok(UploadOutcome { task, asset: None });
+            return Ok(UploadOutcome { task });
         }
         let local = match self
             .catalog
@@ -846,7 +837,6 @@ where
         {
             return Ok(UploadOutcome {
                 task: current,
-                asset: None,
             });
         }
 
@@ -877,7 +867,6 @@ where
             height: local.height,
         });
         let record = asset_record(&entry, &task.dest_folder_id, client_exif.as_ref());
-        let summary = record.summary.clone();
         self.catalog
             .upsert_asset(&record)
             .await
@@ -891,10 +880,7 @@ where
             .update_upload(&task)
             .await
             .map_err(UploadError::catalog)?;
-        Ok(UploadOutcome {
-            task,
-            asset: Some(summary),
-        })
+        Ok(UploadOutcome { task })
     }
 
     /// Decide an upload the server refused because its name is taken.

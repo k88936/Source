@@ -16,7 +16,6 @@
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
     import {app} from '#lib/app/app.svelte';
-    import {changes} from '#lib/api/changes';
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
     import type {PhotosNavParamList} from './route';
     import {photos} from './Photos.i18n';
@@ -42,11 +41,9 @@
     const c = $derived(i18n.pick(common));
 
     $effect(() => {
-        // A listing pass can change what the search matches, so it is rerun.
-        return changes.subscribe((change) => {
-            if (change.kind !== 'albums') return;
-            if (browser.search.open) void browser.search.run();
-        });
+        // The counter prints the view's row, so a commit that adds or removes an
+        // asset moves it without this page asking anything again.
+        browser.timeline.refreshTotal();
     });
 
     $effect(() => () => browser.dispose());
