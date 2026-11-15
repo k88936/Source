@@ -15,10 +15,9 @@
     import SelectionOverlay from '#lib/components/selection/SelectionOverlay/SelectionOverlay.svelte';
     import TimelineActions from '#lib/components/viewer/TimelineActions/TimelineActions.svelte';
     import {AssetBrowser} from '#lib/components/assets/browser.svelte.js';
-    import {assetsView} from '#lib/api/views';
+    import {albumsView, assetsView} from '#lib/api/views';
     import {common} from '#lib/i18n/common.i18n';
     import {app} from '#lib/app/app.svelte.js';
-    import {changes} from '#lib/api/changes';
     import {i18n} from '#lib/i18n/i18n.svelte.js';
     import type {AlbumsNavParamList} from '../route';
     import ScreenOptions from '#lib/components/shell/ScreenOptions/ScreenOptions.svelte';
@@ -30,12 +29,15 @@
     const takeBack = useBackHandler();
     const albumId = $derived(useRoute<AlbumsNavParamList>().params?.id ?? '');
 
+    /// The album this screen shows, kept live by the subscription below.
+    let album = $state<AlbumMetadata | null>(null);
+
     /** Confined to this album, so a result can never come from another one. */
     const browser = new AssetBrowser(
         {
             window: ({from, to}, listeners) => assetsView.watch({albumId, from, to}, listeners),
             edge: (after, depth) => api.assetEdge({albumId, after, depth}),
-            count: () => api.assetCount({albumId}),
+            count: () => album?.assetCount ?? 0,
         },
         {scroll, folder: () => albumId},
     );
@@ -43,7 +45,13 @@
     const t = $derived(i18n.pick(text));
     const c = $derived(i18n.pick(common));
 
-    let album = $state<AlbumMetadata | null>(null);
+    /// The album's own tile, live: the same row the grid draws.
+    ///
+    /// A commit that writes into this album recomputes its tile, so the header
+    /// follows an upload or a listing pass instead of waiting for the command
+    /// that opened the screen to be sent again.
+    const albums = albumsView.use();
+
     let metaError = $state('');
     let menuOpen = $state(false);
     let removeOpen = $state(false);
@@ -57,9 +65,7 @@
     const refreshing = $derived(
         app.jobs.some(
             (job) =>
-                job.kind === 'index' &&
-                job.jobId === albumId &&
-                (job.state === 'queued' || job.state === 'running'),
+                job.kind === 'index' && job.jobId === albumId && (job.state === 'queued' || job.state === 'running'),
         ),
     );
 
@@ -82,6 +88,13 @@
         void load(id);
     });
 
+    // The command loads the screen; the subscription keeps the header honest,
+    // because a commit can change the count without asking this page.
+    $effect(() => {
+        const live = albums.rows.find((row) => row.id === albumId);
+        if (live && live !== album) album = live;
+    });
+
     // The back key closes a mode before it leaves the album.
     $effect(() => {
         if (!coverMode && !browser.search.open && !browser.selection.active) return;
@@ -91,15 +104,10 @@
         });
     });
 
+    // The header's count is the album's tile, so the viewer's counter follows
+    // the same row instead of a number read when the screen opened.
     $effect(() => {
-        // The rows are a subscription; only the album header still comes from a
-        // command, so a commit patches it and leaves the list alone.
-        return changes.subscribe((change) => {
-            if (change.kind !== 'albums') return;
-            const updated = change.albums.find((entry) => entry.id === albumId);
-            if (updated) album = updated;
-            if (browser.search.open) void browser.search.run();
-        });
+        browser.timeline.refreshTotal();
     });
 
     $effect(() => () => browser.dispose());
@@ -164,9 +172,8 @@
     }
 
     async function setCover(asset: AssetSummary) {
-        if (!album) return;
         try {
-            album = await api.setAlbumCover({albumId: album.id, assetId: asset.id});
+            await api.setAlbumCover({albumId, assetId: asset.id});
             coverMode = false;
             app.showToast(t.coverSaved, 'success');
         } catch (err) {
@@ -175,13 +182,9 @@
     }
 
     async function saveDescription() {
-        if (!album) return;
         saving = true;
         try {
-            album = await api.setAlbumDescription({
-                albumId: album.id,
-                description: descriptionDraft.trim(),
-            });
+            await api.setAlbumDescription({albumId, description: descriptionDraft.trim()});
             descriptionOpen = false;
             app.showToast(t.descriptionSaved, 'success');
         } catch (err) {
