@@ -12,5 +12,11 @@
     },
     "peerDependencies": {
         "svelte": "^5.0.0"
+    },
+    "dependencies": {
+        "lodash": "^4.18.1"
+    },
+    "devDependencies": {
+        "@types/lodash": "^4.17.27"
     }
 }

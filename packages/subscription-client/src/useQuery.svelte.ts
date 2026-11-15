@@ -1,8 +1,20 @@
 import {onMount} from 'svelte';
+import debounce from 'lodash/debounce';
 import type {Client, QueryDescriptor, Subscription} from './client';
 
 /** How a failure is turned into the line a page shows. */
 export type DescribeError = (cause: unknown) => string;
+
+/**
+ * How long commits are folded together before the rows are read again.
+ *
+ * A commit arrives per write, and a page being filled writes one row at a time,
+ * so the card list would otherwise be rebuilt once per row. Waiting this long
+ * paints the same picture about eight times a second; a stream that never
+ * pauses still moves because the wait is capped.
+ */
+const SETTLE_MS = 120;
+const SETTLE_MAX_MS = 240;
 
 /**
  * One query, live, for as long as the component is mounted.
@@ -22,11 +34,12 @@ export function useQuery<Q, R extends {id: string}>(
     let held: Subscription<R> | undefined;
     let live = true;
 
-    const show = () => {
+    const read = () => {
         if (!live || !held) return;
         rows = held.rows();
         loading = false;
     };
+    const show = debounce(read, SETTLE_MS, {maxWait: SETTLE_MAX_MS});
 
     onMount(() => {
         client
@@ -34,6 +47,7 @@ export function useQuery<Q, R extends {id: string}>(
                 changed: show,
                 failed: (message) => {
                     if (!live) return;
+                    show.cancel();
                     error = message;
                     rows = [];
                     loading = false;
@@ -41,7 +55,7 @@ export function useQuery<Q, R extends {id: string}>(
             })
             .then((subscription) => {
                 held = subscription;
-                show();
+                read();
             })
             .catch((cause: unknown) => {
                 if (!live) return;
@@ -50,6 +64,7 @@ export function useQuery<Q, R extends {id: string}>(
             });
         return () => {
             live = false;
+            show.cancel();
             held?.stop();
         };
     });

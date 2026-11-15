@@ -1,4 +1,5 @@
 import {tick} from 'svelte';
+import debounce from 'lodash/debounce';
 import {api} from '#lib/api/client';
 import type {MediaType} from '#lib/api/bindings/MediaType';
 import type {TimelineCursor} from '#lib/api/bindings/TimelineCursor';
@@ -59,7 +60,10 @@ export class Search {
     /** Album the results are confined to, or `null` for the whole library. */
     private folder: () => string | null;
     private selection: Selection;
-    private timer: ReturnType<typeof setTimeout> | undefined;
+    /** Runs the conditions once the edits stop; a closed mode runs nothing. */
+    private schedule = debounce(() => {
+        if (this.open) void this.run();
+    }, DEBOUNCE_MS);
     /** The page's scroll container, so the mode reopens where it was left. */
     private scroll: () => HTMLElement | undefined;
     private scrollY = 0;
@@ -104,7 +108,7 @@ export class Search {
 
     /** Forget the mode without touching anything; the page itself is going away. */
     dispose(): void {
-        clearTimeout(this.timer);
+        this.schedule.cancel();
     }
 
     setQuery(value: string): void {
@@ -184,12 +188,6 @@ export class Search {
             from: this.from,
             to: this.to,
         };
-    }
-
-    private schedule(): void {
-        clearTimeout(this.timer);
-        if (!this.open) return;
-        this.timer = setTimeout(() => void this.run(), DEBOUNCE_MS);
     }
 
     private close(): void {
