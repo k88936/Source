@@ -35,7 +35,20 @@ export type CountLoader = () => number;
 export type TimelineSource = {page: PageLoader} | {window: WindowOpener; edge: EdgeLoader; count: CountLoader};
 
 /** One interval held open, and the rows inside it as the catalog last sent them. */
-type Window = WindowRange & {rows: AssetSummary[]};
+type Window = WindowRange & {
+    rows: AssetSummary[];
+    /** Which window this is, so an answer that arrives late lands in the interval it was asked for. */
+    cut: number;
+};
+
+/**
+ * Rows one window may hold before its anchors are cut again.
+ *
+ * A window is cut for one screen (`PAGE_SIZE`) and grows when the scope gains
+ * rows inside its range. The cap is loose on purpose: cutting drops the windows
+ * below, so a few hundred new photos must not cost the user what they scrolled.
+ */
+const MAX_WINDOW_ROWS = 256;
 
 /**
  * Newest-first asset list shared by photos / album / search.
@@ -60,7 +73,9 @@ export class Timeline {
     error = $state('');
 
     private source: TimelineSource;
-    private subscriptions: Subscription<AssetSummary>[] = [];
+    /** The live interval behind every open window, by the window it feeds. */
+    private live = new Map<number, Subscription<AssetSummary>>();
+    private nextCut = 0;
     private requestId = 0;
 
     constructor(source: TimelineSource) {
@@ -193,8 +208,8 @@ export class Timeline {
 
     /** Drop every open interval and the rows they brought. */
     stop(): void {
-        for (const subscription of this.subscriptions) subscription.stop();
-        this.subscriptions = [];
+        for (const subscription of this.live.values()) subscription.stop();
+        this.live.clear();
         this.windows = [];
         this.pages = [];
         this.cursor = null;
@@ -203,13 +218,14 @@ export class Timeline {
     }
 
     /**
-     * Open the next interval down and hold it until the list is reset.
+     * Open the next interval down and hold it until the list is reset or cut.
      *
      * The interval starts where the previous one stopped and ends `PAGE_SIZE`
      * keys below it, so the catalog sends one screenful and the two intervals
      * neither overlap nor leave a hole. A missing end means the scope has less
      * than a screenful left, so this interval runs to the oldest row and there
-     * is nothing below it.
+     * is nothing below it. A scope that is only short right now answers the same
+     * way, which is what `#cut` watches for.
      */
     async #open(id: number): Promise<void> {
         if (!('window' in this.source)) return;
@@ -218,33 +234,63 @@ export class Timeline {
         const to = deepest ? deepest.from : null;
         const from = await source.edge(to, PAGE_SIZE);
         if (id !== this.requestId) return;
-        const index = this.windows.length;
-        this.windows = [...this.windows, {from, to, rows: []}];
+        const cut = ++this.nextCut;
+        this.windows = [...this.windows, {from, to, rows: [], cut}];
+        const at = () => this.windows.findIndex((window) => window.cut === cut);
         // The window answers its first snapshot before `subscribe` resolves, so a
         // commit that lands during opening has no rows to show yet.
-        const live: {current?: Subscription<AssetSummary>} = {};
         const subscription = await source.window(
             {from, to},
             {
                 changed: () => {
-                    // A commit for a list that was reset in the meantime would land
-                    // in a window the new list never opened.
-                    const window = live.current;
-                    if (window && id === this.requestId) this.#replace(index, window.rows());
+                    // A commit for a list that was reset in the meantime, or for a
+                    // window a cut already dropped, has no interval to land in.
+                    if (id !== this.requestId) return;
+                    const rows = this.live.get(cut)?.rows();
+                    const index = at();
+                    if (!rows || index < 0) return;
+                    this.#replace(index, rows);
+                    this.#cut(index, id);
                 },
                 failed: (message) => {
                     if (id === this.requestId) this.error = message;
                 },
             },
         );
-        if (id !== this.requestId) {
+        const index = at();
+        if (id !== this.requestId || index < 0) {
             subscription.stop();
             return;
         }
-        live.current = subscription;
-        this.subscriptions.push(subscription);
+        this.live.set(cut, subscription);
         this.#replace(index, subscription.rows());
         this.exhausted = from === null;
+    }
+
+    /**
+     * Cut the list again from the window whose range went stale.
+     *
+     * An interval is a condition the catalog applies, chosen from where one screen
+     * ended when the window was opened. A scope with less than a screenful answers
+     * that question with no anchor at all, so the window runs to the oldest row;
+     * when the scope then gains rows - an album indexing into a list that held
+     * three - every one of them is inside it, and one screen turns into the whole
+     * library. Dropping rows here would not bound it: the next commit brings them
+     * back, because they are still inside the interval. Only a new anchor does, so
+     * the window is opened again, and so are the windows below it, whose upper
+     * anchor was this window's.
+     */
+    #cut(index: number, id: number): void {
+        if (this.windows[index]!.rows.length <= MAX_WINDOW_ROWS) return;
+        const dropped = this.windows.slice(index);
+        this.windows = this.windows.slice(0, index);
+        for (const window of dropped) {
+            this.live.get(window.cut)?.stop();
+            this.live.delete(window.cut);
+        }
+        void this.#open(id).catch((err) => {
+            if (id === this.requestId) this.error = app.describeError(err);
+        });
     }
 
     #replace(index: number, rows: AssetSummary[]): void {
