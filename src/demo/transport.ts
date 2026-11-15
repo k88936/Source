@@ -2,9 +2,9 @@ import type {Transport} from '../lib/api/transport';
 import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
 import type {AlbumParams} from '#lib/api/bindings/AlbumParams';
 import type {AddAlbumParams} from '#lib/api/bindings/AddAlbumParams';
-import type {AssetCountParams} from '#lib/api/bindings/AssetCountParams';
 import type {AssetEdgeParams} from '#lib/api/bindings/AssetEdgeParams';
 import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
+import type {AssetTotal} from '#lib/api/bindings/AssetTotal';
 import type {AssetsQuery} from '#lib/api/bindings/AssetsQuery';
 import type {CreateFolderParams} from '#lib/api/bindings/CreateFolderParams';
 import type {ExportAssetsParams} from '#lib/api/bindings/ExportAssetsParams';
@@ -160,11 +160,6 @@ function run(command: string, params: Record<string, unknown>): unknown {
             return {id: `folder-${name}`, uri, name, path: `${parent.path}/${name}`};
         }
 
-        case 'asset_count': {
-            const {albumId} = params as AssetCountParams;
-            return albumId === null ? demo.assets.length : demo.albumAssets(albumId).length;
-        }
-
         case 'asset_edge': {
             const {albumId, after, depth} = params as AssetEdgeParams;
             const ordered = orderedAssets({albumId, from: null, to: null});
@@ -287,7 +282,7 @@ function run(command: string, params: Record<string, unknown>): unknown {
             if (addressed.type !== 'subscribe') return undefined;
             const snapshot: ServerMessage<
                 null | AssetsQuery,
-                AlbumMetadata | LocalAlbumMetadata | AssetSummary | JobRow | QueuedUpload
+                AlbumMetadata | LocalAlbumMetadata | AssetSummary | JobRow | QueuedUpload | AssetTotal
             > = {
                 type: 'subscribeApplied',
                 requestId: addressed.requestId,
@@ -306,7 +301,9 @@ function run(command: string, params: Record<string, unknown>): unknown {
                                 ? demo.jobs
                                 : addressed.view === 'running'
                                   ? inFlight()
-                                  : orderedAssets(query as AssetsQuery),
+                                  : addressed.view === 'counts'
+                                    ? [{id: 'library', total: demo.assets.length}]
+                                    : orderedAssets(query as AssetsQuery),
                 })),
             };
             for (const subscriber of subscribers.get(addressed.view) ?? []) subscriber(snapshot);

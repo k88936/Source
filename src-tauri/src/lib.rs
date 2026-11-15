@@ -75,7 +75,6 @@ pub fn run() {
             commands::catalog::index_start,
             commands::catalog::index_stop,
             commands::catalog::asset_detail,
-            commands::catalog::asset_count,
             commands::catalog::asset_edge,
             commands::catalog::media_source,
             commands::catalog::search_assets,

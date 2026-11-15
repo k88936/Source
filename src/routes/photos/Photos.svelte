@@ -6,7 +6,7 @@
     import AssetList from '#lib/components/assets/AssetList/AssetList.svelte';
     import EmptyState from '#lib/components/assets/EmptyState/EmptyState.svelte';
     import {AssetBrowser} from '#lib/components/assets/browser.svelte';
-    import {assetsView} from '#lib/api/views';
+    import {assetsView, countsView} from '#lib/api/views';
     import {Image, Search as SearchIcon, X} from '@lucide/svelte';
     import SearchInput from '#lib/components/search/SearchInput/SearchInput.svelte';
     import SearchMode from '#lib/components/search/SearchMode/SearchMode.svelte';
@@ -26,11 +26,14 @@
     const scroll = useScrollContainer();
     const takeBack = useBackHandler();
 
+    /// The library's length, live: a commit that writes an asset moves it.
+    const counts = countsView.use();
+
     const browser = new AssetBrowser(
         {
             window: ({from, to}, listeners) => assetsView.watch({albumId: null, from, to}, listeners),
             edge: (after, depth) => api.assetEdge({albumId: null, after, depth}),
-            count: () => api.assetCount({albumId: null}),
+            count: () => counts.rows[0]?.total ?? 0,
         },
         {scroll},
     );
@@ -39,11 +42,9 @@
     const c = $derived(i18n.pick(common));
 
     $effect(() => {
-        // The rows arrive through the window; a listing pass only moves the
-        // length the counter prints.
+        // A listing pass can change what the search matches, so it is rerun.
         return changes.subscribe((change) => {
             if (change.kind !== 'albums') return;
-            void browser.timeline.refreshTotal();
             if (browser.search.open) void browser.search.run();
         });
     });

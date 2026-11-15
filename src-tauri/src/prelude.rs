@@ -13,9 +13,8 @@ pub(crate) use source_core::app::albums::{
     LocalBrowseParams, MoveAssetsParams, SetAlbumCoverParams, SetAlbumDescriptionParams,
 };
 pub(crate) use source_core::app::browse::{
-    AssetCountParams, AssetDetail, AssetDetailParams, AssetEdgeParams, BrowseError,
-    ExportAssetsParams, ExportError, ExportResult, MediaSourceParams, SearchParams,
-    SetFavoriteParams,
+    AssetDetail, AssetDetailParams, AssetEdgeParams, BrowseError, ExportAssetsParams, ExportError,
+    ExportResult, MediaSourceParams, SearchParams, SetFavoriteParams,
 };
 pub(crate) use source_core::app::folders::{
     CreateFolderParams, FolderError, ListRemoteFoldersParams, RemoteFolderPage,

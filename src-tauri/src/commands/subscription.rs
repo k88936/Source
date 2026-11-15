@@ -32,6 +32,7 @@ pub(crate) enum ViewName {
     Assets,
     Jobs,
     Running,
+    Counts,
 }
 
 /// The argument of `subscription_connect`: the view whose connection is opening.
@@ -60,6 +61,7 @@ pub(crate) enum Addressed {
     Assets(ClientMessage<AssetsQuery>),
     Jobs(ClientMessage<()>),
     Running(ClientMessage<()>),
+    Counts(ClientMessage<()>),
 }
 
 /// Start the connection this page talks through for one view, replacing the one
@@ -111,6 +113,13 @@ pub(crate) fn subscription_connect(
             })?;
             tauri::async_runtime::spawn(running);
         }
+        ViewName::Counts => {
+            let running = state.core.browse.counts_subscriptions().connect(TauriWriter {
+                app,
+                event: "subscription://counts",
+            })?;
+            tauri::async_runtime::spawn(running);
+        }
     }
     Ok(())
 }
@@ -128,6 +137,7 @@ pub(crate) fn subscription_send(
         Addressed::Assets(message) => state.core.browse.subscriptions().send(message),
         Addressed::Jobs(message) => state.core.job_list.send(message),
         Addressed::Running(message) => state.core.running.send(message),
+        Addressed::Counts(message) => state.core.browse.counts_subscriptions().send(message),
     }
 }
 

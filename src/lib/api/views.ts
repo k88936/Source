@@ -1,5 +1,6 @@
 import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
 import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
+import type {AssetTotal} from '#lib/api/bindings/AssetTotal';
 import type {AssetsQuery} from '#lib/api/bindings/AssetsQuery';
 import type {JobRow} from '#lib/api/bindings/JobRow';
 import type {LocalAlbumMetadata} from '#lib/api/bindings/LocalAlbumMetadata';
@@ -38,8 +39,10 @@ const locals = new Client<AlbumsQuery, LocalAlbumMetadata>(wireFor('locals'));
 const assets = new Client<AssetsQuery, AssetSummary>(wireFor('assets'));
 const jobs = new Client<AlbumsQuery, JobRow>(wireFor('jobs'));
 const running = new Client<AlbumsQuery, QueuedUpload>(wireFor('running'));
+const counts = new Client<AlbumsQuery, AssetTotal>(wireFor('counts'));
 
 const byName = (a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name);
+const byId = (a: {id: string}, b: {id: string}) => a.id.localeCompare(b.id);
 const newestFirst = (a: AssetSummary, b: AssetSummary) => b.takenAt - a.takenAt || b.id.localeCompare(a.id);
 const newestJobFirst = (a: JobRow, b: JobRow) => b.submittedAt - a.submittedAt || a.id.localeCompare(b.id);
 
@@ -114,5 +117,19 @@ export const runningView = {
     /** The moving rows, live for as long as the calling component is mounted. */
     use() {
         return useQuery(running, {query: null, compare: byName}, errorText);
+    },
+};
+
+/**
+ * The length of the library: how many assets the catalog holds.
+ *
+ * A window only holds the intervals a page scrolled to, so the length is its own
+ * row. The server recomputes it on every commit that writes an asset, so a page
+ * prints it without ever counting a page of its own.
+ */
+export const countsView = {
+    /** The total, live for as long as the calling component is mounted. */
+    use() {
+        return useQuery(counts, {query: null, compare: byId}, errorText);
     },
 };

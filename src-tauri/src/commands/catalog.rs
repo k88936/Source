@@ -21,16 +21,6 @@ pub(crate) async fn asset_edge(
     state.core.browse.asset_edge(params).await
 }
 
-/// How many assets the scope holds. The rows themselves are a subscription;
-/// this is only the length a viewer prints.
-#[tauri::command]
-pub(crate) async fn asset_count(
-    state: State<'_, AppState>,
-    params: AssetCountParams,
-) -> Result<u32, BrowseError> {
-    state.core.browse.asset_count(params).await
-}
-
 #[tauri::command]
 pub(crate) async fn search_assets(
     state: State<'_, AppState>,

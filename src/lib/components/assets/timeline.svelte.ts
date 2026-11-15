@@ -10,10 +10,7 @@ export const PAGE_SIZE = 80;
 export type PageLoader = (cursor: TimelineCursor | null, limit: number) => Promise<TimelinePage>;
 
 /** Where the key `depth` rows below `after` is, or null when the scope ends first. */
-export type EdgeLoader = (
-    after: TimelineCursor | null,
-    depth: number,
-) => Promise<TimelineCursor | null>;
+export type EdgeLoader = (after: TimelineCursor | null, depth: number) => Promise<TimelineCursor | null>;
 
 /** One interval of the timeline: the rows between two anchors. */
 export type WindowRange = {
@@ -22,13 +19,10 @@ export type WindowRange = {
 };
 
 /** Opens the interval a range describes; an absent anchor is that end of the timeline. */
-export type WindowOpener = (
-    range: WindowRange,
-    listeners: Listeners,
-) => Promise<Subscription<AssetSummary>>;
+export type WindowOpener = (range: WindowRange, listeners: Listeners) => Promise<Subscription<AssetSummary>>;
 
-/** How many rows the scope holds, for the counter under the viewer. */
-export type CountLoader = () => Promise<number>;
+/** How many rows the scope holds, as the live row says it, for the counter under the viewer. */
+export type CountLoader = () => number;
 
 /**
  * Where a list's rows come from.
@@ -38,9 +32,7 @@ export type CountLoader = () => Promise<number>;
  * interval in between. Search is a plain page query, because its conditions are
  * not a view the catalog declares.
  */
-export type TimelineSource =
-    | {page: PageLoader}
-    | {window: WindowOpener; edge: EdgeLoader; count: CountLoader};
+export type TimelineSource = {page: PageLoader} | {window: WindowOpener; edge: EdgeLoader; count: CountLoader};
 
 /** One interval held open, and the rows inside it as the catalog last sent them. */
 type Window = WindowRange & {rows: AssetSummary[]};
@@ -100,13 +92,9 @@ export class Timeline {
     }
 
     /** Re-read the scope's length; the rows themselves arrive as deltas. */
-    async refreshTotal(): Promise<void> {
+    refreshTotal(): void {
         if (!('window' in this.source)) return;
-        try {
-            this.total = await this.source.count();
-        } catch (err) {
-            this.error = app.describeError(err);
-        }
+        this.total = this.source.count();
     }
 
     /** Swap the query a plain, paged list runs, e.g. when the search filters change. */
@@ -130,7 +118,7 @@ export class Timeline {
             } else {
                 await this.#open(id);
                 if (id !== this.requestId) return;
-                this.total = await this.source.count();
+                this.refreshTotal();
             }
             this.loaded = true;
         } catch (err) {
@@ -180,16 +168,19 @@ export class Timeline {
         );
     }
 
-    /** Drop rows a move took out of the scope, before their window says so. */
+    /**
+     * Drop rows a move took out of the scope, before their window says so.
+     *
+     * The length is not adjusted here: it is a view row the server recomputes,
+     * and a commit that moves an asset sends the new total anyway.
+     */
     remove(ids: string[]): void {
         const drop = new Set(ids);
-        const gone = this.items.filter((row) => drop.has(row.id)).length;
         this.pages = this.pages.filter((row) => !drop.has(row.id));
         this.windows = this.windows.map((window) => ({
             ...window,
             rows: window.rows.filter((row) => !drop.has(row.id)),
         }));
-        this.total = Math.max(0, this.total - gone);
     }
 
     reset(): void {
@@ -232,17 +223,20 @@ export class Timeline {
         // The window answers its first snapshot before `subscribe` resolves, so a
         // commit that lands during opening has no rows to show yet.
         const live: {current?: Subscription<AssetSummary>} = {};
-        const subscription = await source.window({from, to}, {
-            changed: () => {
-                // A commit for a list that was reset in the meantime would land
-                // in a window the new list never opened.
-                const window = live.current;
-                if (window && id === this.requestId) this.#replace(index, window.rows());
+        const subscription = await source.window(
+            {from, to},
+            {
+                changed: () => {
+                    // A commit for a list that was reset in the meantime would land
+                    // in a window the new list never opened.
+                    const window = live.current;
+                    if (window && id === this.requestId) this.#replace(index, window.rows());
+                },
+                failed: (message) => {
+                    if (id === this.requestId) this.error = message;
+                },
             },
-            failed: (message) => {
-                if (id === this.requestId) this.error = message;
-            },
-        });
+        );
         if (id !== this.requestId) {
             subscription.stop();
             return;

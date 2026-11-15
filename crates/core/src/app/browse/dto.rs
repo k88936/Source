@@ -6,14 +6,6 @@ use ts_rs::TS;
 use crate::mapping::ExifField;
 use crate::store::{AssetId, AssetSummary, FolderId, MediaType, TimelineCursor};
 
-/// The scope a count runs over; absent means the whole library.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct AssetCountParams {
-    pub album_id: Option<FolderId>,
-}
-
 /// Where one screen of a list ends: `depth` rows below `after`.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

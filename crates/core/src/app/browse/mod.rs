@@ -1,5 +1,6 @@
 //! Browsing the catalog, asset details and the local media library.
 
+mod counts;
 mod dto;
 mod view;
 
@@ -19,6 +20,7 @@ use crate::store::{
 
 use super::clamp_limit;
 
+pub use counts::{AssetTotal, Counts};
 pub use dto::*;
 pub use view::{Assets, AssetsQuery};
 
@@ -71,6 +73,9 @@ where
     /// The timeline windows subscribers watch, kept here for the same reason as
     /// the album grid: it is this service's own view of the catalog.
     subscriptions: Arc<SubscriptionManager<Assets<C>>>,
+    /// The length of the library. It is a derivation of the same asset table a
+    /// window reads, so it belongs to this service as well.
+    counts: Arc<SubscriptionManager<Counts<C>>>,
 }
 
 impl<R, C, M> BrowseService<R, C, M>
@@ -82,6 +87,7 @@ where
             subscriptions: Arc::new(SubscriptionManager::new(Arc::new(Assets::new(
                 catalog.clone(),
             )))),
+            counts: Arc::new(SubscriptionManager::new(Arc::new(Counts::new(catalog.clone())))),
             cloud,
             catalog,
             local,
@@ -93,9 +99,17 @@ where
         Arc::clone(&self.subscriptions)
     }
 
-    /// Answer one commit for everyone watching a window.
+    /// The library total a page connects to.
+    pub fn counts_subscriptions(&self) -> Arc<SubscriptionManager<Counts<C>>> {
+        Arc::clone(&self.counts)
+    }
+
+    /// Answer one commit: the windows it crosses and the total it may have moved.
     pub async fn apply_changes(&self, changes: &[Change]) {
-        self.subscriptions.apply(changes).await;
+        tokio::join!(
+            self.subscriptions.apply(changes),
+            self.counts.apply(changes)
+        );
     }
 }
 
@@ -137,12 +151,6 @@ where
 
     pub async fn search(&self, params: SearchParams) -> Result<TimelinePage, BrowseError> {
         self.search_impl(params).await
-    }
-
-    /// How many assets the scope holds. The list itself is a subscription; this
-    /// is only the length a page prints before it has scrolled to the end.
-    pub async fn asset_count(&self, params: AssetCountParams) -> Result<u32, BrowseError> {
-        self.asset_count_impl(params).await
     }
 
     /// Where the next screen of a list ends. The rows in between are what the
@@ -278,13 +286,6 @@ where
             .get_asset(id)
             .await
             .map_err(|cause| BrowseError::LocalMedia { cause })
-    }
-
-    async fn asset_count_impl(&self, params: AssetCountParams) -> Result<u32, BrowseError> {
-        self.catalog
-            .asset_count(params.album_id.as_ref().map(|id| id.as_str()))
-            .await
-            .map_err(BrowseError::catalog)
     }
 
     async fn asset_edge_impl(

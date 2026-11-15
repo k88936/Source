@@ -5,7 +5,6 @@ import type {AddAlbumParams} from './bindings/AddAlbumParams';
 import type {AddLocalAlbumParams} from './bindings/AddLocalAlbumParams';
 import type {AlbumMetadata} from './bindings/AlbumMetadata';
 import type {AlbumParams} from './bindings/AlbumParams';
-import type {AssetCountParams} from './bindings/AssetCountParams';
 import type {AssetDetail} from './bindings/AssetDetail';
 import type {AssetDetailParams} from './bindings/AssetDetailParams';
 import type {AssetEdgeParams} from './bindings/AssetEdgeParams';
@@ -66,7 +65,6 @@ export const api = {
     listRemoteFolders: (params: ListRemoteFoldersParams) => call<RemoteFolderPage>('list_remote_folders', params),
     createFolder: (params: CreateFolderParams) => call<FolderRef>('create_folder', params),
 
-    assetCount: (params: AssetCountParams) => call<number>('asset_count', params),
     assetEdge: (params: AssetEdgeParams) => call<TimelineCursor | null>('asset_edge', params),
     albumGet: (params: AlbumParams) => call<AlbumMetadata | null>('album_get', params),
     addAlbum: (params: AddAlbumParams) => call<AlbumMetadata>('album_add', params),
