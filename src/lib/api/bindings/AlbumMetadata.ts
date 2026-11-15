@@ -5,7 +5,8 @@ import type { AssetId } from "./AssetId";
 
 export type AlbumMetadata = { id: AlbumId, name: string, uri: string, path: string, assetCount: number, 
 /**
- * Up to four newest covers, explicit cover first, for the mosaic tile.
+ * The tile's images: the cover the user chose, or the newest media when
+ * none was chosen.
  */
 coverAssetIds: Array<AssetId>, description: string | null, updatedAt: number, 
 /**

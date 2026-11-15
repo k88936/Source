@@ -5,13 +5,13 @@
     import MediaImage from '../MediaImage/MediaImage.svelte';
     import {tileClass} from './mosaic';
 
-    /// Up to four covers in a 2x2 frame, like the reference app: one image reads
-    /// as a single photo, four read as a collection.
+    /// The covers in a grid, like the reference app: one image reads as a single
+    /// photo, many read as a collection. The length is whatever the caller has.
     let {sources, iconSize = 40}: {sources: MediaSourceParams[]; iconSize?: number} = $props();
 </script>
 
 {#if sources.length > 0}
-    <div class="grid size-full grid-cols-2 grid-rows-2 gap-[2px]">
+    <div class="grid size-full auto-rows-fr grid-cols-2 gap-[2px]">
         {#each sources as source, index (index)}
             <MediaImage
                 {source}

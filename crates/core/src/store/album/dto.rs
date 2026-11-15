@@ -17,7 +17,8 @@ pub struct AlbumMetadata {
     pub uri: String,
     pub path: String,
     pub asset_count: u32,
-    /// Up to four newest covers, explicit cover first, for the mosaic tile.
+    /// The tile's images: the cover the user chose, or the newest media when
+    /// none was chosen.
     pub cover_asset_ids: Vec<AssetId>,
     pub description: Option<String>,
     pub updated_at: i64,

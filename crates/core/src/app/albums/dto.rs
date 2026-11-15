@@ -54,9 +54,9 @@ pub struct LocalAlbumMetadata {
     pub name: String,
     pub album_id: AlbumId,
     pub album_name: String,
-    /// Direct media files, counted on the device every time it is asked.
+    /// Direct media files of the directory, as the catalog staged them.
     pub asset_count: u32,
-    /// Up to four newest local files, for the mosaic tile.
+    /// The tile's images: up to four newest staged files.
     pub cover_uris: Vec<String>,
 }
 

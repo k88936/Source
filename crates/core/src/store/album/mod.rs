@@ -35,8 +35,8 @@ pub trait AlbumStore: Send + Sync {
     ) -> Result<(), CatalogError>;
 }
 
-/// How many covers the album mosaic shows.
-const MOSAIC_COVERS: i64 = 4;
+/// How many newest covers a tile falls back to when no cover was chosen.
+pub(crate) const MOSAIC_COVERS: i64 = 4;
 
 /// Add or refresh the album a user picked, keeping cover and description.
 pub(crate) async fn save_album(
@@ -136,10 +136,10 @@ pub(crate) async fn list_albums(cat: &SqliteCatalog) -> Result<Vec<AlbumMetadata
         .await
         .map_err(db_err)?;
 
-    // The album tile shows a 2x2 mosaic, so each album needs up to four
-    // covers: the explicit one first, then the newest media. One indexed
-    // `LIMIT 4` query per album stays cheap and keeps the statement plain DSL
-    // (a correlated `ROW_NUMBER()` window would be the only alternative).
+    // The tile draws whatever it is handed: the cover the user chose, or the
+    // newest media when none was. One indexed `LIMIT 4` query per album stays
+    // cheap and keeps the statement plain DSL (a correlated `ROW_NUMBER()`
+    // window would be the only alternative).
     let mut covers: HashMap<String, Vec<String>> = HashMap::new();
     for album in &albums {
         let asset_count = counts
@@ -150,20 +150,18 @@ pub(crate) async fn list_albums(cat: &SqliteCatalog) -> Result<Vec<AlbumMetadata
         if asset_count <= 0 {
             continue;
         }
-        let mut ids = assets::table
-            .filter(assets::folder_id.eq(&album.id))
-            .filter(assets::media_type.eq_any(MEDIA_TYPES))
-            .order((assets::taken_at.desc(), assets::id.desc()))
-            .select(assets::id)
-            .limit(MOSAIC_COVERS)
-            .load::<String>(&mut conn)
-            .await
-            .map_err(db_err)?;
-        if let Some(cover) = &album.cover_asset_id {
-            ids.retain(|id| id != cover);
-            ids.insert(0, cover.clone());
-            ids.truncate(MOSAIC_COVERS as usize);
-        }
+        let ids = match &album.cover_asset_id {
+            Some(cover) => vec![cover.clone()],
+            None => assets::table
+                .filter(assets::folder_id.eq(&album.id))
+                .filter(assets::media_type.eq_any(MEDIA_TYPES))
+                .order((assets::taken_at.desc(), assets::id.desc()))
+                .select(assets::id)
+                .limit(MOSAIC_COVERS)
+                .load::<String>(&mut conn)
+                .await
+                .map_err(db_err)?,
+        };
         covers.insert(album.id.clone(), ids);
     }
 
@@ -198,8 +196,8 @@ pub(crate) async fn list_albums(cat: &SqliteCatalog) -> Result<Vec<AlbumMetadata
 }
 
 /// One album with its covers. Queries the row directly instead of scanning
-/// [`album_list`], so opening an album costs three indexed statements and not
-/// one per album in the library.
+/// [`list_albums`], so opening an album costs a couple of indexed statements
+/// and not one per album in the library.
 pub(crate) async fn get_album(
     cat: &SqliteCatalog,
     id: &str,
@@ -225,20 +223,18 @@ pub(crate) async fn get_album(
         .map_err(db_err)?
         .max(0) as u32;
 
-    let mut covers = assets::table
-        .filter(assets::folder_id.eq(id))
-        .filter(assets::media_type.eq_any(MEDIA_TYPES))
-        .order((assets::taken_at.desc(), assets::id.desc()))
-        .select(assets::id)
-        .limit(MOSAIC_COVERS)
-        .load::<String>(&mut conn)
-        .await
-        .map_err(db_err)?;
-    if let Some(cover) = &folder.cover_asset_id {
-        covers.retain(|id| id != cover);
-        covers.insert(0, cover.clone());
-        covers.truncate(MOSAIC_COVERS as usize);
-    }
+    let covers = match &folder.cover_asset_id {
+        Some(cover) => vec![cover.clone()],
+        None => assets::table
+            .filter(assets::folder_id.eq(id))
+            .filter(assets::media_type.eq_any(MEDIA_TYPES))
+            .order((assets::taken_at.desc(), assets::id.desc()))
+            .select(assets::id)
+            .limit(MOSAIC_COVERS)
+            .load::<String>(&mut conn)
+            .await
+            .map_err(db_err)?,
+    };
 
     let sync = sync_states(&mut conn, &[id.to_string()]).await?.remove(id);
 

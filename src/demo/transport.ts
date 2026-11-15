@@ -186,8 +186,7 @@ function run(command: string, params: Record<string, unknown>): unknown {
         case 'set_album_cover': {
             const {albumId, assetId} = params as SetAlbumCoverParams;
             const album = demo.album(albumId);
-            const rest = album.coverAssetIds.filter((id) => id !== assetId);
-            return {...album, coverAssetIds: [assetId, ...rest].slice(0, 4)};
+            return {...album, coverAssetIds: [assetId]};
         }
 
         case 'set_album_description': {
