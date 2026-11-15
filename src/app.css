@@ -113,3 +113,10 @@
     padding-top: var(--safe-top);
     padding-bottom: var(--safe-bottom);
 }
+
+/* The toast panel is mounted on `<body>` too and anchors to the viewport's top
+   corner, so its own `p-4` would leave the first toast under the status bar.
+   `main.ts` hands it this class to keep its padding. */
+.toast-safe-top {
+    padding-top: calc(1rem + var(--safe-top));
+}
