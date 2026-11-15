@@ -260,5 +260,5 @@ mod android {
 #[cfg(target_os = "android")]
 pub use android::{
     Asset, AssetPage, Entry, Error, Grant, PermissionState, asset, assets, browse, count, init,
-    permission_state, request_permission, thumb,
+    permission_state, read_range, request_permission, thumb,
 };
