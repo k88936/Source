@@ -13,7 +13,9 @@
 //! - `SQLITE_TRACE_PROFILE` fires when a statement, including the implicit
 //!   commit at its end, has finished, so a batch is only published once a reader
 //!   connection can see it. That is what lets the view queries run immediately
-//!   instead of racing the writer.
+//!   instead of racing the writer. The rows are kept per connection, so a reader
+//!   ending a statement cannot publish a writer's batch before that writer's own
+//!   statement has ended.
 //!
 //! The hooks are registered through `sqlite3_auto_extension`, which SQLite calls
 //! for every connection opened after registration, so the pooled connections and
@@ -28,7 +30,7 @@
 use std::collections::HashMap;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
-use std::sync::{Arc, Mutex, Once, OnceLock};
+use std::sync::{Arc, LazyLock, Mutex, Once, OnceLock};
 
 use diesel::sql_types::{Integer, Text};
 use diesel::{QueryableByName, RunQueryDsl, SqliteConnection};
@@ -41,12 +43,14 @@ use super::{CatalogError, db_err};
 /// Where a committed transaction goes.
 static SINK: OnceLock<UnboundedSender<Vec<Change>>> = OnceLock::new();
 
-/// The rows of the transaction currently being written.
+/// The rows of the transaction each connection is writing.
 ///
-/// SQLite serialises writers, so at most one connection has uncommitted rows, and
-/// sharing the state behind a mutex is cheaper than threading a pointer through
-/// three callbacks that SQLite hands no context of ours.
-static CHANGES: Mutex<Pending> = Mutex::new(Pending::new());
+/// A transaction belongs to the connection that runs it, and only that
+/// connection's own `profile` publishes the batch. Keying the state by connection
+/// keeps a reader that ends a statement from taking a writer's rows before the
+/// writer's commit is visible.
+static CHANGES: LazyLock<Mutex<HashMap<usize, Pending>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// The columns each declared table routes on, resolved once per table.
 ///
@@ -101,17 +105,19 @@ unsafe extern "C" fn init(
     _error: *mut *mut c_char,
     _api: *const ffi::sqlite3_api_routines,
 ) -> c_int {
-    // SAFETY: `db` is the connection SQLite just opened.
+    // A closed connection's address can be reused, so the state keyed by this
+    // one starts empty.
+    if let Ok(mut batches) = CHANGES.lock() {
+        batches.remove(&(db as usize));
+    }
+    // SAFETY: `db` is the connection SQLite just opened, and it outlives the
+    // hooks, which receive it as their context.
     unsafe {
-        ffi::sqlite3_preupdate_hook(db, Some(preupdate), ptr::null_mut());
-        ffi::sqlite3_commit_hook(db, Some(commit), ptr::null_mut());
-        ffi::sqlite3_rollback_hook(db, Some(rollback), ptr::null_mut());
-        ffi::sqlite3_trace_v2(
-            db,
-            ffi::SQLITE_TRACE_PROFILE,
-            Some(profile),
-            ptr::null_mut(),
-        );
+        let context = db.cast::<c_void>();
+        ffi::sqlite3_preupdate_hook(db, Some(preupdate), context);
+        ffi::sqlite3_commit_hook(db, Some(commit), context);
+        ffi::sqlite3_rollback_hook(db, Some(rollback), context);
+        ffi::sqlite3_trace_v2(db, ffi::SQLITE_TRACE_PROFILE, Some(profile), context);
     }
     ffi::SQLITE_OK
 }
@@ -155,20 +161,28 @@ unsafe extern "C" fn preupdate(
         )
     };
     let change = Change::record(declared.name, Arc::clone(&declared.columns), op, old, new);
-    if let Ok(mut pending) = CHANGES.lock() {
-        pending.changes.push(change);
+    if let Ok(mut batches) = CHANGES.lock() {
+        batches
+            .entry(db as usize)
+            .or_insert_with(Pending::new)
+            .changes
+            .push(change);
     }
 }
 
-unsafe extern "C" fn commit(_context: *mut c_void) -> c_int {
-    if let Ok(mut pending) = CHANGES.lock() {
+unsafe extern "C" fn commit(context: *mut c_void) -> c_int {
+    if let Ok(mut batches) = CHANGES.lock()
+        && let Some(pending) = batches.get_mut(&(context as usize))
+    {
         pending.committed = true;
     }
     0
 }
 
-unsafe extern "C" fn rollback(_context: *mut c_void) {
-    if let Ok(mut pending) = CHANGES.lock() {
+unsafe extern "C" fn rollback(context: *mut c_void) {
+    if let Ok(mut batches) = CHANGES.lock()
+        && let Some(pending) = batches.get_mut(&(context as usize))
+    {
         pending.changes.clear();
         pending.committed = false;
     }
@@ -179,20 +193,26 @@ unsafe extern "C" fn rollback(_context: *mut c_void) {
 /// `PROFILE` carries the elapsed time in `_elapsed`; the profile is only used as
 /// an end-of-statement signal, so the value is ignored. It is the one point where
 /// the commit is both done and still inside the statement, which is why the batch
-/// is handed over here rather than from the commit hook.
+/// is handed over here rather than from the commit hook. Only the connection that
+/// ran the commit publishes its own batch.
 unsafe extern "C" fn profile(
     _mask: std::ffi::c_uint,
-    _context: *mut c_void,
+    context: *mut c_void,
     _statement: *mut c_void,
     _elapsed: *mut c_void,
 ) -> c_int {
-    let batch = match CHANGES.lock() {
-        Ok(mut pending) if pending.committed => {
-            pending.committed = false;
-            std::mem::take(&mut pending.changes)
-        }
-        _ => return 0,
+    let mut batches = match CHANGES.lock() {
+        Ok(batches) => batches,
+        Err(_) => return 0,
     };
+    let Some(pending) = batches.get_mut(&(context as usize)) else {
+        return 0;
+    };
+    if !pending.committed {
+        return 0;
+    }
+    pending.committed = false;
+    let batch = std::mem::take(&mut pending.changes);
     if !batch.is_empty()
         && let Some(sink) = SINK.get()
     {
