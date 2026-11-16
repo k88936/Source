@@ -35,8 +35,17 @@ export type HistoryEntry = {
     depth: number;
     name: string;
     params: Record<string, unknown>;
-    /** A mode owns an entry of its own, so the back key can close it instead of the page. */
-    mode?: boolean;
+    /** The mode this entry belongs to, so the back key can close that mode instead of the page. */
+    mode?: number;
+};
+
+/** One live mode: a screen state such as search, or a dialog open over the screen. */
+type Mode = {
+    id: number;
+    entryKey: string;
+    listener: () => void;
+    /** A dialog covers the screen but does not replace its header. */
+    overlay: boolean;
 };
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -87,7 +96,10 @@ export class NavigationRoot {
     // plain array leaves the back button hidden after the mode is gone. They are
     // untracked everywhere else, because the effect that opens a mode must not
     // depend on the modes it writes.
-    private modes = $state.raw<{entryKey: string; listener: () => void}[]>([]);
+    private modes = $state.raw<Mode[]>([]);
+    private nextMode = 0;
+    /** The entry of the mode that closed itself, which is popped after the tick. */
+    private released: number | null = null;
     private started = false;
 
     /**
@@ -196,22 +208,30 @@ export class NavigationRoot {
     }
 
     /**
-     * A mode of a screen that takes the back key, e.g. search or a selection.
-     * It owns a history entry of its own: without one, the back key on a root
-     * screen would leave the WebView instead of reaching the app at all.
+     * A mode of a screen that takes the back key, e.g. search, a selection or an
+     * open dialog. It owns a history entry of its own: without one, the back key
+     * on a root screen would leave the WebView instead of reaching the app at all.
      */
-    enterMode(entry: ScreenEntry, listener: () => void): () => void {
-        const mode = {entryKey: entry.key, listener};
+    enterMode(entry: ScreenEntry, listener: () => void, overlay = false): () => void {
+        const mode: Mode = {id: ++this.nextMode, entryKey: entry.key, listener, overlay};
+        const released = this.released;
+        this.released = null;
         this.modes = [...untrack(() => this.modes), mode];
-        const state = {...this.current, mode: true} as HistoryEntry;
-        this.current = state;
-        history.pushState(state, '', this.currentUrl);
+        const state = history.state as HistoryEntry | null;
+        if (released !== null && state?.mode === released) {
+            // The entry of the mode that closed first becomes this mode's own: it is
+            // already on top, and popping it here would close this mode instead.
+            this.current = {...state, mode: mode.id};
+            history.replaceState(this.current, '', this.currentUrl);
+        } else {
+            this.pushMode(mode);
+        }
         return () => this.leaveMode(mode);
     }
 
-    /** True while the screen takes the back key, so the header can drop its own back button. */
+    /** True while a mode replaces the header, so it can drop its own back button. */
     hasMode(entry: ScreenEntry): boolean {
-        return this.modes.some((mode) => mode.entryKey === entry.key);
+        return this.modes.some((mode) => mode.entryKey === entry.key && !mode.overlay);
     }
 
     handlePop = (event: PopStateEvent): void => {
@@ -222,30 +242,41 @@ export class NavigationRoot {
         this.current = state;
         this.currentUrl = location.pathname + location.search;
 
-        if (leaving?.mode) {
+        if (leaving?.mode !== undefined) {
             // Back out of a mode: it closes, and neither the stack nor the URL moves.
-            const mode = this.modes.at(-1);
+            const mode = this.modes.find((current) => current.id === leaving.mode);
             if (mode) {
-                this.modes = this.modes.slice(0, -1);
+                this.modes = this.modes.filter((current) => current !== mode);
                 mode.listener();
-                return;
             }
+            // An entry no live mode owns, left behind by one that closed while another was
+            // open: this press goes on to the entry under it.
+            if (state.mode !== undefined && !this.owns(state.mode)) this.release(state.mode);
+            return;
         }
 
-        if (state.mode) {
+        // A screen pushed over a mode entry outlives that mode's marker: the entry is
+        // a screen entry once the mode is gone.
+        const entry = state.mode !== undefined && !this.owns(state.mode) ? {...state, mode: undefined} : state;
+        if (entry !== state) {
+            this.current = entry;
+            history.replaceState(entry, '', this.currentUrl);
+        }
+
+        if (entry.mode !== undefined) {
             // Back onto a mode entry that has a screen above it: pop that screen and
             // put the mode entry back on top, so the next press closes the mode.
-            const controller = this.controllers.get(state.tab);
-            if (controller && controller.entries.length > state.depth) {
-                controller.restoreTo(state);
-                history.pushState(state, '', this.currentUrl);
+            const controller = this.controllers.get(entry.tab);
+            if (controller && controller.entries.length > entry.depth) {
+                controller.restoreTo(entry);
+                history.pushState(entry, '', this.currentUrl);
                 this.syncFocus();
                 return;
             }
         }
 
-        this.active = state.tab;
-        this.controllers.get(state.tab)?.restoreTo(state);
+        this.active = entry.tab;
+        this.controllers.get(entry.tab)?.restoreTo(entry);
         this.syncFocus();
     };
 
@@ -265,12 +296,37 @@ export class NavigationRoot {
     }
 
     /** A mode that closes on its own takes its entry with it, unless it was the one popped. */
-    private leaveMode(mode: {entryKey: string; listener: () => void}): void {
+    private leaveMode(mode: Mode): void {
         const modes = untrack(() => this.modes);
         if (!modes.includes(mode)) return;
         this.modes = modes.filter((current) => current !== mode);
-        if (!(history.state as HistoryEntry | null)?.mode) return;
-        history.back();
+        if ((history.state as HistoryEntry | null)?.mode !== mode.id) return;
+        this.release(mode.id);
+    }
+
+    /**
+     * Pops the entry of a mode that closed on its own, once the tick is over: a mode
+     * opened by the same press takes that entry over, and a pop here would shut it.
+     */
+    private release(id: number): void {
+        this.released = id;
+        queueMicrotask(() => {
+            if (this.released !== id) return;
+            this.released = null;
+            if ((history.state as HistoryEntry | null)?.mode !== id) return;
+            history.back();
+        });
+    }
+
+    private owns(id: number): boolean {
+        return this.modes.some((mode) => mode.id === id);
+    }
+
+    /** The entry a mode owns, over the state it is showing. */
+    private pushMode(mode: Mode): void {
+        const state = {...this.current, mode: mode.id} as HistoryEntry;
+        this.current = state;
+        history.pushState(state, '', this.currentUrl);
     }
 
     private url(tab: string, entry: ScreenEntry): string {
@@ -367,8 +423,7 @@ export class StackController {
     navigation(entry: ScreenEntry): Navigation {
         if (entry.navigation) return entry.navigation;
         const navigation: Navigation = {
-            navigate: (name: string, params?: Record<string, unknown>) =>
-                this.root.navigate(this, name, params ?? {}),
+            navigate: (name: string, params?: Record<string, unknown>) => this.root.navigate(this, name, params ?? {}),
             goBack: () => this.root.back(this),
             canGoBack: () => this.entries.length > 1,
             popToTop: () => this.popToTop(),

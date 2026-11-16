@@ -27,20 +27,39 @@ export function useScrollContainer(): () => HTMLElement | undefined {
 }
 
 /**
- * Android's back key. Call it at the top of a screen's script to get the function
- * that takes the key while a mode is on:
+ * Android's back key. Call it at the top of a screen's script: while the condition
+ * is true the key is taken and `onBack` closes what the condition stands for.
  *
- *     const takeBack = useBackHandler();
- *     $effect(() => {
- *         if (!search.open) return;
- *         return takeBack(() => search.exit());
- *     });
+ *     useBackHandler(() => search.open, () => search.exit());
+ *
+ * The effect that takes the key is this hook's own, so a caller cannot release it
+ * late or leave it behind: the condition falling false or the screen going away
+ * is all it takes to give the key back.
  *
  * A mode owns one history entry, because the back key is a WebView history back:
  * on a root screen there would otherwise be no entry left to cancel it with.
  */
-export function useBackHandler(): (listener: () => void) => () => void {
+export function useBackHandler(visible: () => boolean, onBack: () => void): void {
+    takeBack(visible, onBack, false);
+}
+
+/**
+ * Android's back key for a dialog opened over a screen, which takes the key the
+ * same way a mode does. It leaves the screen's header in place, so the header
+ * keeps its own back arrow while the dialog covers it.
+ */
+export function useOverlayBackHandler(visible: () => boolean, onBack: () => void): void {
+    takeBack(visible, onBack, true);
+}
+
+function takeBack(visible: () => boolean, onBack: () => void, overlay: boolean): void {
     const root = getContext<NavigationRoot>(rootKey);
     const entry = getContext<ScreenEntry>(screenKey);
-    return (listener) => root.enterMode(entry, listener);
+    // The condition is derived, so the effect restarts only when it flips: an input
+    // that moves under a condition that stays true must not drop the mode it holds.
+    const taken = $derived(visible());
+    $effect(() => {
+        if (!taken) return;
+        return root.enterMode(entry, onBack, overlay);
+    });
 }

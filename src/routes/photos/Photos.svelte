@@ -23,7 +23,6 @@
     const navigation = useNavigation<PhotosNavParamList>();
     const focused = $derived(useIsFocused());
     const scroll = useScrollContainer();
-    const takeBack = useBackHandler();
 
     /// The library's length, live: a commit that writes an asset moves it.
     const counts = countsView.use();
@@ -53,10 +52,7 @@
     });
 
     // The back key closes a mode before it leaves the timeline.
-    $effect(() => {
-        if (!browser.search.open && !browser.selection.active) return;
-        return takeBack(() => browser.back());
-    });
+    useBackHandler(() => browser.search.open || browser.selection.active, () => browser.back());
 
     function open(asset: AssetSummary) {
         browser.open(asset, navigation, viewerActions);

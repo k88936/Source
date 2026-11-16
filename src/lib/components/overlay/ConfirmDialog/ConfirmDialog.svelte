@@ -1,6 +1,7 @@
 <script lang="ts">
     import {ConfirmModal} from '@immich/ui';
     import {mdiAlertCircleOutline} from '@mdi/js';
+    import {useOverlayBackHandler} from 'svelte-navigation';
 
     let {
         open,
@@ -20,6 +21,10 @@
         onClose: () => void;
         onConfirm: () => void;
     } = $props();
+
+    // The back key cancels the prompt: without a mode between it and the screen, the
+    // press would leave the screen the prompt was opened from.
+    useOverlayBackHandler(() => open, () => onClose());
 </script>
 
 <!-- WebKitGTK's own `confirm()` is unthemeable and blocks the webview, so actions

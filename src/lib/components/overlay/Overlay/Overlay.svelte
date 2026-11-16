@@ -1,5 +1,6 @@
 <script lang="ts">
     import type {Snippet} from 'svelte';
+    import {useOverlayBackHandler} from 'svelte-navigation';
 
     /// The only way into the browser's top layer. A native dialog outranks every
     /// z-index, so an overlay opened from a stack layer still covers the tab bar.
@@ -16,6 +17,10 @@
     } = $props();
 
     let dialog = $state<HTMLDialogElement>();
+
+    // The back key closes the dialog: without a mode between it and the screen, the
+    // press would leave the screen the dialog was opened from.
+    useOverlayBackHandler(() => open, () => (open = false));
 
     $effect(() => {
         if (!open || !dialog || dialog.open) return;

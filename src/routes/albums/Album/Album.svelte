@@ -26,7 +26,6 @@
     const navigation = useNavigation<AlbumsNavParamList>();
     const focused = $derived(useIsFocused());
     const scroll = useScrollContainer();
-    const takeBack = useBackHandler();
     const albumId = $derived(useRoute<AlbumsNavParamList>().params?.id ?? '');
 
     /// The album this screen shows, kept live by the subscription below.
@@ -96,13 +95,13 @@
     });
 
     // The back key closes a mode before it leaves the album.
-    $effect(() => {
-        if (!coverMode && !browser.search.open && !browser.selection.active) return;
-        return takeBack(() => {
+    useBackHandler(
+        () => coverMode || browser.search.open || browser.selection.active,
+        () => {
             if (coverMode) coverMode = false;
             else browser.back();
-        });
-    });
+        },
+    );
 
     // The header's count is the album's tile, so the viewer's counter follows
     // the same row instead of a number read when the screen opened.

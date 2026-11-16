@@ -3,15 +3,14 @@
     import type {HomeStackParamList} from '../params';
 
     const navigation = useNavigation<HomeStackParamList>();
-    const takeBack = useBackHandler();
 
     let steps = $state(0);
 
     // A step is a mode: the back key takes one back before it closes the sheet.
-    $effect(() => {
-        if (steps === 0) return;
-        return takeBack(() => (steps -= 1));
-    });
+    useBackHandler(
+        () => steps !== 0,
+        () => (steps -= 1),
+    );
 </script>
 
 <div class="space-y-3 p-4">
