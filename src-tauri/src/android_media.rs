@@ -111,9 +111,6 @@ fn entry(entry: mediastore::Entry) -> LocalEntry {
 fn asset(asset: Asset) -> LocalAsset {
     LocalAsset {
         id: LocalAssetId(asset.id),
-        // MediaStore rows carry no album of their own: the bucket the user
-        // added is the album, and it lives outside this row.
-        album_id: None,
         name: asset.name,
         mime: asset.mime,
         size: asset.size,

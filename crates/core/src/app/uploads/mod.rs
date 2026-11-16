@@ -287,6 +287,12 @@ where
                 assets.push(asset);
             }
         }
+        // A file the user picked has nothing else staging it, so the row that
+        // the upload reads from is written here.
+        self.catalog
+            .save_local_assets(None, &assets)
+            .await
+            .map_err(UploadError::catalog)?;
         let tasks = self.enqueue_assets(&params.album_id, None, &assets).await?;
         // A file the user picked starts now, pause or not: the queue ranks it
         // above the backlog a scan leaves behind.
@@ -296,7 +302,7 @@ where
         Ok(tasks.into_iter().map(QueuedUpload::from).collect())
     }
 
-    /// Queue files the caller already holds.
+    /// Queue files the caller already holds and has already staged.
     ///
     /// One file has one row per destination folder: a file already waiting or
     /// in flight is not queued twice, and a row that ended is reused instead of
@@ -323,10 +329,6 @@ where
             })?;
         let mut tasks = Vec::new();
         for asset in assets {
-            self.catalog
-                .save_local_asset(asset)
-                .await
-                .map_err(UploadError::catalog)?;
             let task = UploadTask {
                 id: UploadTaskId(format!(
                     "up-{}-{}",

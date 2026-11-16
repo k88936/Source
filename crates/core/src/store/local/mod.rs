@@ -21,7 +21,17 @@ pub use dto::*;
 
 #[async_trait]
 pub trait LocalStore: Send + Sync {
-    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), CatalogError>;
+    /// Stage the files a walk of one local album found.
+    ///
+    /// `album_id` is the local album whose walk found them: a file the user
+    /// picked by hand has none. A staged row is what that album's tile counts,
+    /// so a directory whose files the album already holds stages its rows all
+    /// the same.
+    async fn save_local_assets(
+        &self,
+        album_id: Option<&str>,
+        assets: &[LocalAsset],
+    ) -> Result<(), CatalogError>;
     async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, CatalogError>;
     /// Every registered local album, each with the album it syncs into.
     async fn list_local_albums(&self) -> Result<Vec<LocalAlbumRecord>, CatalogError>;
@@ -46,40 +56,85 @@ pub trait LocalStore: Send + Sync {
     async fn mark_local_album_scanned(&self, id: &str) -> Result<(), CatalogError>;
 }
 
-pub(crate) async fn save_local_asset(
+/// Stage one page of a walking directory.
+///
+/// One statement per file, all in one transaction: a page is one commit, so the
+/// tile sees the page whole, and a directory of ten thousand files costs fifty
+/// commits instead of ten thousand.
+pub(crate) async fn save_local_assets(
     cat: &SqliteCatalog,
+    album_id: Option<&str>,
+    assets: &[LocalAsset],
+) -> Result<(), CatalogError> {
+    if assets.is_empty() {
+        return Ok(());
+    }
+    let mut conn = cat.conn().await?;
+    conn.transaction::<(), TxError, _>(async |conn| {
+        for asset in assets {
+            upsert_local_asset(conn, album_id, asset).await?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|error| error.0)
+}
+
+/// Insert or update one staged row.
+///
+/// A walk knows which album it is walking and writes that down; a file staged
+/// by hand has no album and leaves the attribution a walk gave it alone, so
+/// picking one photo out of a bound directory does not take it off that
+/// directory's tile.
+async fn upsert_local_asset(
+    conn: &mut Conn,
+    album_id: Option<&str>,
     asset: &LocalAsset,
 ) -> Result<(), CatalogError> {
-    let mut conn = cat.conn().await?;
-    diesel::insert_into(local_assets::table)
-        .values((
-            local_assets::id.eq(asset.id.0.clone()),
-            local_assets::album_id.eq(asset.album_id.clone()),
-            local_assets::name.eq(asset.name.clone()),
-            local_assets::mime.eq(asset.mime.clone()),
-            local_assets::size.eq(asset.size),
-            local_assets::date_taken.eq(asset.date_taken),
-            local_assets::uri.eq(asset.uri.clone()),
-            local_assets::width.eq(asset.width),
-            local_assets::height.eq(asset.height),
-            local_assets::duration_ms.eq(asset.duration_ms),
-        ))
-        .on_conflict(local_assets::id)
-        .do_update()
-        .set((
-            local_assets::album_id.eq(excluded(local_assets::album_id)),
-            local_assets::name.eq(excluded(local_assets::name)),
-            local_assets::mime.eq(excluded(local_assets::mime)),
-            local_assets::size.eq(excluded(local_assets::size)),
-            local_assets::date_taken.eq(excluded(local_assets::date_taken)),
-            local_assets::uri.eq(excluded(local_assets::uri)),
-            local_assets::width.eq(excluded(local_assets::width)),
-            local_assets::height.eq(excluded(local_assets::height)),
-            local_assets::duration_ms.eq(excluded(local_assets::duration_ms)),
-        ))
-        .execute(&mut conn)
-        .await
-        .map_err(db_err)?;
+    let insert = diesel::insert_into(local_assets::table).values((
+        local_assets::id.eq(asset.id.0.clone()),
+        local_assets::album_id.eq(album_id),
+        local_assets::name.eq(asset.name.clone()),
+        local_assets::mime.eq(asset.mime.clone()),
+        local_assets::size.eq(asset.size),
+        local_assets::date_taken.eq(asset.date_taken),
+        local_assets::uri.eq(asset.uri.clone()),
+        local_assets::width.eq(asset.width),
+        local_assets::height.eq(asset.height),
+        local_assets::duration_ms.eq(asset.duration_ms),
+    ));
+    let conflict = insert.on_conflict(local_assets::id).do_update();
+    match album_id {
+        Some(album_id) => conflict
+            .set((
+                local_assets::album_id.eq(album_id),
+                local_assets::name.eq(excluded(local_assets::name)),
+                local_assets::mime.eq(excluded(local_assets::mime)),
+                local_assets::size.eq(excluded(local_assets::size)),
+                local_assets::date_taken.eq(excluded(local_assets::date_taken)),
+                local_assets::uri.eq(excluded(local_assets::uri)),
+                local_assets::width.eq(excluded(local_assets::width)),
+                local_assets::height.eq(excluded(local_assets::height)),
+                local_assets::duration_ms.eq(excluded(local_assets::duration_ms)),
+            ))
+            .execute(conn)
+            .await
+            .map_err(db_err)?,
+        None => conflict
+            .set((
+                local_assets::name.eq(excluded(local_assets::name)),
+                local_assets::mime.eq(excluded(local_assets::mime)),
+                local_assets::size.eq(excluded(local_assets::size)),
+                local_assets::date_taken.eq(excluded(local_assets::date_taken)),
+                local_assets::uri.eq(excluded(local_assets::uri)),
+                local_assets::width.eq(excluded(local_assets::width)),
+                local_assets::height.eq(excluded(local_assets::height)),
+                local_assets::duration_ms.eq(excluded(local_assets::duration_ms)),
+            ))
+            .execute(conn)
+            .await
+            .map_err(db_err)?,
+    };
     Ok(())
 }
 
@@ -237,8 +292,12 @@ pub(crate) async fn mark_local_album_scanned(
 
 #[async_trait]
 impl LocalStore for SqliteCatalog {
-    async fn save_local_asset(&self, asset: &LocalAsset) -> Result<(), CatalogError> {
-        save_local_asset(self, asset).await
+    async fn save_local_assets(
+        &self,
+        album_id: Option<&str>,
+        assets: &[LocalAsset],
+    ) -> Result<(), CatalogError> {
+        save_local_assets(self, album_id, assets).await
     }
 
     async fn get_local_asset(&self, id: &str) -> Result<Option<LocalAsset>, CatalogError> {

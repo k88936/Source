@@ -12,7 +12,6 @@ use crate::media::LocalAsset;
 #[diesel(check_for_backend(Sqlite))]
 pub(crate) struct LocalAssetRow {
     pub(crate) id: String,
-    pub(crate) album_id: Option<String>,
     pub(crate) name: String,
     pub(crate) mime: Option<String>,
     pub(crate) size: Option<i64>,
@@ -27,7 +26,6 @@ impl From<LocalAssetRow> for LocalAsset {
     fn from(row: LocalAssetRow) -> Self {
         LocalAsset {
             id: LocalAssetId(row.id),
-            album_id: row.album_id,
             name: row.name,
             mime: row.mime,
             size: row.size.unwrap_or(0),

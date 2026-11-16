@@ -1,11 +1,11 @@
 //! Sync: pushing the files of the registered local albums into their albums.
 //!
 //! A local album is a device directory the user pointed at one album. Scanning
-//! one directory is one job: it walks the directory page by page, writes every
-//! file the album does not already hold into the upload queue, and counts one
-//! step per page. Everything after the row belongs to the upload queue: every
-//! row becomes an upload job of its own, with its own retries and its own
-//! session resume. A scan only decides what to queue.
+//! one directory is one job: it walks the directory page by page, stages every
+//! file it sees, writes the ones the album does not already hold into the
+//! upload queue, and counts one step per page. Everything after the row belongs
+//! to the upload queue: every row becomes an upload job of its own, with its own
+//! retries and its own session resume. A scan only decides what to queue.
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -178,7 +178,8 @@ where
         self.jobs.cancel(JobKind::Sync);
     }
 
-    /// Walk one directory: queue every file the album does not hold yet.
+    /// Walk one directory: stage every file it lists and queue the ones the
+    /// album does not hold yet.
     ///
     /// A file is handled when it is already in the album or already sitting in
     /// the queue; only a directory that cannot be walked fails.
@@ -226,15 +227,23 @@ where
                     uri: album.uri.clone(),
                     cause,
                 })?;
+            // Every file the walk sees is staged, whatever the album already
+            // holds: the staged rows are the local album's tile, and a directory
+            // bound again after an unbind starts with none of them while its
+            // files are all still up in the cloud.
+            self.catalog
+                .save_local_assets(Some(&album.id), &page.items)
+                .await
+                .map_err(|cause| SyncError::Catalog { cause })?;
             let missing: Vec<LocalAsset> = page
                 .items
                 .into_iter()
                 .filter(|asset| !held.contains(asset.name.as_str()))
                 .collect();
-            // The page goes straight into the queue: a scan and the uploads it
-            // starts share one budget. Page by page also means a directory of
-            // tens of thousands of files is never held in memory whole, and a
-            // stop between pages keeps everything queued so far.
+            // The missing files go straight into the queue: a scan and the
+            // uploads it starts share one budget. Page by page also means a
+            // directory of tens of thousands of files is never held in memory
+            // whole, and a stop between pages keeps everything queued so far.
             self.uploads
                 .enqueue_assets(&album_id, Some(&album.id), &missing)
                 .await
@@ -245,10 +254,8 @@ where
                 break;
             }
         }
-        // The tile's count and mosaic are read from the device, so this walk is
-        // the only moment they can be asked again: a directory that lost its
-        // files queues nothing, and the row written here is what makes the view
-        // recompute the tile instead of leaving the old number on screen.
+        // The pass is over: every file of the directory has been looked at, and
+        // the card reads the time from this row.
         self.catalog
             .mark_local_album_scanned(&album.id)
             .await

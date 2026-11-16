@@ -167,9 +167,6 @@ fn local_asset_from_path(path: &Path) -> Option<LocalAsset> {
     let date_taken = meta.modified().ok().map(system_millis).unwrap_or(0);
     Some(LocalAsset {
         id: LocalAssetId(path.to_string_lossy().to_string()),
-        album_id: path
-            .parent()
-            .map(|parent| parent.to_string_lossy().to_string()),
         name,
         mime,
         size: meta.len() as i64,

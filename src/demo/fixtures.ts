@@ -250,7 +250,6 @@ function buildLocalAssets(seed: number, count: number): LocalAsset[] {
         localThumbs.set(uri, mediaOf(seed * 3 + index).thumb);
         return {
             id: `local-${seed}-${index + 1}`,
-            albumId: `local-album-${seed}`,
             name: `IMG_${3000 + seed * 100 + index}.jpg`,
             mime: 'image/jpeg',
             size: 1_884_213 + index * 7_733,

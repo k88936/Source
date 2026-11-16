@@ -70,7 +70,6 @@ pub struct LocalBrowsePage {
 #[ts(export)]
 pub struct LocalAsset {
     pub id: LocalAssetId,
-    pub album_id: Option<String>,
     pub name: String,
     pub mime: Option<String>,
     pub size: i64,
