@@ -124,8 +124,13 @@ class MediaStorePlugin(private val context: Activity) : Plugin(context) {
       "${MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE}, " +
       "${MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO})"
 
+  /**
+   * One bucket's rows. External storage ignores case, so one directory may be
+   * recorded under two spellings (`DCIM/Camera/` and `DCIM/camera/`); the match
+   * folds case so that an album is the directory and not a spelling of it.
+   */
   private val bucketSelection =
-    "$mediaSelection AND ${MediaStore.MediaColumns.RELATIVE_PATH} = ?"
+    "$mediaSelection AND ${MediaStore.MediaColumns.RELATIVE_PATH} = ? COLLATE NOCASE"
 
   private val prefs by lazy { context.getSharedPreferences("MediaStore", Activity.MODE_PRIVATE) }
 
@@ -238,7 +243,10 @@ class MediaStorePlugin(private val context: Activity) : Plugin(context) {
   private fun loadBuckets(invoke: Invoke) {
     io.execute {
       try {
-        val names = HashMap<String, String>()
+        // Keyed by the folded path: the same directory reported under two
+        // spellings is one album, and the first spelling seen is the one the
+        // entry keeps.
+        val buckets = LinkedHashMap<String, JSObject>()
         resolver.query(
           files,
           arrayOf(
@@ -247,7 +255,10 @@ class MediaStorePlugin(private val context: Activity) : Plugin(context) {
           ),
           mediaSelection,
           null,
-          null
+          // Sorted, so the spelling the folded key keeps does not change from
+          // one open to the next: the first row of a directory is the same one
+          // every time.
+          MediaStore.MediaColumns.RELATIVE_PATH
         )?.use { cursor ->
           while (cursor.moveToNext()) {
             val path = cursor.getString(0) ?: continue
@@ -255,14 +266,13 @@ class MediaStorePlugin(private val context: Activity) : Plugin(context) {
             // storage report "/" (or nothing) and no bucket name at all.
             if (path == "/" || path.isEmpty()) continue
             val name = cursor.getString(1).orEmpty().ifBlank { dirName(path) }
-            if (!names.containsKey(path)) {
-              names[path] = name
+            val key = path.lowercase()
+            if (!buckets.containsKey(key)) {
+              buckets[key] = entry(path, name)
             }
           }
         }
-        val entries = names.entries
-          .map { (path, name) -> entry(path, name) }
-          .sortedBy { it.getString("name").lowercase() }
+        val entries = buckets.values.sortedBy { it.getString("name").lowercase() }
         val page = JSObject()
         page.put("entries", JSArray(entries))
         invoke.resolve(page)
