@@ -1,7 +1,6 @@
 <script lang="ts">
     import {i18n} from './i18n.svelte';
     import {text} from './text';
-    import {theme} from './theme.svelte';
 
     /** Outer size of the `devices.css` iPhone frame this page is built around. */
     const FRAME_W = 428;
@@ -28,14 +27,6 @@
         });
         observer.observe(fit);
         return () => observer.disconnect();
-    });
-
-    // The framed app has its own document; repaint it without losing the route.
-    $effect(() => {
-        const root = frame?.contentDocument?.documentElement;
-        if (!root) return;
-        root.classList.toggle('dark', theme.value === 'dark');
-        root.classList.toggle('light', theme.value === 'light');
     });
 
     const t = $derived(i18n.pick(text));

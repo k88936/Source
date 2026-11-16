@@ -1,6 +1,6 @@
 export type Theme = 'dark' | 'light';
 
-/** The key the app reads at boot, so the site's switch drives the framed app too. */
+/** The key the framed app follows, so writing it switches both documents. */
 const KEY = 'immich-ui-theme';
 
 function parse(raw: string | null): Theme | null {
