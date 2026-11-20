@@ -5,7 +5,7 @@
     import {TooltipProvider} from '@immich/ui';
     import {Cloud} from '@lucide/svelte';
     import {onMount} from 'svelte';
-    import {NavigationContainer} from 'svelte-navigation';
+    import {NavigationContainer} from '@k88936/svelte-navigation';
     import {listen} from '#lib/api/client';
     import {i18n} from '#lib/i18n/i18n.svelte';
     import Tabs from './routes/Tabs.svelte';

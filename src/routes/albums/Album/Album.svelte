@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {useBackHandler, useIsFocused, useNavigation, useRoute, useScrollContainer} from 'svelte-navigation';
+    import {useBackHandler, useIsFocused, useNavigation, useRoute, useScrollContainer} from '@k88936/svelte-navigation';
     import {api} from '#lib/api/client';
     import type {AlbumMetadata} from '#lib/api/bindings/AlbumMetadata';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';

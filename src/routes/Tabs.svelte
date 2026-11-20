@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {createBottomTabNavigator, type TabBarProps} from 'svelte-navigation';
+    import {createBottomTabNavigator, type TabBarProps} from '@k88936/svelte-navigation';
     import type {TabParamList} from './params';
     import {tabs} from './tabs';
     import TabBar from '#lib/components/shell/TabBar/TabBar.svelte';

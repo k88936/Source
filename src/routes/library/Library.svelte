@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {useNavigation} from 'svelte-navigation';
+    import {useNavigation} from '@k88936/svelte-navigation';
     import CapacityCard from './components/CapacityCard/CapacityCard.svelte';
     import {
         Calendar,

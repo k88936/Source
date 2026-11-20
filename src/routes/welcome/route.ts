@@ -1,4 +1,4 @@
-import type {StackScreens} from 'svelte-navigation';
+import type {StackScreens} from '@k88936/svelte-navigation';
 import Welcome from './Welcome.svelte';
 
 export type WelcomeStackParamList = {

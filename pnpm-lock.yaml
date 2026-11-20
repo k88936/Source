@@ -11,6 +11,9 @@ importers:
       '@immich/ui':
         specifier: 0.91.1
         version: 0.91.1(@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.2))(vite@8.3.5(@types/node@26.6.5)(jiti@2.7.0)))(svelte@5.57.3(@typescript-eslint/types@8.72.2))(typescript@5.9.3)(vite@8.3.5(@types/node@26.6.5)(jiti@2.7.0)))(svelte@5.57.3(@typescript-eslint/types@8.72.2))(tailwindcss@4.3.3)
+      '@k88936/svelte-navigation':
+        specifier: github:k88936/svelte-navigation
+        version: https://codeload.github.com/k88936/svelte-navigation/tar.gz/2a06281840e55f17467d1844ddf42ba847f086eb(svelte@5.57.3(@typescript-eslint/types@8.72.2))
       '@lucide/svelte':
         specifier: 1.68.0
         version: 1.68.0(svelte@5.57.3(@typescript-eslint/types@8.72.2))
@@ -38,9 +41,6 @@ importers:
       svelte:
         specifier: 5.57.3
         version: 5.57.3(@typescript-eslint/types@8.72.2)
-      svelte-navigation:
-        specifier: workspace:*
-        version: link:packages/svelte-navigation
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -109,12 +109,6 @@ importers:
       '@types/lodash':
         specifier: ^4.17.27
         version: 4.17.27
-
-  packages/svelte-navigation:
-    dependencies:
-      svelte:
-        specifier: ^5.0.0
-        version: 5.57.3(@typescript-eslint/types@8.72.2)
 
 packages:
 
@@ -216,6 +210,12 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@k88936/svelte-navigation@https://codeload.github.com/k88936/svelte-navigation/tar.gz/2a06281840e55f17467d1844ddf42ba847f086eb':
+    resolution: {gitHosted: true, integrity: sha512-QHXXLmXKSrqJK9fcp1yDKk9FZEkdqeZNgUVXArHbULFcaTOY/MAhNmqRWsG2H7tIcRGFvA5WNSTJpKoDldHzNQ==, tarball: https://codeload.github.com/k88936/svelte-navigation/tar.gz/2a06281840e55f17467d1844ddf42ba847f086eb}
+    version: 0.1.1
+    peerDependencies:
+      svelte: ^5.0.0
 
   '@keyv/bigmap@1.3.1':
     resolution: {integrity: sha512-WbzE9sdmQtKy8vrNPa9BRnwZh5UF4s1KTmSK0KUVLo3eff5BlQNNWDnFOouNpKfPKDnms9xynJjsMYjMaT/aFQ==}
@@ -1559,6 +1559,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@k88936/svelte-navigation@https://codeload.github.com/k88936/svelte-navigation/tar.gz/2a06281840e55f17467d1844ddf42ba847f086eb(svelte@5.57.3(@typescript-eslint/types@8.72.2))':
+    dependencies:
+      svelte: 5.57.3(@typescript-eslint/types@8.72.2)
 
   '@keyv/bigmap@1.3.1(keyv@5.6.0)':
     dependencies:

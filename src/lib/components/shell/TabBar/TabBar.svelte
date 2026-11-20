@@ -1,7 +1,7 @@
 <script lang="ts">
     import {Icon} from '@immich/ui';
     import {mdiImageMultipleOutline, mdiImageOutline, mdiViewGridOutline} from '@mdi/js';
-    import type {TabBarProps} from 'svelte-navigation';
+    import type {TabBarProps} from '@k88936/svelte-navigation';
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
 

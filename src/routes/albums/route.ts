@@ -1,4 +1,4 @@
-import type {StackScreens} from 'svelte-navigation';
+import type {StackScreens} from '@k88936/svelte-navigation';
 import type {TabParamList} from '../params';
 import {viewerScreen} from '../../modals/Viewer/viewer-screen';
 import Albums from './Albums.svelte';

@@ -1,4 +1,4 @@
-import type {TabScreens} from 'svelte-navigation';
+import type {TabScreens} from '@k88936/svelte-navigation';
 import type {TabParamList} from './params';
 import AlbumsStack from './albums/Stack.svelte';
 import {albumsScreens} from './albums/route';

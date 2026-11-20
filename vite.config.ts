@@ -48,7 +48,7 @@ export default defineConfig({
     // The navigator imports `.svelte.ts` state out of the linked package, which
     // Vite must compile as source instead of pre-bundling. The UI package needs
     // the same treatment so its `$app/*` imports go through the aliases.
-    optimizeDeps: {exclude: ['svelte-navigation', '@immich/ui']},
+    optimizeDeps: {exclude: ['@k88936/svelte-navigation', '@immich/ui']},
 
     // prevent Vite from obscuring Rust errors
     clearScreen: false,

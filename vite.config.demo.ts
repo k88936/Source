@@ -14,7 +14,7 @@ export default defineConfig({
     base,
     plugins: [tailwindcss(), svelte()],
 
-    optimizeDeps: {exclude: ['svelte-navigation', '@immich/ui']},
+    optimizeDeps: {exclude: ['@k88936/svelte-navigation', '@immich/ui']},
 
     resolve: {
         alias: [

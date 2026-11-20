@@ -1,4 +1,4 @@
-import type {StackOptions} from 'svelte-navigation';
+import type {StackOptions} from '@k88936/svelte-navigation';
 import ViewerModal from './ViewerModal.svelte';
 
 /**

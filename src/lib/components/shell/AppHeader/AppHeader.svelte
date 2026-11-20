@@ -1,7 +1,7 @@
 <script lang="ts">
     import {IconButton} from '@immich/ui';
     import {mdiChevronLeft} from '@mdi/js';
-    import type {StackHeaderProps} from 'svelte-navigation';
+    import type {StackHeaderProps} from '@k88936/svelte-navigation';
     import {common} from '#lib/i18n/common.i18n';
     import {i18n} from '#lib/i18n/i18n.svelte';
 

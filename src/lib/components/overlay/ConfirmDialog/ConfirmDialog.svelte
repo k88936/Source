@@ -1,7 +1,7 @@
 <script lang="ts">
     import {ConfirmModal} from '@immich/ui';
     import {mdiAlertCircleOutline} from '@mdi/js';
-    import {useOverlayBackHandler} from 'svelte-navigation';
+    import {useOverlayBackHandler} from '@k88936/svelte-navigation';
 
     let {
         open,

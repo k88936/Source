@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {createNativeStackNavigator, type StackHeaderProps} from 'svelte-navigation';
+    import {createNativeStackNavigator, type StackHeaderProps} from '@k88936/svelte-navigation';
     import AppHeader from '#lib/components/shell/AppHeader/AppHeader.svelte';
     import OfflineBanner from '#lib/components/shell/OfflineBanner/OfflineBanner.svelte';
     import {common} from '#lib/i18n/common.i18n';

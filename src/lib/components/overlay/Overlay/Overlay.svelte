@@ -1,6 +1,6 @@
 <script lang="ts">
     import type {Snippet} from 'svelte';
-    import {useOverlayBackHandler} from 'svelte-navigation';
+    import {useOverlayBackHandler} from '@k88936/svelte-navigation';
 
     /// The only way into the browser's top layer. A native dialog outranks every
     /// z-index, so an overlay opened from a stack layer still covers the tab bar.

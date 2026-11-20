@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {useNavigation} from 'svelte-navigation';
+    import {useNavigation} from '@k88936/svelte-navigation';
     import Viewer from './Viewer.svelte';
     import {viewer} from './viewer.svelte';
 

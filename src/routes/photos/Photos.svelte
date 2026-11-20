@@ -1,6 +1,6 @@
 <script lang="ts">
     import {onMount} from 'svelte';
-    import {useBackHandler, useIsFocused, useNavigation, useScrollContainer} from 'svelte-navigation';
+    import {useBackHandler, useIsFocused, useNavigation, useScrollContainer} from '@k88936/svelte-navigation';
     import {api} from '#lib/api/client';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
     import AssetList from '#lib/components/assets/AssetList/AssetList.svelte';

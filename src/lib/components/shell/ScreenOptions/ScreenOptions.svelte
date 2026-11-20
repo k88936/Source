@@ -1,6 +1,6 @@
 <script lang="ts">
     import type {Snippet} from 'svelte';
-    import {useNavigation} from 'svelte-navigation';
+    import {useNavigation} from '@k88936/svelte-navigation';
 
     /**
      * The header of the screen that renders this. `navigation.setOptions` is the

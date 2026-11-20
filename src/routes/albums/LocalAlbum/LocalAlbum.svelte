@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {useNavigation, useRoute} from 'svelte-navigation';
+    import {useNavigation, useRoute} from '@k88936/svelte-navigation';
     import {api} from '#lib/api/client';
     import type {LocalAsset} from '#lib/api/bindings/LocalAsset';
     import AssetThumb from '#lib/components/assets/AssetThumb/AssetThumb.svelte';

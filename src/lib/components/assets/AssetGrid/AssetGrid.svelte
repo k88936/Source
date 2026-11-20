@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {useScrollContainer} from 'svelte-navigation';
+    import {useScrollContainer} from '@k88936/svelte-navigation';
     import type {AssetSummary} from '#lib/api/bindings/AssetSummary';
     import {justify} from '#lib/justify';
     import {mosaicBackground} from '#lib/mosaic';
