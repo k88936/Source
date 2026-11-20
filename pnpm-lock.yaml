@@ -13,7 +13,7 @@ importers:
         version: 0.91.1(@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.2))(vite@8.3.5(@types/node@26.6.5)(jiti@2.7.0)))(svelte@5.57.3(@typescript-eslint/types@8.72.2))(typescript@5.9.3)(vite@8.3.5(@types/node@26.6.5)(jiti@2.7.0)))(svelte@5.57.3(@typescript-eslint/types@8.72.2))(tailwindcss@4.3.3)
       '@k88936/svelte-navigation':
         specifier: github:k88936/svelte-navigation
-        version: https://codeload.github.com/k88936/svelte-navigation/tar.gz/2a06281840e55f17467d1844ddf42ba847f086eb(svelte@5.57.3(@typescript-eslint/types@8.72.2))
+        version: https://codeload.github.com/k88936/svelte-navigation/tar.gz/5f47b0365cd4624862b767cb727d3eea1f672f5f(svelte@5.57.3(@typescript-eslint/types@8.72.2))
       '@lucide/svelte':
         specifier: 1.68.0
         version: 1.68.0(svelte@5.57.3(@typescript-eslint/types@8.72.2))
@@ -211,8 +211,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@k88936/svelte-navigation@https://codeload.github.com/k88936/svelte-navigation/tar.gz/2a06281840e55f17467d1844ddf42ba847f086eb':
-    resolution: {gitHosted: true, integrity: sha512-QHXXLmXKSrqJK9fcp1yDKk9FZEkdqeZNgUVXArHbULFcaTOY/MAhNmqRWsG2H7tIcRGFvA5WNSTJpKoDldHzNQ==, tarball: https://codeload.github.com/k88936/svelte-navigation/tar.gz/2a06281840e55f17467d1844ddf42ba847f086eb}
+  '@k88936/svelte-navigation@https://codeload.github.com/k88936/svelte-navigation/tar.gz/5f47b0365cd4624862b767cb727d3eea1f672f5f':
+    resolution: {gitHosted: true, integrity: sha512-JVT3FKznDYYRDRGVFr/nwj+Xmgw3Xz9v9VAhFsIQrASHNebFzyIsQa+SSO6EBJy63o7mWd2LP+qbc6O6ima4bA==, tarball: https://codeload.github.com/k88936/svelte-navigation/tar.gz/5f47b0365cd4624862b767cb727d3eea1f672f5f}
     version: 0.1.1
     peerDependencies:
       svelte: ^5.0.0
@@ -1560,7 +1560,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@k88936/svelte-navigation@https://codeload.github.com/k88936/svelte-navigation/tar.gz/2a06281840e55f17467d1844ddf42ba847f086eb(svelte@5.57.3(@typescript-eslint/types@8.72.2))':
+  '@k88936/svelte-navigation@https://codeload.github.com/k88936/svelte-navigation/tar.gz/5f47b0365cd4624862b767cb727d3eea1f672f5f(svelte@5.57.3(@typescript-eslint/types@8.72.2))':
     dependencies:
       svelte: 5.57.3(@typescript-eslint/types@8.72.2)
 
